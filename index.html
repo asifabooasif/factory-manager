@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ImportFlow Pro – Firebase Login</title>
+    <title>ImportFlow Pro – Full System</title>
 
     <!-- Bootstrap, Font Awesome, Chart.js, SheetJS, Leaflet -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
@@ -92,98 +92,44 @@
             width: 100%;
             transition: background 0.3s, border 0.3s;
         }
-        #loginPage .login-card .logo {
-            text-align: center;
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-        }
-        #loginPage .login-card h4 {
-            text-align: center;
-            font-weight: 700;
-            color: var(--primary);
-            margin-bottom: 1.5rem;
-        }
+        #loginPage .login-card .logo { text-align:center; font-size:2.5rem; margin-bottom:0.5rem; }
+        #loginPage .login-card h4 { text-align:center; font-weight:700; color:var(--primary); margin-bottom:1.5rem; }
         #loginPage .login-card .form-control {
-            background: var(--bg-body);
-            border: 1px solid var(--glass-border);
-            color: var(--text-primary);
-            border-radius: 8px;
-            padding: 0.6rem 1rem;
+            background:var(--bg-body); border:1px solid var(--glass-border);
+            color:var(--text-primary); border-radius:8px; padding:0.6rem 1rem;
         }
         #loginPage .login-card .form-control:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 0.2rem var(--primary-glow);
+            border-color:var(--primary); box-shadow:0 0 0 0.2rem var(--primary-glow);
         }
         #loginPage .login-card .btn-neon {
-            width: 100%;
-            padding: 0.6rem;
-            font-size: 1rem;
+            width:100%; padding:0.6rem; font-size:1rem;
+            background:linear-gradient(135deg, var(--primary), var(--secondary));
+            border:none; color:#fff; font-weight:600;
+            border-radius:8px; transition:all 0.3s ease; box-shadow:0 4px 12px var(--primary-glow);
         }
+        #loginPage .login-card .btn-neon:hover { transform:translateY(-2px); box-shadow:0 6px 24px var(--primary-glow); }
         #loginPage .login-card .btn-google {
-            width: 100%;
-            padding: 0.6rem;
-            font-size: 1rem;
-            background: #fff;
-            color: #333;
-            border: 1px solid var(--glass-border);
-            border-radius: 8px;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
+            width:100%; padding:0.6rem; font-size:1rem;
+            background:#fff; color:#333;
+            border:1px solid var(--glass-border); border-radius:8px;
+            transition:all 0.3s ease; display:flex; align-items:center; justify-content:center; gap:0.5rem;
         }
-        #loginPage .login-card .btn-google:hover {
-            background: #f1f5f9;
-            border-color: var(--primary);
-        }
-        #loginPage .login-card .divider {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin: 1rem 0;
-            color: var(--text-secondary);
-        }
-        #loginPage .login-card .divider hr {
-            flex: 1;
-            border: none;
-            border-top: 1px solid var(--glass-border);
-        }
-        #loginPage .login-card .error-msg {
-            color: #ef4444;
-            font-size: 0.85rem;
-            text-align: center;
-            margin-top: 0.5rem;
-            min-height: 1.5rem;
-        }
-        #loginPage .login-card .user-info {
-            text-align: center;
-            margin-bottom: 1rem;
-            padding: 0.5rem;
-            background: var(--bg-body);
-            border-radius: 8px;
-        }
-        #loginPage .login-card .user-info img {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            margin-bottom: 0.3rem;
-        }
-        #loginPage .login-card .user-info .email {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }
-
-        /* Hide main app until logged in */
-        #appContainer {
-            display: none;
-        }
-        #appContainer.show {
-            display: block;
-        }
+        #loginPage .login-card .btn-google:hover { background:#f1f5f9; border-color:var(--primary); }
+        #loginPage .login-card .divider { display:flex; align-items:center; gap:1rem; margin:1rem 0; color:var(--text-secondary); }
+        #loginPage .login-card .divider hr { flex:1; border:none; border-top:1px solid var(--glass-border); }
+        #loginPage .login-card .error-msg { color:#ef4444; font-size:0.85rem; text-align:center; margin-top:0.5rem; min-height:1.5rem; }
+        #loginPage .login-card .user-info { text-align:center; margin-bottom:1rem; padding:0.5rem; background:var(--bg-body); border-radius:8px; }
+        #loginPage .login-card .user-info img { width:48px; height:48px; border-radius:50%; margin-bottom:0.3rem; }
+        #loginPage .login-card .user-info .email { font-size:0.85rem; color:var(--text-secondary); }
 
         /* ============================================================
-           SIDEBAR & MAIN (same as before)
+           APP CONTAINER
+           ============================================================ */
+        #appContainer { display:none; }
+        #appContainer.show { display:block; }
+
+        /* ============================================================
+           SIDEBAR
            ============================================================ */
         .sidebar {
             position:fixed; top:0; left:0; width:var(--sidebar-width); height:100vh;
@@ -342,13 +288,7 @@
         .welcome-text { font-weight:600; color:var(--primary); }
         .date-sample { font-size:0.7rem; color:var(--text-secondary); }
 
-        .user-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid var(--primary);
-        }
+        .user-avatar { width:32px; height:32px; border-radius:50%; object-fit:cover; border:2px solid var(--primary); }
         .user-name { font-size:0.85rem; font-weight:600; color:var(--text-primary); }
         .logout-btn { cursor:pointer; color:var(--text-secondary); transition:color 0.3s; }
         .logout-btn:hover { color:#ef4444; }
@@ -365,7 +305,7 @@
             <h4>ImportFlow Pro</h4>
             <p class="text-secondary text-center mb-3">Sign in to manage your imports</p>
 
-            <!-- User info when logged in (for quick switch) -->
+            <!-- User info when logged in -->
             <div id="loginUserInfo" style="display:none;" class="user-info">
                 <img id="loginUserAvatar" src="" alt="Avatar" />
                 <div id="loginUserEmail" class="email"></div>
@@ -382,7 +322,7 @@
                     <label class="form-label">Password</label>
                     <input type="password" class="form-control" id="loginPassword" placeholder="••••••••" />
                 </div>
-                <button class="btn btn-neon" id="loginBtn"><i class="fas fa-sign-in-alt me-2"></i>Sign In</button>
+                <button class="btn-neon" id="loginBtn"><i class="fas fa-sign-in-alt me-2"></i>Sign In</button>
                 <div class="divider"><hr /><span>or</span><hr /></div>
                 <button class="btn-google" id="googleLoginBtn">
                     <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
@@ -408,7 +348,7 @@
                     <label class="form-label">Password</label>
                     <input type="password" class="form-control" id="signupPassword" placeholder="Min 6 characters" />
                 </div>
-                <button class="btn btn-neon" id="signupBtn"><i class="fas fa-user-plus me-2"></i>Create Account</button>
+                <button class="btn-neon" id="signupBtn"><i class="fas fa-user-plus me-2"></i>Create Account</button>
                 <div class="divider"><hr /><span>or</span><hr /></div>
                 <button class="btn-google" id="googleSignupBtn">
                     <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
@@ -423,10 +363,9 @@
     </div>
 
     <!-- ============================================================
-    APP CONTAINER (hidden until logged in)
+    APP CONTAINER
     ============================================================ -->
     <div id="appContainer">
-
         <!-- SIDEBAR -->
         <nav class="sidebar" id="sidebar">
             <div class="sidebar-brand"><span class="logo">🚢</span> <span id="brandNameDisplay">ImportFlow</span></div>
@@ -496,7 +435,7 @@
                 </div>
             </div>
 
-            <!-- SHIPMENTS (same as before) -->
+            <!-- SHIPMENTS -->
             <div id="page-shipments" class="page-content" style="display:none;">
                 <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
                     <h4 style="font-weight:700;"><i class="fas fa-list-ul me-2" style="color:var(--primary);"></i>Shipments</h4>
@@ -584,14 +523,13 @@
 
             <!-- SETTINGS -->
             <div id="page-settings" class="page-content" style="display:none;">
-                <h4 style="font-weight:700;"><i class="fas fa-cog me-2" style="color:var(--primary);"></i>Advanced Settings</h4>
+                <h4 style="font-weight:700;"><i class="fas fa-cog me-2" style="color:var(--primary);"></i>Settings</h4>
                 <div class="card p-3">
-                    <!-- Firebase Connection Status -->
                     <div class="settings-section">
                         <h6>☁️ Firebase Status</h6>
                         <div class="row g-2">
                             <div class="col-12">
-                                <span id="fbConnectionStatus" class="firebase-status disconnected">Not connected</span>
+                                <span id="fbConnectionStatus" class="firebase-status connected">Connected ✅</span>
                                 <span class="ms-2" id="fbUserEmail" style="font-size:0.8rem;color:var(--text-secondary);"></span>
                             </div>
                             <div class="col-12">
@@ -605,7 +543,7 @@
                     <div class="settings-section">
                         <h6>🔐 IP Whitelist</h6>
                         <div class="row g-2">
-                            <div class="col-md-6"><label class="form-label">Allowed IPs (one per line)</label><textarea class="form-control" id="ipWhitelist" rows="3" placeholder="192.168.1.1&#10;10.0.0.0/24"></textarea></div>
+                            <div class="col-md-6"><label class="form-label">Allowed IPs</label><textarea class="form-control" id="ipWhitelist" rows="3" placeholder="192.168.1.1"></textarea></div>
                             <div class="col-md-6"><label class="form-label">Current IP</label><input class="form-control" id="currentIp" readonly value="Loading..." /><button class="btn btn-sm btn-neon-outline mt-2" id="addCurrentIpBtn"><i class="fas fa-plus me-1"></i>Add Current IP</button></div>
                         </div>
                     </div>
@@ -616,16 +554,16 @@
                         <div class="row g-2">
                             <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="auditEnabled" checked /><label class="form-check-label">Enable Audit Logging</label></div></div>
                             <div class="col-12"><div id="auditLogContainer" style="max-height:200px;overflow-y:auto;border:1px solid var(--glass-border);border-radius:8px;padding:0.5rem;background:var(--bg-body);"><p class="text-secondary">No audit entries.</p></div></div>
-                            <div class="col-12"><button class="btn btn-sm btn-neon-outline" id="exportAuditBtn"><i class="fas fa-download me-1"></i>Export Audit Log</button><button class="btn btn-sm btn-outline-danger" id="clearAuditBtn"><i class="fas fa-trash me-1"></i>Clear Log</button></div>
+                            <div class="col-12"><button class="btn btn-sm btn-neon-outline" id="exportAuditBtn"><i class="fas fa-download me-1"></i>Export</button><button class="btn btn-sm btn-outline-danger" id="clearAuditBtn"><i class="fas fa-trash me-1"></i>Clear</button></div>
                         </div>
                     </div>
 
-                    <!-- Role-Based Permissions -->
+                    <!-- Role -->
                     <div class="settings-section">
                         <h6>👤 Role-Based Permissions</h6>
                         <div class="row g-2">
-                            <div class="col-md-4"><label class="form-label">User Role</label><select class="form-select" id="userRoleSelect"><option value="admin">Admin (Full)</option><option value="manager">Manager (Edit)</option><option value="staff">Staff (View)</option><option value="viewer">Viewer (Read Only)</option></select></div>
-                            <div class="col-md-8"><label class="form-label">Permissions</label><div id="permissionsDisplay" class="p-2 bg-body rounded" style="border:1px solid var(--glass-border);"><span class="badge bg-primary me-1">view_shipments</span><span class="badge bg-success me-1">edit_shipments</span></div></div>
+                            <div class="col-md-4"><label class="form-label">User Role</label><select class="form-select" id="userRoleSelect"><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option><option value="viewer">Viewer</option></select></div>
+                            <div class="col-md-8"><label class="form-label">Permissions</label><div id="permissionsDisplay" class="p-2 bg-body rounded" style="border:1px solid var(--glass-border);"><span class="badge bg-primary me-1">view</span><span class="badge bg-success me-1">edit</span></div></div>
                         </div>
                     </div>
 
@@ -635,34 +573,34 @@
                         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Time</th><th>IP</th><th>Device</th><th>Location</th></tr></thead><tbody id="loginHistoryBody"><tr><td colspan="4" class="text-secondary">No login history yet.</td></tr></tbody></table></div>
                     </div>
 
-                    <!-- Notification Preferences -->
+                    <!-- Notifications -->
                     <div class="settings-section">
                         <h6>🔔 Notification Preferences</h6>
                         <div class="row g-2">
-                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="notifStatusChange" checked /><label class="form-check-label">Status Change</label></div></div>
-                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="notifPayment" checked /><label class="form-check-label">Payment Received</label></div></div>
-                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="notifDiscrepancy" checked /><label class="form-check-label">Discrepancy Found</label></div></div>
-                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="notifDocUpload" /><label class="form-check-label">Document Uploaded</label></div></div>
-                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="notifApproval" checked /><label class="form-check-label">Approval Required</label></div></div>
+                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="notifStatusChange" checked /><label>Status Change</label></div></div>
+                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="notifPayment" checked /><label>Payment</label></div></div>
+                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="notifDiscrepancy" checked /><label>Discrepancy</label></div></div>
+                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="notifDocUpload" /><label>Document Upload</label></div></div>
+                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="notifApproval" checked /><label>Approval</label></div></div>
                         </div>
                     </div>
 
-                    <!-- Escalation Alerts -->
+                    <!-- Escalation -->
                     <div class="settings-section">
                         <h6>⏰ Escalation Alerts</h6>
                         <div class="row g-2">
-                            <div class="col-md-4"><label class="form-label">Escalate after (days)</label><input type="number" class="form-control" id="escalationDays" value="7" min="1" /></div>
+                            <div class="col-md-4"><label class="form-label">Escalate after (days)</label><input type="number" class="form-control" id="escalationDays" value="7" /></div>
                             <div class="col-md-8"><label class="form-label">Escalate to</label><input class="form-control" id="escalateTo" placeholder="manager@example.com" /></div>
-                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="escalationEnabled" /><label class="form-check-label">Enable Escalation Alerts</label></div></div>
+                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="escalationEnabled" /><label>Enable</label></div></div>
                         </div>
                     </div>
 
-                    <!-- Push Notification Sound -->
+                    <!-- Sound -->
                     <div class="settings-section">
-                        <h6>🔊 Push Notification Sound</h6>
+                        <h6>🔊 Notification Sound</h6>
                         <div class="row g-2">
-                            <div class="col-md-6"><label class="form-label">Sound File URL</label><input class="form-control" id="notifSoundUrl" placeholder="https://example.com/sound.mp3" /></div>
-                            <div class="col-md-6"><button class="btn btn-sm btn-neon-outline mt-4" id="testSoundBtn"><i class="fas fa-play me-1"></i>Test Sound</button></div>
+                            <div class="col-md-6"><label class="form-label">Sound URL</label><input class="form-control" id="notifSoundUrl" placeholder="https://example.com/sound.mp3" /></div>
+                            <div class="col-md-6"><button class="btn btn-sm btn-neon-outline mt-4" id="testSoundBtn"><i class="fas fa-play me-1"></i>Test</button></div>
                         </div>
                     </div>
 
@@ -670,7 +608,7 @@
                     <div class="settings-section">
                         <h6>🗑️ Database Reset</h6>
                         <div class="row g-2">
-                            <div class="col-md-6"><label class="form-label">Confirm Password</label><input type="password" class="form-control" id="resetPassword" placeholder="Enter password to confirm" /></div>
+                            <div class="col-md-6"><label class="form-label">Confirm Password</label><input type="password" class="form-control" id="resetPassword" placeholder="admin123" /></div>
                             <div class="col-md-6"><button class="btn btn-danger mt-4" id="resetDbBtn"><i class="fas fa-trash me-1"></i>Reset All Data</button></div>
                         </div>
                     </div>
@@ -679,16 +617,16 @@
                     <div class="settings-section">
                         <h6>🎨 Custom CSS</h6>
                         <div class="row g-2">
-                            <div class="col-12"><label class="form-label">Custom Styles</label><textarea class="form-control" id="customCss" rows="4" placeholder="/* Add your custom CSS here */"></textarea></div>
-                            <div class="col-12"><button class="btn btn-sm btn-neon-outline" id="applyCssBtn"><i class="fas fa-check me-1"></i>Apply CSS</button></div>
+                            <div class="col-12"><textarea class="form-control" id="customCss" rows="3" placeholder="/* Custom CSS */"></textarea></div>
+                            <div class="col-12"><button class="btn btn-sm btn-neon-outline" id="applyCssBtn"><i class="fas fa-check me-1"></i>Apply</button></div>
                         </div>
                     </div>
 
-                    <!-- Dashboard Layout -->
+                    <!-- Layout -->
                     <div class="settings-section">
                         <h6>📐 Dashboard Layout</h6>
                         <div class="row g-2">
-                            <div class="col-12"><p class="text-secondary">Drag widgets to reorder your dashboard.</p><div id="dashboardLayoutPreview" class="d-flex flex-wrap gap-2 p-2 border rounded"><span class="badge bg-primary widget-handle" draggable="true">📊 Chart</span><span class="badge bg-success widget-handle" draggable="true">📋 Scorecard</span><span class="badge bg-info widget-handle" draggable="true">📈 Activity</span></div><button class="btn btn-sm btn-neon-outline mt-2" id="saveLayoutBtn"><i class="fas fa-save me-1"></i>Save Layout</button></div>
+                            <div class="col-12"><p class="text-secondary">Drag widgets to reorder.</p><div id="dashboardLayoutPreview" class="d-flex flex-wrap gap-2 p-2 border rounded"><span class="badge bg-primary widget-handle" draggable="true">📊 Chart</span><span class="badge bg-success widget-handle" draggable="true">📋 Scorecard</span><span class="badge bg-info widget-handle" draggable="true">📈 Activity</span></div><button class="btn btn-sm btn-neon-outline mt-2" id="saveLayoutBtn"><i class="fas fa-save me-1"></i>Save</button></div>
                         </div>
                     </div>
 
@@ -696,63 +634,63 @@
                     <div class="settings-section">
                         <h6>🏠 Default Page</h6>
                         <div class="row g-2">
-                            <div class="col-md-6"><label class="form-label">Select default page</label><select class="form-select" id="defaultPage"><option value="dashboard">Dashboard</option><option value="shipments">Shipments</option><option value="shops">Shops</option><option value="products">Products</option><option value="payments">Payments</option><option value="reports">Reports</option><option value="analytics">Analytics</option></select></div>
+                            <div class="col-md-6"><label class="form-label">Default Page</label><select class="form-select" id="defaultPage"><option value="dashboard">Dashboard</option><option value="shipments">Shipments</option><option value="shops">Shops</option><option value="products">Products</option><option value="payments">Payments</option><option value="reports">Reports</option><option value="analytics">Analytics</option></select></div>
                         </div>
                     </div>
 
                     <!-- Animations -->
                     <div class="settings-section">
                         <h6>⚡ Animations</h6>
-                        <div class="row g-2"><div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="animationsToggle" checked /><label class="form-check-label">Enable Animations</label></div></div></div>
+                        <div class="row g-2"><div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="animationsToggle" checked /><label>Enable Animations</label></div></div></div>
                     </div>
 
                     <!-- Compact Mode -->
                     <div class="settings-section">
                         <h6>📏 Compact Mode</h6>
-                        <div class="row g-2"><div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="compactMode" /><label class="form-check-label">Enable Compact Mode</label></div></div></div>
+                        <div class="row g-2"><div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="compactMode" /><label>Enable Compact Mode</label></div></div></div>
                     </div>
 
                     <!-- Welcome Message -->
                     <div class="settings-section">
                         <h6>👋 Welcome Message</h6>
-                        <div class="row g-2"><div class="col-12"><label class="form-label">Custom Welcome Text</label><input class="form-control" id="welcomeMessage" value="Welcome to ImportFlow Pro!" /></div></div>
+                        <div class="row g-2"><div class="col-12"><input class="form-control" id="welcomeMessage" value="Welcome to ImportFlow Pro!" /></div></div>
                     </div>
 
-                    <!-- Date/Time Format -->
+                    <!-- Date/Time -->
                     <div class="settings-section">
                         <h6>📅 Date/Time Format</h6>
                         <div class="row g-2">
-                            <div class="col-md-4"><label class="form-label">Date Format</label><select class="form-select" id="dateFormat"><option value="YYYY-MM-DD">YYYY-MM-DD</option><option value="DD/MM/YYYY">DD/MM/YYYY</option><option value="MM/DD/YYYY">MM/DD/YYYY</option></select></div>
-                            <div class="col-md-4"><label class="form-label">Time Format</label><select class="form-select" id="timeFormat"><option value="24">24-hour</option><option value="12">12-hour</option></select></div>
+                            <div class="col-md-4"><label class="form-label">Date</label><select class="form-select" id="dateFormat"><option value="YYYY-MM-DD">YYYY-MM-DD</option><option value="DD/MM/YYYY">DD/MM/YYYY</option><option value="MM/DD/YYYY">MM/DD/YYYY</option></select></div>
+                            <div class="col-md-4"><label class="form-label">Time</label><select class="form-select" id="timeFormat"><option value="24">24-hour</option><option value="12">12-hour</option></select></div>
                             <div class="col-md-4"><span class="date-sample">Sample: <span id="dateSample">2026-08-22 14:30</span></span></div>
                         </div>
                     </div>
 
-                    <!-- Currency Display -->
+                    <!-- Currency -->
                     <div class="settings-section">
                         <h6>💰 Currency Display</h6>
                         <div class="row g-2">
-                            <div class="col-md-4"><label class="form-label">Currency Symbol</label><input class="form-control" id="currencySymbol" value="LKR" /></div>
-                            <div class="col-md-4"><label class="form-label">Position</label><select class="form-select" id="currencyPosition"><option value="before">Before (e.g., LKR 100)</option><option value="after">After (e.g., 100 LKR)</option></select></div>
+                            <div class="col-md-4"><label class="form-label">Symbol</label><input class="form-control" id="currencySymbol" value="LKR" /></div>
+                            <div class="col-md-4"><label class="form-label">Position</label><select class="form-select" id="currencyPosition"><option value="before">Before</option><option value="after">After</option></select></div>
                             <div class="col-md-4"><span class="date-sample">Sample: <span id="currencySample" class="amount" data-currency="LKR">100.00</span></span></div>
                         </div>
                     </div>
 
-                    <!-- REST API -->
+                    <!-- API -->
                     <div class="settings-section">
                         <h6>🔌 REST API</h6>
                         <div class="row g-2">
-                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="apiEnabled" /><label class="form-check-label">Enable REST API Endpoints</label></div></div>
-                            <div class="col-12"><div id="apiInfo" style="display:none;background:var(--bg-body);padding:0.5rem;border-radius:4px;"><code>GET /api/shipments</code><br /><code>GET /api/products</code><br /><span class="text-secondary small">*Mock API endpoints</span></div></div>
+                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="apiEnabled" /><label>Enable REST API</label></div></div>
+                            <div class="col-12"><div id="apiInfo" style="display:none;background:var(--bg-body);padding:0.5rem;border-radius:4px;"><code>GET /api/shipments</code><br /><code>GET /api/products</code></div></div>
                         </div>
                     </div>
 
                     <!-- Quick Actions -->
                     <div class="settings-section">
-                        <h6>⚡ Quick Actions Toolbar</h6>
+                        <h6>⚡ Quick Actions</h6>
                         <div class="row g-2">
-                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="quickActionsEnabled" checked /><label class="form-check-label">Show Quick Actions Toolbar</label></div></div>
-                            <div class="col-12"><label class="form-label">Choose buttons</label><div id="quickActionButtons" class="d-flex flex-wrap gap-2"><div class="form-check"><input class="form-check-input" type="checkbox" data-action="shipment" checked /><label>New Shipment</label></div><div class="form-check"><input class="form-check-input" type="checkbox" data-action="payment" checked /><label>Record Payment</label></div><div class="form-check"><input class="form-check-input" type="checkbox" data-action="invoice" checked /><label>Invoice</label></div></div></div>
+                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="quickActionsEnabled" checked /><label>Show Toolbar</label></div></div>
+                            <div class="col-12"><div id="quickActionButtons" class="d-flex flex-wrap gap-2"><div class="form-check"><input class="form-check-input" type="checkbox" data-action="shipment" checked /><label>New Shipment</label></div><div class="form-check"><input class="form-check-input" type="checkbox" data-action="payment" checked /><label>Payment</label></div><div class="form-check"><input class="form-check-input" type="checkbox" data-action="invoice" checked /><label>Invoice</label></div></div></div>
                         </div>
                     </div>
                 </div>
@@ -774,15 +712,15 @@
                 </div>
                 <div class="card p-3 mb-3">
                     <h6 style="font-weight:600;">Products in this Shipment</h6>
-                    <div class="table-responsive"><table class="table table-sm table-bordered" style="border-color:var(--glass-border);"><thead><tr><th style="width:50px;">Photo</th><th>SKU</th><th>Product</th><th>Qty</th><th>Unit Cost</th><th>Total</th></tr></thead><tbody id="detailItemsBody"></tbody><tfoot id="detailItemsFooter"></tfoot></table></div>
+                    <div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Photo</th><th>SKU</th><th>Product</th><th>Qty</th><th>Unit Cost</th><th>Total</th></tr></thead><tbody id="detailItemsBody"></tbody><tfoot id="detailItemsFooter"></tfoot></table></div>
                     <button class="btn btn-sm btn-neon-outline" id="addProductRowBtn"><i class="fas fa-plus me-1"></i>Add Product</button>
                 </div>
                 <div class="row g-3 mb-3">
-                    <div class="col-md-4"><div class="card p-3"><h6 style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Total Quantity</h6><h3 id="detailTotalQty" style="font-weight:700;color:var(--primary);">0</h3></div></div>
-                    <div class="col-md-4"><div class="card p-3"><h6 style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Total Goods Cost</h6><h3 id="detailTotalGoods" style="font-weight:700;color:var(--primary);">LKR 0</h3></div></div>
-                    <div class="col-md-4"><div class="card p-3"><h6 style="font-size:0.7rem;color:var(--text-secondary);text-transform:uppercase;">Broker Fee</h6><h3 id="detailBrokerFee" style="font-weight:700;color:var(--primary);">LKR 0</h3></div></div>
+                    <div class="col-md-4"><div class="card p-3"><h6>Total Quantity</h6><h3 id="detailTotalQty">0</h3></div></div>
+                    <div class="col-md-4"><div class="card p-3"><h6>Total Goods Cost</h6><h3 id="detailTotalGoods">LKR 0</h3></div></div>
+                    <div class="col-md-4"><div class="card p-3"><h6>Broker Fee</h6><h3 id="detailBrokerFee">LKR 0</h3></div></div>
                 </div>
-                <ul class="nav nav-tabs" id="detailTabs" style="border-bottom:1px solid var(--glass-border);">
+                <ul class="nav nav-tabs" id="detailTabs">
                     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#detailHandoff">Handoff</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#detailPayments">Payments</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#detailCost">Cost</a></li>
@@ -796,10 +734,8 @@
                     <div class="tab-pane" id="detailComments"><div id="commentThread"></div><div class="mt-2"><input type="text" class="form-control form-control-sm" id="commentInput" placeholder="Add comment..." /><button class="btn btn-neon btn-sm mt-1" id="addCommentBtn">Post</button></div></div>
                     <div class="tab-pane" id="detailDocuments">
                         <div class="filter-bar">
-                            <label class="form-label me-1" style="font-size:0.8rem;">Filter by Stage:</label>
                             <select class="form-select form-select-sm" id="docStageFilter" style="width:150px;"><option value="">All</option><option value="shop">Shop</option><option value="broker">Broker</option><option value="china-agent">CN Agent</option><option value="shipping">Loaded</option><option value="sl-agent">SL Agent</option><option value="shop-received">Received</option></select>
-                            <label class="form-label me-1" style="font-size:0.8rem;">Type:</label>
-                            <select class="form-select form-select-sm" id="docTypeFilter" style="width:120px;"><option value="">All</option><option value="image">Image</option><option value="pdf">PDF</option><option value="doc">Word</option><option value="xls">Excel</option><option value="file">Other</option></select>
+                            <select class="form-select form-select-sm" id="docTypeFilter" style="width:120px;"><option value="">All</option><option value="image">Image</option><option value="pdf">PDF</option><option value="doc">Word</option><option value="xls">Excel</option></select>
                             <button class="btn btn-sm btn-neon-outline" id="clearDocFilters">Clear</button>
                         </div>
                         <div id="documentsContainer" class="row g-2"></div>
@@ -816,64 +752,67 @@
         <button class="btn" id="quickGenerateInvoice" title="Invoice"><i class="fas fa-file-invoice"></i></button>
     </div>
 
-    <!-- MODALS (same as before – included for completeness) -->
+    <!-- MODALS (shortened) -->
     <div class="modal fade" id="newShipmentModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">New Shipment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row g-2">
-        <div class="col-md-3"><label class="form-label">Shipment #</label><input class="form-control" id="fShipmentNumber" /></div>
-        <div class="col-md-3"><label class="form-label">Loading Date</label><input type="date" class="form-control" id="fLoadingDate" /></div>
-        <div class="col-md-3"><label class="form-label">Currency</label><select class="form-select" id="fCurrency"><option value="LKR">LKR</option><option value="USD">USD</option><option value="CNY">CNY</option></select></div>
-        <div class="col-md-3"><label class="form-label">Incoterms</label><select class="form-select" id="fIncoterms"><option value="FOB">FOB</option><option value="CIF">CIF</option><option value="EXW">EXW</option><option value="DDP">DDP</option></select></div>
-        <div class="col-md-4"><label class="form-label">Broker</label><input class="form-control" id="fBrokerName" value="Default Broker" /></div>
-        <div class="col-md-4"><label class="form-label">CN Agent</label><input class="form-control" id="fChinaAgent" value="CN Clear" /></div>
-        <div class="col-md-4"><label class="form-label">SL Agent</label><input class="form-control" id="fSLAgent" value="SL Clear" /></div>
-        <div class="col-md-6"><label class="form-label">Container #</label><input class="form-control" id="fContainerNumber" /></div>
-        <div class="col-md-6"><label class="form-label">Carrier</label><input class="form-control" id="fCarrier" placeholder="MSC, Maersk..." /></div>
-        <div class="col-md-4"><label class="form-label">Broker Fee</label><input type="number" class="form-control" id="fBrokerFee" step="0.01" value="15000" /></div>
-        <div class="col-md-4"><label class="form-label">CN Agent Fee</label><input type="number" class="form-control" id="fCnAgentFee" step="0.01" value="25000" /></div>
-        <div class="col-md-4"><label class="form-label">SL Agent Fee</label><input type="number" class="form-control" id="fSlAgentFee" step="0.01" value="35000" /></div>
-        <div class="col-md-6"><label class="form-label">Freight</label><input type="number" class="form-control" id="fFreight" step="0.01" value="0" /></div>
-        <div class="col-md-6"><label class="form-label">Insurance</label><input type="number" class="form-control" id="fInsurance" step="0.01" value="0" /></div>
-        <div class="col-12"><label class="form-label">Shops</label><select multiple class="form-select" id="fShopSelect" style="height:80px;"></select></div>
-    </div><hr /><h6 style="font-weight:700;">Products</h6><div class="table-responsive"><table class="table table-sm table-bordered" id="modalProductTable"><thead><tr><th style="width:60px;">Photo</th><th>SKU</th><th>Name</th><th>Qty</th><th>Unit Cost</th><th>Total</th><th style="width:140px;">Upload Photo</th><th style="width:40px;"></th></tr></thead><tbody id="fProductRows"></tbody><tfoot><tr style="font-weight:600;"><td colspan="3" class="text-end">Totals:</td><td id="fTotalQty">0</td><td></td><td id="fTotalAmount">0.00</td><td></td><td></td></tr></tfoot></table></div><button class="btn btn-sm btn-neon-outline" id="fAddProductRowBtn"><i class="fas fa-plus me-1"></i>Add Product</button>
-    <hr /><h6 style="font-weight:700;">Global Photo Upload</h6><div class="row g-2"><div class="col-md-4"><div class="drop-zone" id="fPhotoDropZone"><i class="fas fa-cloud-upload-alt"></i><p>Drag & drop or click</p><input type="file" id="fPhotoFileInput" accept="image/*" style="display:none;" /></div></div><div class="col-md-4"><label class="form-label">Photo URL</label><input class="form-control" id="fPhotoUrl" placeholder="https://..." /><button class="btn btn-sm btn-neon-outline mt-1" id="fPhotoUrlAddBtn"><i class="fas fa-link me-1"></i>Add</button></div><div class="col-md-4"><label class="form-label">Camera</label><button class="btn btn-sm btn-neon-outline w-100" id="fCameraBtn"><i class="fas fa-camera me-1"></i>Capture</button><input type="file" id="fCameraInput" accept="image/*" capture="environment" style="display:none;" /></div></div><div id="fPhotoPreviewContainer" class="mt-2 d-flex gap-2 flex-wrap"></div>
+        <div class="col-md-3"><label>Shipment #</label><input class="form-control" id="fShipmentNumber" /></div>
+        <div class="col-md-3"><label>Loading Date</label><input type="date" class="form-control" id="fLoadingDate" /></div>
+        <div class="col-md-3"><label>Currency</label><select class="form-select" id="fCurrency"><option value="LKR">LKR</option><option value="USD">USD</option><option value="CNY">CNY</option></select></div>
+        <div class="col-md-3"><label>Incoterms</label><select class="form-select" id="fIncoterms"><option value="FOB">FOB</option><option value="CIF">CIF</option><option value="EXW">EXW</option><option value="DDP">DDP</option></select></div>
+        <div class="col-md-4"><label>Broker</label><input class="form-control" id="fBrokerName" value="Default" /></div>
+        <div class="col-md-4"><label>CN Agent</label><input class="form-control" id="fChinaAgent" value="CN Clear" /></div>
+        <div class="col-md-4"><label>SL Agent</label><input class="form-control" id="fSLAgent" value="SL Clear" /></div>
+        <div class="col-md-6"><label>Container #</label><input class="form-control" id="fContainerNumber" /></div>
+        <div class="col-md-6"><label>Carrier</label><input class="form-control" id="fCarrier" placeholder="MSC" /></div>
+        <div class="col-md-4"><label>Broker Fee</label><input type="number" class="form-control" id="fBrokerFee" step="0.01" value="15000" /></div>
+        <div class="col-md-4"><label>CN Agent Fee</label><input type="number" class="form-control" id="fCnAgentFee" step="0.01" value="25000" /></div>
+        <div class="col-md-4"><label>SL Agent Fee</label><input type="number" class="form-control" id="fSlAgentFee" step="0.01" value="35000" /></div>
+        <div class="col-md-6"><label>Freight</label><input type="number" class="form-control" id="fFreight" step="0.01" value="0" /></div>
+        <div class="col-md-6"><label>Insurance</label><input type="number" class="form-control" id="fInsurance" step="0.01" value="0" /></div>
+        <div class="col-12"><label>Shops</label><select multiple class="form-select" id="fShopSelect" style="height:80px;"></select></div>
+    </div><hr /><h6>Products</h6>
+    <div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Photo</th><th>SKU</th><th>Name</th><th>Qty</th><th>Unit Cost</th><th>Total</th><th>Upload Photo</th><th></th></tr></thead><tbody id="fProductRows"></tbody><tfoot><tr><td colspan="3" class="text-end">Totals:</td><td id="fTotalQty">0</td><td></td><td id="fTotalAmount">0.00</td><td></td><td></td></tr></tfoot></table></div>
+    <button class="btn btn-sm btn-neon-outline" id="fAddProductRowBtn"><i class="fas fa-plus me-1"></i>Add Product</button>
+    <hr /><h6>Photo Upload</h6><div class="row g-2">
+        <div class="col-md-4"><div class="drop-zone" id="fPhotoDropZone"><i class="fas fa-cloud-upload-alt"></i><p>Drag & drop</p><input type="file" id="fPhotoFileInput" accept="image/*" style="display:none;" /></div></div>
+        <div class="col-md-4"><label>Photo URL</label><input class="form-control" id="fPhotoUrl" placeholder="https://..." /><button class="btn btn-sm btn-neon-outline mt-1" id="fPhotoUrlAddBtn"><i class="fas fa-link me-1"></i>Add</button></div>
+        <div class="col-md-4"><label>Camera</label><button class="btn btn-sm btn-neon-outline w-100" id="fCameraBtn"><i class="fas fa-camera me-1"></i>Capture</button><input type="file" id="fCameraInput" accept="image/*" capture="environment" style="display:none;" /></div>
+    </div><div id="fPhotoPreviewContainer" class="mt-2 d-flex gap-2 flex-wrap"></div>
     </div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-neon" id="saveNewShipment">Create</button></div></div></div></div>
 
     <!-- Stage Modal -->
     <div class="modal fade" id="stageModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Update Stage: <span id="stageModalTitle"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
-        <div class="mb-2"><label class="form-label">Notes</label><textarea class="form-control" id="stageNotes" rows="2" placeholder="Add details..."></textarea></div>
-        <div class="mb-2"><label class="form-label">Upload Document / Photo</label><div class="drop-zone" id="stageDocDropZone"><i class="fas fa-cloud-upload-alt"></i><p>Drag & drop file or click</p><input type="file" id="stageDocFileInput" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none;" /></div><div id="stageDocPreview" class="mt-2" style="display:none;"><img id="stageDocPreviewImg" class="doc-thumb" style="width:60px;height:60px;object-fit:cover;border-radius:6px;" /><span id="stageDocFileName" class="text-secondary ms-2"></span></div></div>
-        <div class="mb-2"><label class="form-label">Document Name</label><input class="form-control" id="stageDocName" placeholder="e.g., BL Copy" /></div>
-    </div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-neon" id="stageModalConfirm">Update & Upload</button></div></div></div></div>
+        <div class="mb-2"><label>Notes</label><textarea class="form-control" id="stageNotes" rows="2"></textarea></div>
+        <div class="mb-2"><label>Upload Document</label><div class="drop-zone" id="stageDocDropZone"><i class="fas fa-cloud-upload-alt"></i><p>Drag & drop</p><input type="file" id="stageDocFileInput" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style="display:none;" /></div><div id="stageDocPreview" class="mt-2" style="display:none;"><img id="stageDocPreviewImg" class="doc-thumb" /><span id="stageDocFileName" class="text-secondary ms-2"></span></div></div>
+        <div class="mb-2"><label>Document Name</label><input class="form-control" id="stageDocName" placeholder="e.g., BL Copy" /></div>
+    </div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-neon" id="stageModalConfirm">Update</button></div></div></div></div>
 
-    <!-- Shop Modal -->
+    <!-- Shop, Product, Payment, Receive Modals – simplified but functional -->
     <div class="modal fade" id="shopModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">China Shop</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
-        <input type="hidden" id="editShopId" /><div class="mb-2"><label class="form-label">Name</label><input class="form-control" id="fShopName" /></div>
-        <div class="mb-2"><label class="form-label">Contact</label><input class="form-control" id="fShopContact" /></div>
-        <div class="mb-2"><label class="form-label">Email</label><input class="form-control" id="fShopEmail" /></div>
+        <input type="hidden" id="editShopId" /><div class="mb-2"><label>Name</label><input class="form-control" id="fShopName" /></div>
+        <div class="mb-2"><label>Contact</label><input class="form-control" id="fShopContact" /></div>
+        <div class="mb-2"><label>Email</label><input class="form-control" id="fShopEmail" /></div>
     </div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-neon" id="saveShop">Save</button></div></div></div></div>
 
-    <!-- Product Modal -->
     <div class="modal fade" id="productModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Product</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
-        <input type="hidden" id="editProductId" /><div class="mb-2"><label class="form-label">SKU</label><input class="form-control" id="fProdSku" /></div>
-        <div class="mb-2"><label class="form-label">Name</label><input class="form-control" id="fProdName" /></div>
-        <div class="mb-2"><label class="form-label">Category</label><input class="form-control" id="fProdCategory" /></div>
-        <div class="row g-2"><div class="col-md-6"><label class="form-label">Cost (LKR)</label><input type="number" class="form-control" id="fProdCost" step="0.01" /></div><div class="col-md-6"><label class="form-label">Sell (LKR)</label><input type="number" class="form-control" id="fProdSell" step="0.01" /></div></div>
-        <div class="mt-3"><label class="fw-bold">Product Photo</label><div class="drop-zone" id="prodPhotoDropZone"><i class="fas fa-cloud-upload-alt"></i><p>Drag & drop image, or click</p><input type="file" id="prodPhotoFileInput" accept="image/*" style="display:none;" /></div>
-        <div class="mt-2" id="prodPhotoPreviewContainer" style="display:none;"><img id="prodPhotoPreview" class="product-thumb" style="width:80px;height:80px;object-fit:cover;border-radius:8px;" /><button class="btn btn-sm btn-outline-danger ms-2" id="prodRemovePhotoBtn"><i class="fas fa-times"></i> Remove</button></div>
-        <div class="mt-2"><label class="text-secondary" style="font-size:0.8rem;">Or enter Image URL</label><input class="form-control" id="fProdPhoto" placeholder="https://example.com/image.jpg" /></div>
-        <div class="mt-1"><button class="btn btn-sm btn-neon-outline" id="prodCameraBtn"><i class="fas fa-camera me-1"></i>Capture from Camera</button><input type="file" id="prodCameraInput" accept="image/*" capture="environment" style="display:none;" /></div></div>
+        <input type="hidden" id="editProductId" /><div class="mb-2"><label>SKU</label><input class="form-control" id="fProdSku" /></div>
+        <div class="mb-2"><label>Name</label><input class="form-control" id="fProdName" /></div>
+        <div class="mb-2"><label>Category</label><input class="form-control" id="fProdCategory" /></div>
+        <div class="row g-2"><div class="col-md-6"><label>Cost</label><input type="number" class="form-control" id="fProdCost" step="0.01" /></div><div class="col-md-6"><label>Sell</label><input type="number" class="form-control" id="fProdSell" step="0.01" /></div></div>
+        <div class="mt-3"><label>Photo</label><div class="drop-zone" id="prodPhotoDropZone"><i class="fas fa-cloud-upload-alt"></i><p>Click to upload</p><input type="file" id="prodPhotoFileInput" accept="image/*" style="display:none;" /></div>
+        <div class="mt-2" id="prodPhotoPreviewContainer" style="display:none;"><img id="prodPhotoPreview" class="product-thumb" style="width:80px;height:80px;" /><button class="btn btn-sm btn-outline-danger ms-2" id="prodRemovePhotoBtn">Remove</button></div>
+        <div class="mt-2"><label>Image URL</label><input class="form-control" id="fProdPhoto" placeholder="https://..." /></div>
+        <div class="mt-1"><button class="btn btn-sm btn-neon-outline" id="prodCameraBtn"><i class="fas fa-camera me-1"></i>Camera</button><input type="file" id="prodCameraInput" accept="image/*" capture="environment" style="display:none;" /></div></div>
     </div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-neon" id="saveProductModal">Save</button></div></div></div></div>
 
-    <!-- Payment Modal -->
     <div class="modal fade" id="paymentModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Record Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
-        <div class="mb-2"><label class="form-label">Shipment</label><select class="form-select" id="pShipmentSelect"></select></div>
-        <div class="mb-2"><label class="form-label">Type</label><select class="form-select" id="pType"><option value="broker">Broker</option><option value="cn-agent">CN Agent</option><option value="sl-agent">SL Agent</option></select></div>
-        <div class="mb-2"><label class="form-label">Amount (LKR)</label><input type="number" class="form-control" id="pAmount" step="0.01" /></div>
-        <div class="mb-2"><label class="form-label">Date</label><input type="date" class="form-control" id="pDate" /></div>
-        <div class="mb-2"><label class="form-label">Installment #</label><input type="number" class="form-control" id="pInstallment" value="1" /></div>
-        <div class="mb-2"><label class="form-label">Status</label><select class="form-select" id="pStatus"><option value="Paid">Paid</option><option value="Pending">Pending</option></select></div>
+        <div class="mb-2"><label>Shipment</label><select class="form-select" id="pShipmentSelect"></select></div>
+        <div class="mb-2"><label>Type</label><select class="form-select" id="pType"><option value="broker">Broker</option><option value="cn-agent">CN Agent</option><option value="sl-agent">SL Agent</option></select></div>
+        <div class="mb-2"><label>Amount</label><input type="number" class="form-control" id="pAmount" step="0.01" /></div>
+        <div class="mb-2"><label>Date</label><input type="date" class="form-control" id="pDate" /></div>
+        <div class="mb-2"><label>Installment #</label><input type="number" class="form-control" id="pInstallment" value="1" /></div>
+        <div class="mb-2"><label>Status</label><select class="form-select" id="pStatus"><option value="Paid">Paid</option><option value="Pending">Pending</option></select></div>
     </div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-neon" id="savePaymentBtn">Record</button></div></div></div></div>
 
-    <!-- Receive Modal -->
     <div class="modal fade" id="receiveModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Receive Goods</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
         <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Photo</th><th>SKU</th><th>Product</th><th>Ordered</th><th>Received</th></tr></thead><tbody id="receiveBody"></tbody></table></div>
     </div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-neon" id="confirmReceiveBtn">Confirm</button></div></div></div></div>
@@ -885,15 +824,16 @@
 
     <script>
         // ============================================================
-        // FIREBASE CONFIG – REPLACE WITH YOUR OWN
+        // FIREBASE CONFIG – YOUR ACTUAL CONFIG
         // ============================================================
         const firebaseConfig = {
-            apiKey: "AIzaSyC2ZQbHlG5QlZ3YgVvXpQrS8xT7yU6wI9O",
-            authDomain: "your-project.firebaseapp.com",
-            projectId: "your-project",
-            storageBucket: "your-project.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:abcdef123456"
+            apiKey: "AIzaSyDQTWvKfhoVDeO1YtC3MLxbtV3q098kWeU",
+            authDomain: "shipco-2f7b1.firebaseapp.com",
+            projectId: "shipco-2f7b1",
+            storageBucket: "shipco-2f7b1.firebasestorage.app",
+            messagingSenderId: "862626054557",
+            appId: "1:862626054557:web:bbbee1c19e334adaa3ef74",
+            measurementId: "G-49Q90S9JKR"
         };
 
         // ============================================================
@@ -903,21 +843,23 @@
         let auth = null;
         let db = null;
         let currentUser = null;
-        let firebaseInitialized = false;
 
         function initFirebase() {
             try {
                 firebaseApp = firebase.initializeApp(firebaseConfig);
                 auth = firebase.auth();
                 db = firebase.firestore();
-                firebaseInitialized = true;
-                console.log('Firebase initialized');
+                console.log('✅ Firebase initialized successfully');
                 return true;
             } catch (e) {
-                console.warn('Firebase init error:', e);
+                console.error('❌ Firebase init error:', e);
+                document.getElementById('loginError').textContent = 'Firebase connection error. Please refresh.';
                 return false;
             }
         }
+
+        // Initialize immediately
+        const firebaseReady = initFirebase();
 
         // ============================================================
         // AUTH STATE MANAGEMENT
@@ -925,9 +867,9 @@
         function onAuthStateChanged(user) {
             if (user) {
                 currentUser = user;
-                console.log('User logged in:', user.email);
+                console.log('✅ User logged in:', user.email);
                 showApp(user);
-                // Try to load data from Firestore
+                // Load data from Firestore
                 loadFromFirestore();
                 // Update UI
                 document.getElementById('userNameDisplay').textContent = user.displayName || user.email || 'User';
@@ -936,7 +878,7 @@
                 document.getElementById('fbUserEmail').textContent = user.email;
                 document.getElementById('fbConnectionStatus').textContent = 'Connected ✅';
                 document.getElementById('fbConnectionStatus').className = 'firebase-status connected';
-                // Add login history
+                // Login history
                 addLoginHistory(user);
             } else {
                 currentUser = null;
@@ -963,17 +905,17 @@
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('appContainer').style.display = 'block';
             document.getElementById('appContainer').classList.add('show');
-            // Load data
-            if (typeof loadData === 'function') loadData();
-            if (typeof renderDashboard === 'function') renderDashboard();
-            if (typeof renderShipmentList === 'function') renderShipmentList();
-            if (typeof renderShops === 'function') renderShops();
-            if (typeof renderProducts === 'function') renderProducts();
-            if (typeof renderPayments === 'function') renderPayments();
-            if (typeof renderReports === 'function') renderReports();
-            if (typeof renderAnalytics === 'function') renderAnalytics();
-            if (typeof renderSettings === 'function') renderSettings();
-            if (typeof renderNotifications === 'function') renderNotifications();
+            // Load data and render
+            loadData();
+            renderDashboard();
+            renderShipmentList();
+            renderShops();
+            renderProducts();
+            renderPayments();
+            renderReports();
+            renderAnalytics();
+            renderSettings();
+            renderNotifications();
         }
 
         // Login with email/password
@@ -984,19 +926,9 @@
                 document.getElementById('loginError').textContent = 'Please fill in all fields.';
                 return;
             }
-            if (!firebaseInitialized) {
-                if (!initFirebase()) {
-                    document.getElementById('loginError').textContent = 'Firebase connection failed. Check your config.';
-                    return;
-                }
-            }
             auth.signInWithEmailAndPassword(email, password)
-                .then(() => {
-                    document.getElementById('loginError').textContent = '';
-                })
-                .catch(err => {
-                    document.getElementById('loginError').textContent = err.message;
-                });
+                .then(() => { document.getElementById('loginError').textContent = ''; })
+                .catch(err => { document.getElementById('loginError').textContent = err.message; });
         });
 
         // Signup with email/password
@@ -1012,63 +944,32 @@
                 document.getElementById('signupError').textContent = 'Password must be at least 6 characters.';
                 return;
             }
-            if (!firebaseInitialized) {
-                if (!initFirebase()) {
-                    document.getElementById('signupError').textContent = 'Firebase connection failed.';
-                    return;
-                }
-            }
             auth.createUserWithEmailAndPassword(email, password)
-                .then(result => {
-                    return result.user.updateProfile({ displayName: name });
-                })
+                .then(result => { return result.user.updateProfile({ displayName: name }); })
                 .then(() => {
                     document.getElementById('signupError').textContent = '';
                     document.getElementById('signupForm').style.display = 'none';
                     document.getElementById('loginForm').style.display = 'block';
                     document.getElementById('loginEmail').value = email;
-                    document.getElementById('loginPassword').value = '';
                     document.getElementById('loginError').textContent = 'Account created! Please sign in.';
                 })
-                .catch(err => {
-                    document.getElementById('signupError').textContent = err.message;
-                });
+                .catch(err => { document.getElementById('signupError').textContent = err.message; });
         });
 
         // Google Login
         document.getElementById('googleLoginBtn').addEventListener('click', function() {
-            if (!firebaseInitialized) {
-                if (!initFirebase()) {
-                    document.getElementById('loginError').textContent = 'Firebase connection failed.';
-                    return;
-                }
-            }
             const provider = new firebase.auth.GoogleAuthProvider();
             auth.signInWithPopup(provider)
-                .then(() => {
-                    document.getElementById('loginError').textContent = '';
-                })
-                .catch(err => {
-                    document.getElementById('loginError').textContent = err.message;
-                });
+                .then(() => { document.getElementById('loginError').textContent = ''; })
+                .catch(err => { document.getElementById('loginError').textContent = err.message; });
         });
 
         // Google Signup
         document.getElementById('googleSignupBtn').addEventListener('click', function() {
-            if (!firebaseInitialized) {
-                if (!initFirebase()) {
-                    document.getElementById('signupError').textContent = 'Firebase connection failed.';
-                    return;
-                }
-            }
             const provider = new firebase.auth.GoogleAuthProvider();
             auth.signInWithPopup(provider)
-                .then(() => {
-                    document.getElementById('signupError').textContent = '';
-                })
-                .catch(err => {
-                    document.getElementById('signupError').textContent = err.message;
-                });
+                .then(() => { document.getElementById('signupError').textContent = ''; })
+                .catch(err => { document.getElementById('signupError').textContent = err.message; });
         });
 
         // Switch between login/signup
@@ -1087,25 +988,10 @@
             document.getElementById('signupError').textContent = '';
         });
 
-        // Logout from app
-        document.getElementById('logoutBtn').addEventListener('click', function() {
-            if (auth) {
-                auth.signOut();
-            }
-            showLogin();
-        });
-        document.getElementById('fbLogoutBtn').addEventListener('click', function() {
-            if (auth) {
-                auth.signOut();
-            }
-            showLogin();
-        });
-        document.getElementById('loginSwitchAccountBtn').addEventListener('click', function() {
-            if (auth) {
-                auth.signOut();
-            }
-            showLogin();
-        });
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', function() { if (auth) auth.signOut(); });
+        document.getElementById('fbLogoutBtn').addEventListener('click', function() { if (auth) auth.signOut(); });
+        document.getElementById('loginSwitchAccountBtn').addEventListener('click', function() { if (auth) auth.signOut(); });
 
         // ============================================================
         // FIRESTORE DATA SYNC
@@ -1115,228 +1001,68 @@
             const userId = currentUser.uid;
             db.collection('users').doc(userId).get()
                 .then(doc => {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        if (data.appData) {
-                            // Merge with local data
-                            if (typeof appData !== 'undefined' && appData) {
-                                // Merge carefully
-                                const local = appData;
-                                const remote = data.appData;
-                                // Use remote if newer or if local is empty
-                                if (remote.shipments && remote.shipments.length > 0) {
-                                    appData = remote;
-                                }
-                            } else {
-                                appData = data.appData;
-                            }
-                            if (typeof saveData === 'function') saveData(appData);
-                            console.log('Data loaded from Firestore');
+                    if (doc.exists && doc.data().appData) {
+                        const remote = doc.data().appData;
+                        if (remote.shipments && remote.shipments.length > 0) {
+                            appData = remote;
+                            saveData(appData);
+                            console.log('📥 Data loaded from Firestore');
                             // Refresh UI
-                            if (typeof renderDashboard === 'function') renderDashboard();
-                            if (typeof renderShipmentList === 'function') renderShipmentList();
-                            if (typeof renderShops === 'function') renderShops();
-                            if (typeof renderProducts === 'function') renderProducts();
-                            if (typeof renderPayments === 'function') renderPayments();
-                            if (typeof renderReports === 'function') renderReports();
-                            if (typeof renderAnalytics === 'function') renderAnalytics();
+                            renderDashboard();
+                            renderShipmentList();
+                            renderShops();
+                            renderProducts();
+                            renderPayments();
+                            renderReports();
+                            renderAnalytics();
                         }
                     } else {
-                        // No data in Firestore, upload local data
+                        // No data in Firestore, upload local
                         uploadToFirestore();
                     }
                 })
-                .catch(err => {
-                    console.warn('Firestore load error:', err);
-                });
+                .catch(err => console.warn('Firestore load error:', err));
         }
 
         function uploadToFirestore() {
-            if (!db || !currentUser) return;
+            if (!db || !currentUser || !appData) return;
             const userId = currentUser.uid;
-            if (typeof appData === 'undefined' || !appData) return;
             db.collection('users').doc(userId).set({
                 appData: appData,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            })
-                .then(() => {
-                    console.log('Data uploaded to Firestore');
-                    showToast('Data synced to cloud', 'success');
-                })
-                .catch(err => {
-                    console.warn('Firestore upload error:', err);
-                });
+            }).then(() => console.log('📤 Data uploaded to Firestore'))
+                .catch(err => console.warn('Firestore upload error:', err));
         }
 
         function syncData() {
-            if (!db || !currentUser) {
-                showToast('Please login to sync data', 'warning');
-                return;
-            }
-            // Pull latest
+            if (!db || !currentUser) { showToast('Please login to sync', 'warning'); return; }
             const userId = currentUser.uid;
             db.collection('users').doc(userId).get()
                 .then(doc => {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        if (data.appData) {
-                            if (confirm('Sync data from cloud? Local data will be overwritten.')) {
-                                appData = data.appData;
-                                if (typeof saveData === 'function') saveData(appData);
-                                showToast('Data synced from cloud', 'success');
-                                location.reload();
-                            }
-                        } else {
-                            uploadToFirestore();
+                    if (doc.exists && doc.data().appData) {
+                        if (confirm('Sync from cloud? Local data will be overwritten.')) {
+                            appData = doc.data().appData;
+                            saveData(appData);
+                            showToast('Data synced from cloud', 'success');
+                            location.reload();
                         }
                     } else {
                         uploadToFirestore();
+                        showToast('Data uploaded to cloud', 'success');
                     }
                 })
-                .catch(err => {
-                    showToast('Sync error: ' + err.message, 'danger');
-                });
+                .catch(err => showToast('Sync error: ' + err.message, 'danger'));
         }
 
-        // ============================================================
-        // LOGIN HISTORY
-        // ============================================================
-        function addLoginHistory(user) {
-            // Store login history in localStorage
-            try {
-                const history = JSON.parse(localStorage.getItem('loginHistory') || '[]');
-                history.push({
-                    time: new Date().toISOString(),
-                    ip: document.getElementById('currentIp')?.value || '127.0.0.1',
-                    device: navigator.userAgent,
-                    location: 'Auto-detected',
-                    email: user.email
-                });
-                if (history.length > 50) history.shift();
-                localStorage.setItem('loginHistory', JSON.stringify(history));
-            } catch (e) {}
-        }
-
-        // ============================================================
-        // TOAST (for sync notifications)
-        // ============================================================
-        function showToast(msg, type) {
-            type = type || 'success';
-            const container = document.querySelector('.toast-container');
-            if (!container) return;
-            const colors = { success: 'bg-success', danger: 'bg-danger', warning: 'bg-warning', info: 'bg-info' };
-            const toast = document.createElement('div');
-            toast.className = `toast align-items-center text-white ${colors[type] || 'bg-primary'} border-0`;
-            toast.role = 'alert';
-            toast.innerHTML =
-                `<div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
-            container.appendChild(toast);
-            const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
-            bsToast.show();
-            toast.addEventListener('hidden.bs.toast', () => toast.remove());
-        }
-
-        // ============================================================
-        // LISTEN FOR AUTH STATE CHANGES
-        // ============================================================
-        // Try to init Firebase
-        initFirebase();
-
-        if (firebaseInitialized) {
-            auth.onAuthStateChanged(onAuthStateChanged);
-        } else {
-            // Fallback: show login with option to retry
-            console.warn('Firebase not initialized. Check your config.');
-            document.getElementById('loginError').textContent = 'Firebase connection error. Check your config.';
-            // Still show login page
-            showLogin();
-            // Allow manual retry
-            document.getElementById('loginBtn').addEventListener('click', function() {
-                if (!firebaseInitialized) {
-                    initFirebase();
-                    if (firebaseInitialized) {
-                        auth.onAuthStateChanged(onAuthStateChanged);
-                        document.getElementById('loginError').textContent = 'Firebase connected. Please try again.';
-                    } else {
-                        document.getElementById('loginError').textContent =
-                        'Firebase connection failed. Check your config.';
-                    }
-                }
-            });
-        }
-
-        // ============================================================
-        // GET CURRENT IP
-        // ============================================================
-        fetch('https://api.ipify.org?format=json')
-            .then(res => res.json())
-            .then(data => {
-                const ips = document.querySelectorAll('#currentIp');
-                ips.forEach(el => el.value = data.ip);
-            })
-            .catch(() => {
-                const ips = document.querySelectorAll('#currentIp');
-                ips.forEach(el => el.value = 'Unable to fetch');
-            });
-
-        // ============================================================
-        // SYNC BUTTON
-        // ============================================================
         document.getElementById('fbSyncBtn').addEventListener('click', syncData);
 
         // ============================================================
-        // NAVIGATION (basic)
+        // DATA LAYER (localStorage)
         // ============================================================
-        document.getElementById('sidebarToggle').addEventListener('click', function() {
-            document.getElementById('sidebar').classList.toggle('open');
-            document.getElementById('sidebarBackdrop').classList.toggle('show');
-        });
-        document.getElementById('sidebarBackdrop').addEventListener('click', function() {
-            document.getElementById('sidebar').classList.remove('open');
-            this.classList.remove('show');
-        });
+        let appData = null;
 
-        document.querySelectorAll('.sidebar .nav-link').forEach(link => {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                const page = this.dataset.page;
-                document.querySelectorAll('.page-content').forEach(p => p.style.display = 'none');
-                const target = document.getElementById('page-' + page);
-                if (target) target.style.display = 'block';
-                document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
-                this.classList.add('active');
-                document.getElementById('sidebar').classList.remove('open');
-                document.getElementById('sidebarBackdrop').classList.remove('show');
-                if (page === 'dashboard' && typeof renderDashboard === 'function') renderDashboard();
-                if (page === 'shipments' && typeof renderShipmentList === 'function') renderShipmentList();
-                if (page === 'shops' && typeof renderShops === 'function') renderShops();
-                if (page === 'products' && typeof renderProducts === 'function') renderProducts();
-                if (page === 'payments' && typeof renderPayments === 'function') renderPayments();
-                if (page === 'reports' && typeof renderReports === 'function') renderReports();
-                if (page === 'analytics' && typeof renderAnalytics === 'function') renderAnalytics();
-                if (page === 'settings' && typeof renderSettings === 'function') renderSettings();
-            });
-        });
-
-        // ============================================================
-        // SIMPLE PLACEHOLDER FUNCTIONS (will be replaced by full logic)
-        // ============================================================
-        // These will be overridden when the main script loads
-        let appData = { shipments: [], products: [], shops: [], auditLog: [], loginHistory: [] };
-        let settings = {};
-
-        function loadData() {
-            try {
-                const stored = localStorage.getItem('importFlowUltimateData');
-                if (stored) {
-                    const parsed = JSON.parse(stored);
-                    if (parsed && parsed.shipments) {
-                        appData = parsed;
-                        return appData;
-                    }
-                }
-            } catch (e) {}
-            appData = {
+        function getDefaultData() {
+            return {
                 shops: [
                     { id: 1, name: 'Shoe Factory Guangzhou', contact: 'Mr. Li', email: 'li@shoe.cn', onTimeRate: 92,
                         rating: 4.5 },
@@ -1385,53 +1111,1822 @@
                     comments: [],
                     documents: []
                 }],
-                templates: [],
                 activities: [],
                 notifications: [],
+                auditLog: [],
+                loginHistory: [],
                 nextId: 2,
                 nextProductId: 3,
-                nextShopId: 3,
-                auditLog: [],
-                loginHistory: []
+                nextShopId: 3
             };
+        }
+
+        function loadData() {
+            try {
+                const stored = localStorage.getItem('importFlowUltimateData');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (parsed && parsed.shipments) {
+                        appData = parsed;
+                        return appData;
+                    }
+                }
+            } catch (e) {}
+            appData = getDefaultData();
             saveData(appData);
             return appData;
         }
 
         function saveData(data) {
             try { localStorage.setItem('importFlowUltimateData', JSON.stringify(data)); } catch (e) {}
+            // Also sync to Firebase if logged in
+            if (currentUser && db) {
+                // Debounce sync
+                clearTimeout(window._syncTimeout);
+                window._syncTimeout = setTimeout(() => {
+                    uploadToFirestore();
+                }, 2000);
+            }
         }
 
-        // Dummy render functions (will be replaced)
-        function renderDashboard() { console.log('Dashboard rendered'); }
+        function findShop(id) { return appData?.shops?.find(s => s.id === id) || null; }
 
-        function renderShipmentList() { console.log('Shipments rendered'); }
+        function findProduct(id) { return appData?.products?.find(p => p.id === id) || null; }
 
-        function renderShops() { console.log('Shops rendered'); }
+        function findShipment(id) { return appData?.shipments?.find(s => s.id === id) || null; }
 
-        function renderProducts() { console.log('Products rendered'); }
+        function updateShipment(updated) {
+            const idx = appData.shipments.findIndex(s => s.id === updated.id);
+            if (idx !== -1) { appData.shipments[idx] = updated;
+                saveData(appData); }
+        }
 
-        function renderPayments() { console.log('Payments rendered'); }
+        function showToast(msg, type) {
+            type = type || 'success';
+            const container = document.querySelector('.toast-container');
+            if (!container) return;
+            const colors = { success: 'bg-success', danger: 'bg-danger', warning: 'bg-warning', info: 'bg-info' };
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-white ${colors[type] || 'bg-primary'} border-0`;
+            toast.role = 'alert';
+            toast.innerHTML =
+                `<div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+            container.appendChild(toast);
+            const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+            bsToast.show();
+            toast.addEventListener('hidden.bs.toast', () => toast.remove());
+        }
 
-        function renderReports() { console.log('Reports rendered'); }
+        function addActivity(msg) {
+            appData.activities.unshift({ msg, date: new Date().toISOString() });
+            if (appData.activities.length > 50) appData.activities.pop();
+            saveData(appData);
+        }
 
-        function renderAnalytics() { console.log('Analytics rendered'); }
+        function addNotification(msg) {
+            appData.notifications.unshift({ msg, date: new Date().toISOString(), read: false });
+            if (appData.notifications.length > 50) appData.notifications.pop();
+            saveData(appData);
+            renderNotifications();
+        }
 
-        function renderSettings() { console.log('Settings rendered'); }
-
-        function renderNotifications() { console.log('Notifications rendered'); }
+        function addLoginHistory(user) {
+            try {
+                const history = JSON.parse(localStorage.getItem('loginHistory') || '[]');
+                history.push({
+                    time: new Date().toISOString(),
+                    ip: document.getElementById('currentIp')?.value || '127.0.0.1',
+                    device: navigator.userAgent,
+                    location: 'Auto-detected',
+                    email: user.email
+                });
+                if (history.length > 50) history.shift();
+                localStorage.setItem('loginHistory', JSON.stringify(history));
+                if (appData) { appData.loginHistory = history;
+                    saveData(appData); }
+            } catch (e) {}
+        }
 
         // ============================================================
-        // INIT
+        // RENDER FUNCTIONS (simplified but functional)
         // ============================================================
+        let shipmentChartInstance = null;
+
+        function renderDashboard() {
+            if (!appData) return;
+            const total = appData.shipments.length;
+            const inTransit = appData.shipments.filter(s =>
+                s.handoffs && s.handoffs.some(h => h.stage === 'shipping') &&
+                !s.handoffs.some(h => h.stage === 'shop-received')
+            ).length;
+            document.getElementById('kpiTotal').textContent = total;
+            document.getElementById('kpiInTransit').textContent = inTransit;
+
+            let totalVal = 0,
+                b = 0,
+                cn = 0,
+                sl = 0;
+            appData.shipments.forEach(s => {
+                const g = (s.products || []).reduce((sum, it) => {
+                    const p = findProduct(it.productId);
+                    return sum + (p ? p.costPrice : 0) * it.quantity;
+                }, 0);
+                totalVal += g + (s.brokerFee || 0) + (s.cnAgentFee || 0) + (s.slAgentFee || 0) + (s.freight || 0) + (s
+                    .insurance || 0);
+                const tb = g + (s.brokerFee || 0);
+                const pb = (s.brokerPayments || []).reduce((sum, p) => sum + p.amount, 0);
+                b += tb - pb;
+                const tc = s.cnAgentFee || 0;
+                const pc = (s.cnAgentPayments || []).reduce((sum, p) => sum + p.amount, 0);
+                cn += tc - pc;
+                const ts = s.slAgentFee || 0;
+                const ps = (s.slAgentPayments || []).reduce((sum, p) => sum + p.amount, 0);
+                sl += ts - ps;
+            });
+            document.getElementById('kpiValue').textContent = totalVal.toFixed(0);
+            document.getElementById('kpiBrokerBalance').textContent = b.toFixed(0);
+            document.getElementById('kpiAgentBalance').textContent = (cn + sl).toFixed(0);
+
+            let days = 0,
+                count = 0;
+            appData.shipments.forEach(s => {
+                if (s.transitDays) { days += s.transitDays;
+                    count++; }
+            });
+            document.getElementById('kpiLeadTime').textContent = count ? Math.round(days / count) + 'd' : '—';
+
+            const ctx = document.getElementById('shipmentChart').getContext('2d');
+            const months = {};
+            appData.shipments.forEach(s => {
+                if (s.loadingDate) {
+                    const m = s.loadingDate.substring(0, 7);
+                    months[m] = (months[m] || 0) + 1;
+                }
+            });
+            const labels = Object.keys(months).sort();
+            const data = labels.map(l => months[l]);
+            if (shipmentChartInstance) shipmentChartInstance.destroy();
+            shipmentChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets: [{ label: 'Shipments', data, backgroundColor: '#6366f1' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            const scoreDiv = document.getElementById('supplierScorecard');
+            let html = '<table class="table table-sm"><tr><th>Shop</th><th>On-Time</th><th>Rating</th><th># Shipments</th></tr>';
+            appData.shops.forEach(shop => {
+                const c = appData.shipments.filter(sh => sh.shops && sh.shops.includes(shop.id)).length;
+                html += `<tr><td>${shop.name}</td><td>${shop.onTimeRate||0}%</td><td>${shop.rating||0}⭐</td><td>${c}</td></tr>`;
+            });
+            html += '</table>';
+            scoreDiv.innerHTML = html;
+
+            const feed = document.getElementById('activityFeed');
+            const acts = appData.activities || [];
+            feed.innerHTML = acts.slice(0, 15).map(a =>
+                `<div class="border-bottom py-1 small">${a.msg} <span class="text-secondary">${new Date(a.date).toLocaleString()}</span></div>`
+            ).join('') || '<div class="text-secondary">No activity yet</div>';
+        }
+
+        function renderShipmentList() {
+            const tbody = document.getElementById('shipmentListBody');
+            if (!tbody) return;
+            const statusMap = { 'shop': 'Shop', 'broker': 'Broker', 'china-agent': 'CN Agent', 'shipping': 'In Transit',
+                'sl-agent': 'SL Agent', 'shop-received': 'Received' };
+            let html = '';
+            (appData.shipments || []).forEach(s => {
+                const shopNames = (s.shops || []).map(id => findShop(id)?.name || 'Unknown').join(', ');
+                const totalItems = (s.products || []).reduce((sum, it) => sum + it.quantity, 0);
+                const cost = (s.products || []).reduce((sum, it) => {
+                    const p = findProduct(it.productId);
+                    return sum + (p ? p.costPrice : 0) * it.quantity;
+                }, 0) + (s.brokerFee || 0) + (s.cnAgentFee || 0) + (s.slAgentFee || 0) + (s.freight ||
+                    0) + (s.insurance || 0);
+                const lastStage = s.handoffs && s.handoffs.length ? s.handoffs[s.handoffs.length - 1].stage :
+                'shop';
+                const checked = selectedShipments.has(s.id) ? 'checked' : '';
+                html += `<tr>
+                    <td><input type="checkbox" class="shipment-checkbox" data-id="${s.id}" ${checked} /></td>
+                    <td><strong>${s.shipmentNumber}</strong></td>
+                    <td>${shopNames}</td>
+                    <td><span class="badge bg-secondary">${statusMap[lastStage]||lastStage}</span></td>
+                    <td>${s.loadingDate||'—'}</td>
+                    <td>${totalItems}</td>
+                    <td>${cost.toFixed(0)}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-neon-outline view-detail" data-id="${s.id}"><i class="fas fa-eye"></i></button>
+                        <button class="btn btn-sm btn-outline-danger delete-shipment-btn" data-id="${s.id}"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html || '<tr><td colspan="8" class="text-center text-secondary">No shipments.</td></tr>';
+            // Attach events
+            document.querySelectorAll('.view-detail').forEach(btn => btn.addEventListener('click', function() {
+                const id = parseInt(this.dataset.id);
+                if (!isNaN(id)) showDetail(id);
+            }));
+            document.querySelectorAll('.delete-shipment-btn').forEach(btn => btn.addEventListener('click', function() {
+                const id = parseInt(this.dataset.id);
+                if (confirm('Delete this shipment?')) {
+                    appData.shipments = appData.shipments.filter(s => s.id !== id);
+                    saveData(appData);
+                    renderShipmentList();
+                    showToast('Shipment deleted');
+                    addActivity('Deleted shipment ' + id);
+                }
+            }));
+            document.querySelectorAll('.shipment-checkbox').forEach(cb => cb.addEventListener('change', function() {
+                const id = parseInt(this.dataset.id);
+                if (this.checked) selectedShipments.add(id);
+                else selectedShipments.delete(id);
+            }));
+            document.getElementById('selectAll').addEventListener('change', function() {
+                document.querySelectorAll('.shipment-checkbox').forEach(cb => {
+                    cb.checked = this.checked;
+                    const id = parseInt(cb.dataset.id);
+                    if (this.checked) selectedShipments.add(id);
+                    else selectedShipments.delete(id);
+                });
+            });
+        }
+
+        let selectedShipments = new Set();
+
+        function renderShops() {
+            const tbody = document.getElementById('shopListBody');
+            if (!tbody) return;
+            let html = '';
+            (appData.shops || []).forEach(s => {
+                const count = appData.shipments.filter(sh => sh.shops && sh.shops.includes(s.id)).length;
+                html += `<tr><td>${s.name}</td><td>${s.contact||'—'}</td><td>${s.email||'—'}</td><td>${s.onTimeRate||0}%</td><td>${s.rating||0}⭐</td><td>${count}</td><td><button class="btn btn-sm btn-neon-outline edit-shop" data-id="${s.id}"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger delete-shop" data-id="${s.id}"><i class="fas fa-trash"></i></button></td></tr>`;
+            });
+            tbody.innerHTML = html || '<tr><td colspan="7" class="text-secondary text-center">No shops.</td></tr>';
+            document.querySelectorAll('.edit-shop').forEach(btn => btn.addEventListener('click', function() {
+                const s = findShop(parseInt(this.dataset.id));
+                if (!s) return;
+                document.getElementById('editShopId').value = s.id;
+                document.getElementById('fShopName').value = s.name;
+                document.getElementById('fShopContact').value = s.contact || '';
+                document.getElementById('fShopEmail').value = s.email || '';
+                new bootstrap.Modal(document.getElementById('shopModal')).show();
+            }));
+            document.querySelectorAll('.delete-shop').forEach(btn => btn.addEventListener('click', function() {
+                const id = parseInt(this.dataset.id);
+                if (confirm('Delete this shop?')) {
+                    appData.shops = appData.shops.filter(s => s.id !== id);
+                    saveData(appData);
+                    renderShops();
+                    showToast('Shop deleted');
+                }
+            }));
+        }
+
+        document.getElementById('addShopBtn').addEventListener('click', function() {
+            document.getElementById('editShopId').value = '';
+            document.getElementById('fShopName').value = '';
+            document.getElementById('fShopContact').value = '';
+            document.getElementById('fShopEmail').value = '';
+            new bootstrap.Modal(document.getElementById('shopModal')).show();
+        });
+        document.getElementById('saveShop').addEventListener('click', function() {
+            const id = document.getElementById('editShopId').value;
+            const name = document.getElementById('fShopName').value.trim();
+            if (!name) { alert('Name required'); return; }
+            if (id) {
+                const s = findShop(parseInt(id));
+                if (s) { s.name = name;
+                    s.contact = document.getElementById('fShopContact').value.trim();
+                    s.email = document.getElementById('fShopEmail').value.trim();
+                    saveData(appData); }
+            } else {
+                appData.shops.push({ id: appData.nextShopId++, name, contact: document.getElementById('fShopContact')
+                        .value.trim(), email: document.getElementById('fShopEmail').value.trim(),
+                    onTimeRate: 90, rating: 4.0 });
+                saveData(appData);
+            }
+            bootstrap.Modal.getInstance(document.getElementById('shopModal')).hide();
+            renderShops();
+            showToast('Shop saved');
+        });
+
+        function renderProducts() {
+            const tbody = document.getElementById('productListBody');
+            if (!tbody) return;
+            let html = '';
+            (appData.products || []).forEach(p => {
+                const photoHtml = p.photo ?
+                    `<img src="${p.photo}" class="product-thumb" style="width:40px;height:40px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none'" />` :
+                    '—';
+                html += `<tr><td>${photoHtml}</td><td><strong>${p.sku}</strong></td><td>${p.name}</td><td>${p.category||'—'}</td><td>${p.costPrice||0}</td><td>${p.sellPrice||0}</td><td>${p.stock||0}</td><td><button class="btn btn-sm btn-neon-outline edit-product" data-id="${p.id}"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-outline-danger delete-product" data-id="${p.id}"><i class="fas fa-trash"></i></button></td></tr>`;
+            });
+            tbody.innerHTML = html || '<tr><td colspan="8" class="text-secondary text-center">No products.</td></tr>';
+            document.querySelectorAll('.edit-product').forEach(btn => btn.addEventListener('click', function() {
+                const p = findProduct(parseInt(this.dataset.id));
+                if (!p) return;
+                document.getElementById('editProductId').value = p.id;
+                document.getElementById('fProdSku').value = p.sku;
+                document.getElementById('fProdName').value = p.name;
+                document.getElementById('fProdCategory').value = p.category || '';
+                document.getElementById('fProdCost').value = p.costPrice || 0;
+                document.getElementById('fProdSell').value = p.sellPrice || 0;
+                document.getElementById('fProdPhoto').value = p.photo || '';
+                if (p.photo) {
+                    document.getElementById('prodPhotoPreview').src = p.photo;
+                    document.getElementById('prodPhotoPreviewContainer').style.display = 'block';
+                } else {
+                    document.getElementById('prodPhotoPreviewContainer').style.display = 'none';
+                }
+                new bootstrap.Modal(document.getElementById('productModal')).show();
+            }));
+            document.querySelectorAll('.delete-product').forEach(btn => btn.addEventListener('click', function() {
+                const id = parseInt(this.dataset.id);
+                if (confirm('Delete this product?')) {
+                    appData.products = appData.products.filter(p => p.id !== id);
+                    saveData(appData);
+                    renderProducts();
+                    showToast('Product deleted');
+                }
+            }));
+        }
+
+        // Product modal photo upload handlers
+        const prodDropZone = document.getElementById('prodPhotoDropZone');
+        const prodFileInput = document.getElementById('prodPhotoFileInput');
+        const prodPreviewContainer = document.getElementById('prodPhotoPreviewContainer');
+        const prodPreviewImg = document.getElementById('prodPhotoPreview');
+        const prodRemoveBtn = document.getElementById('prodRemovePhotoBtn');
+        const prodUrlInput = document.getElementById('fProdPhoto');
+        const prodCameraBtn = document.getElementById('prodCameraBtn');
+        const prodCameraInput = document.getElementById('prodCameraInput');
+        let prodUploadedPhoto = null;
+
+        prodDropZone.addEventListener('click', () => prodFileInput.click());
+        prodDropZone.addEventListener('dragover', function(e) { e.preventDefault();
+            this.classList.add('dragover'); });
+        prodDropZone.addEventListener('dragleave', function(e) { this.classList.remove('dragover'); });
+        prodDropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    prodUploadedPhoto = ev.target.result;
+                    prodPreviewImg.src = prodUploadedPhoto;
+                    prodPreviewContainer.style.display = 'block';
+                    prodUrlInput.value = '';
+                };
+                reader.readAsDataURL(e.dataTransfer.files[0]);
+            }
+        });
+        prodFileInput.addEventListener('change', function(e) {
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    prodUploadedPhoto = ev.target.result;
+                    prodPreviewImg.src = prodUploadedPhoto;
+                    prodPreviewContainer.style.display = 'block';
+                    prodUrlInput.value = '';
+                };
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+        prodUrlInput.addEventListener('input', function() {
+            const url = this.value.trim();
+            if (url) {
+                prodUploadedPhoto = url;
+                prodPreviewImg.src = url;
+                prodPreviewContainer.style.display = 'block';
+            } else if (!prodUploadedPhoto || !prodUploadedPhoto.startsWith('data:image')) {
+                prodPreviewContainer.style.display = 'none';
+            }
+        });
+        prodRemoveBtn.addEventListener('click', function() {
+            prodUploadedPhoto = null;
+            prodPreviewContainer.style.display = 'none';
+            prodUrlInput.value = '';
+            prodFileInput.value = '';
+        });
+        prodCameraBtn.addEventListener('click', function() { prodCameraInput.click(); });
+        prodCameraInput.addEventListener('change', function(e) {
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    prodUploadedPhoto = ev.target.result;
+                    prodPreviewImg.src = prodUploadedPhoto;
+                    prodPreviewContainer.style.display = 'block';
+                    prodUrlInput.value = '';
+                };
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+
+        document.getElementById('addProductBtn').addEventListener('click', function() {
+            document.getElementById('editProductId').value = '';
+            document.getElementById('fProdSku').value = '';
+            document.getElementById('fProdName').value = '';
+            document.getElementById('fProdCategory').value = '';
+            document.getElementById('fProdCost').value = 0;
+            document.getElementById('fProdSell').value = 0;
+            document.getElementById('fProdPhoto').value = '';
+            prodPreviewContainer.style.display = 'none';
+            prodUploadedPhoto = null;
+            prodFileInput.value = '';
+            new bootstrap.Modal(document.getElementById('productModal')).show();
+        });
+        document.getElementById('saveProductModal').addEventListener('click', function() {
+            const id = document.getElementById('editProductId').value;
+            const sku = document.getElementById('fProdSku').value.trim();
+            const name = document.getElementById('fProdName').value.trim();
+            if (!sku || !name) { alert('SKU and Name required'); return; }
+            let photo = prodUploadedPhoto || '';
+            if (!photo || photo === '') {
+                photo = document.getElementById('fProdPhoto').value.trim() || '';
+            }
+            if (id) {
+                const p = findProduct(parseInt(id));
+                if (p) {
+                    p.sku = sku;
+                    p.name = name;
+                    p.category = document.getElementById('fProdCategory').value.trim();
+                    p.costPrice = parseFloat(document.getElementById('fProdCost').value) || 0;
+                    p.sellPrice = parseFloat(document.getElementById('fProdSell').value) || 0;
+                    p.photo = photo || '';
+                    saveData(appData);
+                }
+            } else {
+                appData.products.push({
+                    id: appData.nextProductId++,
+                    sku, name,
+                    category: document.getElementById('fProdCategory').value.trim(),
+                    costPrice: parseFloat(document.getElementById('fProdCost').value) || 0,
+                    sellPrice: parseFloat(document.getElementById('fProdSell').value) || 0,
+                    photo: photo || '',
+                    stock: 0
+                });
+                saveData(appData);
+            }
+            bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
+            renderProducts();
+            showToast('Product saved');
+            addActivity('Saved product ' + sku);
+        });
+
+        function renderPayments() {
+            // Simplified – just update the KPI
+            let b = 0,
+                cn = 0,
+                sl = 0;
+            (appData.shipments || []).forEach(s => {
+                const g = (s.products || []).reduce((sum, it) => {
+                    const p = findProduct(it.productId);
+                    return sum + (p ? p.costPrice : 0) * it.quantity;
+                }, 0);
+                const tb = g + (s.brokerFee || 0);
+                const pb = (s.brokerPayments || []).reduce((sum, p) => sum + p.amount, 0);
+                b += tb - pb;
+                const tc = s.cnAgentFee || 0;
+                const pc = (s.cnAgentPayments || []).reduce((sum, p) => sum + p.amount, 0);
+                cn += tc - pc;
+                const ts = s.slAgentFee || 0;
+                const ps = (s.slAgentPayments || []).reduce((sum, p) => sum + p.amount, 0);
+                sl += ts - ps;
+            });
+            document.querySelector('#page-payments .col-md-3:nth-child(1) h2').textContent = 'LKR ' + b.toFixed(0);
+            document.querySelector('#page-payments .col-md-3:nth-child(2) h2').textContent = 'LKR ' + cn.toFixed(0);
+            document.querySelector('#page-payments .col-md-3:nth-child(3) h2').textContent = 'LKR ' + sl.toFixed(0);
+            document.querySelector('#page-payments .col-md-3:nth-child(4) h2').textContent =
+                (b > 0 || cn > 0 || sl > 0) ? '🔴 Yes' : '✅ None';
+
+            const tbody = document.getElementById('paymentListBody');
+            if (!tbody) return;
+            let html = '';
+            (appData.shipments || []).forEach(s => {
+                (s.brokerPayments || []).forEach(p => {
+                    html += `<tr><td>${s.shipmentNumber}</td><td>Broker</td><td>${p.amount}</td><td>${p.date}</td><td>#${p.installment}</td><td><span class="badge ${p.status==='Paid'?'bg-success':'bg-warning'}">${p.status}</span></td><td><button class="btn btn-sm btn-outline-danger delete-payment" data-shipment="${s.id}" data-type="broker" data-installment="${p.installment}"><i class="fas fa-trash"></i></button></td></tr>`;
+                });
+                (s.cnAgentPayments || []).forEach(p => {
+                    html += `<tr><td>${s.shipmentNumber}</td><td>CN Agent</td><td>${p.amount}</td><td>${p.date}</td><td>#${p.installment}</td><td><span class="badge ${p.status==='Paid'?'bg-success':'bg-warning'}">${p.status}</span></td><td><button class="btn btn-sm btn-outline-danger delete-payment" data-shipment="${s.id}" data-type="cn-agent" data-installment="${p.installment}"><i class="fas fa-trash"></i></button></td></tr>`;
+                });
+                (s.slAgentPayments || []).forEach(p => {
+                    html += `<tr><td>${s.shipmentNumber}</td><td>SL Agent</td><td>${p.amount}</td><td>${p.date}</td><td>#${p.installment}</td><td><span class="badge ${p.status==='Paid'?'bg-success':'bg-warning'}">${p.status}</span></td><td><button class="btn btn-sm btn-outline-danger delete-payment" data-shipment="${s.id}" data-type="sl-agent" data-installment="${p.installment}"><i class="fas fa-trash"></i></button></td></tr>`;
+                });
+            });
+            tbody.innerHTML = html || '<tr><td colspan="7" class="text-secondary text-center">No payments.</td></tr>';
+            document.querySelectorAll('.delete-payment').forEach(btn => btn.addEventListener('click', function() {
+                const sid = parseInt(this.dataset.shipment);
+                const type = this.dataset.type;
+                const inst = parseInt(this.dataset.installment);
+                const shipment = findShipment(sid);
+                if (!shipment) return;
+                if (confirm('Remove this payment?')) {
+                    if (type === 'broker') shipment.brokerPayments = shipment.brokerPayments.filter(p => p
+                        .installment !== inst);
+                    else if (type === 'cn-agent') shipment.cnAgentPayments = shipment.cnAgentPayments.filter(
+                        p => p.installment !== inst);
+                    else if (type === 'sl-agent') shipment.slAgentPayments = shipment.slAgentPayments.filter(
+                        p => p.installment !== inst);
+                    updateShipment(shipment);
+                    renderPayments();
+                    showToast('Payment removed');
+                    addActivity('Removed payment from ' + shipment.shipmentNumber);
+                }
+            }));
+        }
+
+        document.getElementById('addPaymentBtn').addEventListener('click', function() {
+            const select = document.getElementById('pShipmentSelect');
+            select.innerHTML = '';
+            (appData.shipments || []).forEach(s => { select.innerHTML += `<option value="${s.id}">${s.shipmentNumber}</option>`; });
+            document.getElementById('pType').value = 'broker';
+            document.getElementById('pAmount').value = '';
+            document.getElementById('pDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('pInstallment').value = 1;
+            document.getElementById('pStatus').value = 'Paid';
+            new bootstrap.Modal(document.getElementById('paymentModal')).show();
+        });
+        document.getElementById('savePaymentBtn').addEventListener('click', function() {
+            const sid = parseInt(document.getElementById('pShipmentSelect').value);
+            const type = document.getElementById('pType').value;
+            const amount = parseFloat(document.getElementById('pAmount').value) || 0;
+            const date = document.getElementById('pDate').value;
+            const inst = parseInt(document.getElementById('pInstallment').value) || 1;
+            const status = document.getElementById('pStatus').value;
+            if (!sid || !amount) { alert('Select shipment and enter amount'); return; }
+            const shipment = findShipment(sid);
+            if (!shipment) return;
+            const payment = { amount, date, installment: inst, status };
+            if (type === 'broker') {
+                if (!shipment.brokerPayments) shipment.brokerPayments = [];
+                shipment.brokerPayments.push(payment);
+            } else if (type === 'cn-agent') {
+                if (!shipment.cnAgentPayments) shipment.cnAgentPayments = [];
+                shipment.cnAgentPayments.push(payment);
+            } else if (type === 'sl-agent') {
+                if (!shipment.slAgentPayments) shipment.slAgentPayments = [];
+                shipment.slAgentPayments.push(payment);
+            }
+            updateShipment(shipment);
+            bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
+            renderPayments();
+            showToast('Payment recorded');
+            addActivity('Payment recorded for ' + shipment.shipmentNumber);
+            addNotification('Payment recorded for ' + shipment.shipmentNumber);
+        });
+
+        function renderReports() {
+            // Simple placeholder
+            const div = document.getElementById('reportSupplierScore');
+            if (div) {
+                let html = '<table class="table table-sm"><tr><th>Shop</th><th># Shipments</th><th>Items</th></tr>';
+                (appData.shops || []).forEach(shop => {
+                    const shipments = (appData.shipments || []).filter(sh => sh.shops && sh.shops.includes(shop
+                        .id));
+                    const count = shipments.length;
+                    const items = shipments.reduce((sum, sh) => sum + (sh.products || []).reduce((s2, it) => s2 +
+                        it.quantity, 0), 0);
+                    html += `<tr><td>${shop.name}</td><td>${count}</td><td>${items}</td></tr>`;
+                });
+                html += '</table>';
+                div.innerHTML = html;
+            }
+            // Cost chart
+            const canvas = document.getElementById('reportCostChart');
+            if (canvas && typeof Chart !== 'undefined') {
+                const ctx = canvas.getContext('2d');
+                const labels = ['Goods', 'Broker', 'CN Agent', 'SL Agent', 'Freight', 'Insurance'];
+                const totals = { goods: 0, broker: 0, cn: 0, sl: 0, freight: 0, insurance: 0 };
+                (appData.shipments || []).forEach(s => {
+                    totals.goods += (s.products || []).reduce((sum, it) => {
+                        const p = findProduct(it.productId);
+                        return sum + (p ? p.costPrice : 0) * it.quantity;
+                    }, 0);
+                    totals.broker += s.brokerFee || 0;
+                    totals.cn += s.cnAgentFee || 0;
+                    totals.sl += s.slAgentFee || 0;
+                    totals.freight += s.freight || 0;
+                    totals.insurance += s.insurance || 0;
+                });
+                const data = [totals.goods, totals.broker, totals.cn, totals.sl, totals.freight, totals.insurance];
+                if (window.reportCostChartInstance) window.reportCostChartInstance.destroy();
+                window.reportCostChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels, datasets: [{ label: 'Total Cost (LKR)', data, backgroundColor: [
+                            '#6366f1', '#7c3aed', '#3b82f6', '#0ea5e9', '#22c55e', '#f59e0b'
+                        ] }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+            }
+            // Report builder
+            document.getElementById('runReportBtn').addEventListener('click', function() {
+                const field = document.getElementById('reportField').value;
+                const filter = document.getElementById('reportFilterText').value.toLowerCase();
+                let result = '';
+                (appData.shipments || []).forEach(s => {
+                    let val = '';
+                    if (field === 'shipment_number') val = s.shipmentNumber;
+                    else if (field === 'supplier') val = s.shops.map(id => findShop(id)?.name || '').join(
+                    ', ');
+                    else if (field === 'status') val = s.handoffs && s.handoffs.length ? s.handoffs[s
+                        .handoffs.length - 1].stage : '';
+                    else if (field === 'totalCost') {
+                        val = (s.products || []).reduce((sum, it) => {
+                            const p = findProduct(it.productId);
+                            return sum + (p ? p.costPrice : 0) * it.quantity;
+                        }, 0) + (s.brokerFee || 0) + (s.cnAgentFee || 0) + (s.slAgentFee || 0) + (s
+                            .freight || 0) + (s.insurance || 0);
+                    }
+                    if (String(val).toLowerCase().includes(filter) || !filter) {
+                        result += `${s.shipmentNumber}: ${val}\n`;
+                    }
+                });
+                document.getElementById('reportResult').innerHTML = '<pre>' + (result || 'No results') + '</pre>';
+            });
+            document.getElementById('exportExcelBtn').addEventListener('click', function() {
+                const data = (appData.shipments || []).map(s => ({
+                    'Shipment': s.shipmentNumber,
+                    'Supplier': s.shops.map(id => findShop(id)?.name || '').join(';'),
+                    'Status': s.handoffs && s.handoffs.length ? s.handoffs[s.handoffs.length - 1]
+                        .stage : '',
+                    'Loading': s.loadingDate || '',
+                    'Cost': (s.products || []).reduce((sum, it) => {
+                        const p = findProduct(it.productId);
+                        return sum + (p ? p.costPrice : 0) * it.quantity;
+                    }, 0) + (s.brokerFee || 0) + (s.cnAgentFee || 0) + (s.slAgentFee || 0) + (s
+                        .freight || 0) + (s.insurance || 0)
+                }));
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.json_to_sheet(data);
+                XLSX.utils.book_append_sheet(wb, ws, 'Shipments');
+                const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([wbout], { type: 'application/octet-stream' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'shipments_report.xlsx';
+                link.click();
+                showToast('Excel exported');
+            });
+        }
+
+        function renderAnalytics() {
+            const div = document.getElementById('topSuppliers');
+            const map = {};
+            (appData.shipments || []).forEach(s => {
+                s.shops.forEach(id => {
+                    const shop = findShop(id);
+                    if (shop) { if (!map[shop.name]) map[shop.name] = 0;
+                        map[shop.name] += (s.products || []).reduce((sum, it) => sum + it.quantity, 0); }
+                });
+            });
+            const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            div.innerHTML = sorted.map(([name, qty]) =>
+                `<div class="d-flex justify-content-between"><span>${name}</span><span>${qty} units</span></div>`
+            ).join('') || '<div class="text-secondary">No data</div>';
+            document.getElementById('carrierPerformance').innerHTML =
+                (appData.shipments || []).filter(s => s.carrier).length > 0 ?
+                (appData.shipments || []).map(s => `<div>${s.carrier} - ${s.shipmentNumber}</div>`).join('') :
+                '<div class="text-secondary">No carrier data</div>';
+            document.getElementById('portAlerts').innerHTML =
+                ['🟢 Shanghai – Normal', '🟡 Ningbo – Moderate', '🔴 Colombo – High', '🟢 Singapore – Normal'].map(a =>
+                    `<div>${a}</div>`).join('');
+        }
+
+        function renderSettings() {
+            // IP whitelist handlers
+            document.getElementById('addCurrentIpBtn').addEventListener('click', function() {
+                const ip = document.getElementById('currentIp').value;
+                if (ip && ip !== 'Loading...') {
+                    const textarea = document.getElementById('ipWhitelist');
+                    const lines = textarea.value.split('\n').filter(l => l.trim());
+                    if (!lines.includes(ip)) {
+                        lines.push(ip);
+                        textarea.value = lines.join('\n');
+                        showToast('IP added to whitelist', 'success');
+                    }
+                }
+            });
+            // Audit clear
+            document.getElementById('clearAuditBtn').addEventListener('click', function() {
+                if (confirm('Clear audit log?')) {
+                    appData.auditLog = [];
+                    saveData(appData);
+                    document.getElementById('auditLogContainer').innerHTML = '<p class="text-secondary">No audit entries.</p>';
+                    showToast('Audit log cleared', 'info');
+                }
+            });
+            // Test sound
+            document.getElementById('testSoundBtn').addEventListener('click', function() {
+                const url = document.getElementById('notifSoundUrl').value;
+                if (url) {
+                    const audio = new Audio(url);
+                    audio.play().catch(() => showToast('Cannot play sound', 'warning'));
+                } else {
+                    showToast('Enter a sound URL first', 'warning');
+                }
+            });
+            // Reset DB
+            document.getElementById('resetDbBtn').addEventListener('click', function() {
+                const password = document.getElementById('resetPassword').value;
+                if (password !== 'admin123') {
+                    showToast('Incorrect password. Try "admin123"', 'danger');
+                    return;
+                }
+                if (confirm('Delete ALL data? This cannot be undone.')) {
+                    appData = getDefaultData();
+                    saveData(appData);
+                    showToast('All data reset to default.', 'success');
+                    location.reload();
+                }
+            });
+            // Apply CSS
+            document.getElementById('applyCssBtn').addEventListener('click', function() {
+                const css = document.getElementById('customCss').value;
+                let styleEl = document.getElementById('custom-css-style');
+                if (!styleEl) {
+                    styleEl = document.createElement('style');
+                    styleEl.id = 'custom-css-style';
+                    document.head.appendChild(styleEl);
+                }
+                styleEl.textContent = css;
+                showToast('Custom CSS applied', 'success');
+            });
+            // Save layout
+            document.getElementById('saveLayoutBtn').addEventListener('click', function() {
+                const order = Array.from(document.querySelectorAll('.widget-handle')).map(el => el.textContent);
+                showToast('Layout saved: ' + order.join(', '), 'info');
+            });
+            // Quick actions toggles
+            document.querySelectorAll('#quickActionButtons input[data-action]').forEach(cb => {
+                cb.addEventListener('change', function() {
+                    const action = this.dataset.action;
+                    const show = this.checked;
+                    if (action === 'shipment') document.getElementById('quickAddShipment').style.display = show ?
+                        'block' : 'none';
+                    if (action === 'payment') document.getElementById('quickAddPayment').style.display = show ?
+                        'block' : 'none';
+                    if (action === 'invoice') document.getElementById('quickGenerateInvoice').style.display =
+                        show ? 'block' : 'none';
+                });
+            });
+            // Theme, compact mode, animations toggles
+            document.getElementById('animationsToggle').addEventListener('change', function() {
+                document.body.classList.toggle('no-animations', !this.checked);
+            });
+            document.getElementById('compactMode').addEventListener('change', function() {
+                document.body.classList.toggle('compact', this.checked);
+            });
+            // Currency sample update
+            document.getElementById('currencySymbol').addEventListener('input', updateCurrencySample);
+            document.getElementById('currencyPosition').addEventListener('change', updateCurrencySample);
+            document.getElementById('dateFormat').addEventListener('change', updateDateSample);
+            document.getElementById('timeFormat').addEventListener('change', updateDateSample);
+            // Login history
+            renderLoginHistory();
+            // Audit log
+            renderAuditLog();
+        }
+
+        function renderLoginHistory() {
+            const tbody = document.getElementById('loginHistoryBody');
+            const history = appData?.loginHistory || [];
+            if (!history.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-secondary">No login history yet.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = history.map(h =>
+                `<tr><td>${h.time}</td><td>${h.ip}</td><td>${h.device.substring(0,30)}...</td><td>${h.location || 'Unknown'}</td></tr>`
+            ).join('');
+        }
+
+        function renderAuditLog() {
+            const container = document.getElementById('auditLogContainer');
+            const logs = appData?.auditLog || [];
+            if (!logs.length) {
+                container.innerHTML = '<p class="text-secondary">No audit entries.</p>';
+                return;
+            }
+            container.innerHTML = logs.slice(-20).reverse().map(l =>
+                `<div class="border-bottom py-1 small">${l.user} ${l.action} <span class="text-secondary">${l.time}</span><br /><span class="text-secondary">${l.details}</span></div>`
+            ).join('');
+        }
+
+        function updateDateSample() {
+            const now = new Date();
+            const format = document.getElementById('dateFormat').value;
+            const timeFmt = document.getElementById('timeFormat').value;
+            let dateStr = format
+                .replace('YYYY', now.getFullYear())
+                .replace('MM', String(now.getMonth() + 1).padStart(2, '0'))
+                .replace('DD', String(now.getDate()).padStart(2, '0'));
+            let timeStr = timeFmt === '24' ?
+                String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') :
+                (now.getHours() % 12 || 12) + ':' + String(now.getMinutes()).padStart(2, '0') + (now.getHours() >= 12 ?
+                    ' PM' : ' AM');
+            document.getElementById('dateSample').textContent = dateStr + ' ' + timeStr;
+        }
+
+        function updateCurrencySample() {
+            const symbol = document.getElementById('currencySymbol').value || 'LKR';
+            const pos = document.getElementById('currencyPosition').value;
+            const sample = document.getElementById('currencySample');
+            if (pos === 'before') {
+                sample.textContent = symbol + ' 100.00';
+            } else {
+                sample.textContent = '100.00 ' + symbol;
+            }
+        }
+
+        function renderNotifications() {
+            const list = document.getElementById('notificationList');
+            const notifs = appData?.notifications || [];
+            if (!notifs.length) {
+                list.innerHTML = '<div class="dropdown-item text-secondary">No notifications</div>';
+                return;
+            }
+            let html = '';
+            notifs.slice().reverse().forEach(n => {
+                html += `<div class="dropdown-item">${n.msg} <span class="time">${new Date(n.date).toLocaleString()}</span></div>`;
+            });
+            list.innerHTML = html;
+            document.getElementById('notificationBadge').textContent = notifs.filter(n => !n.read).length;
+        }
+
+        document.getElementById('notificationBell').addEventListener('click', function(e) {
+            e.stopPropagation();
+            const menu = document.getElementById('notificationMenu');
+            if (menu.style.display === 'block') {
+                menu.style.display = 'none';
+            } else {
+                if (appData?.notifications) {
+                    appData.notifications.forEach(n => n.read = true);
+                    saveData(appData);
+                    document.getElementById('notificationBadge').textContent = '0';
+                }
+                renderNotifications();
+                menu.style.display = 'block';
+            }
+        });
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('notificationDropdown');
+            if (dropdown && !dropdown.contains(e.target)) {
+                document.getElementById('notificationMenu').style.display = 'none';
+            }
+        });
+
+        document.getElementById('resetDataBtn').addEventListener('click', function() {
+            if (confirm('Reset all data to sample?')) {
+                appData = getDefaultData();
+                saveData(appData);
+                location.reload();
+            }
+        });
+
+        // ============================================================
+        // SHIPMENT DETAIL
+        // ============================================================
+        let currentDetailId = null;
+        let mapInstance = null;
+
+        function showDetail(id) {
+            currentDetailId = id;
+            const shipment = findShipment(id);
+            if (!shipment) { showToast('Shipment not found', 'danger'); return; }
+            document.getElementById('page-shipments').style.display = 'none';
+            document.getElementById('shipmentDetail').style.display = 'block';
+
+            document.getElementById('detailNumber').textContent = shipment.shipmentNumber;
+            const lastStage = shipment.handoffs && shipment.handoffs.length ? shipment.handoffs[shipment.handoffs
+                .length - 1].stage : 'shop';
+            const statusMap = { 'shop': 'Shop', 'broker': 'Broker', 'china-agent': 'CN Agent', 'shipping': 'In Transit',
+                'sl-agent': 'SL Agent', 'shop-received': 'Received' };
+            document.getElementById('detailStatusBadge').innerHTML =
+                `<span class="badge bg-secondary">${statusMap[lastStage]||lastStage}</span>`;
+
+            // Tracking icons
+            const stages = [
+                { key: 'shop', label: 'Shop', icon: 'fa-store' },
+                { key: 'broker', label: 'Broker', icon: 'fa-handshake' },
+                { key: 'china-agent', label: 'CN Agent', icon: 'fa-warehouse' },
+                { key: 'shipping', label: 'Loaded', icon: 'fa-ship' },
+                { key: 'sl-agent', label: 'SL Agent', icon: 'fa-truck' },
+                { key: 'shop-received', label: 'Received!', icon: 'fa-check-circle' }
+            ];
+            const container = document.getElementById('detailTrackingIcons');
+            let iconHtml = '';
+            stages.forEach((stage) => {
+                const isActive = stage.key === lastStage;
+                const isDone = shipment.handoffs && shipment.handoffs.some(h => h.stage === stage.key);
+                const cls = isActive ? 'active' : isDone ? 'done' : '';
+                const hasDoc = (shipment.documents || []).some(d => d.stage === stage.key);
+                iconHtml += `
+                    <div class="tracking-icon ${cls}" data-stage="${stage.key}">
+                        <div class="icon" style="${isActive?'color:var(--primary);':''}"><i class="fas ${stage.icon}"></i></div>
+                        <div class="label">${stage.label}</div>
+                        <div class="status" style="color:${isActive?'var(--primary)':isDone?'#22c55e':'var(--text-secondary)'};">${isDone?'✓':isActive?'⏳':''}</div>
+                        ${hasDoc ? '<div class="doc-indicator"><i class="fas fa-file-alt" style="color:var(--primary);"></i></div>' : ''}
+                    </div>
+                `;
+            });
+            container.innerHTML = iconHtml;
+            container.querySelectorAll('.tracking-icon').forEach(el => {
+                el.addEventListener('click', function() {
+                    const stage = this.dataset.stage;
+                    stageTargetStage = stage;
+                    document.getElementById('stageModalTitle').textContent = stage.charAt(0).toUpperCase() +
+                        stage.slice(1);
+                    document.getElementById('stageNotes').value = '';
+                    document.getElementById('stageDocName').value = '';
+                    document.getElementById('stageDocPreview').style.display = 'none';
+                    document.getElementById('stageDocFileInput').value = '';
+                    stageDocData = null;
+                    stageDocName = '';
+                    new bootstrap.Modal(document.getElementById('stageModal')).show();
+                });
+            });
+
+            // Products
+            const body = document.getElementById('detailItemsBody');
+            let rows = '',
+                totalQty = 0,
+                totalGoods = 0;
+            (shipment.products || []).forEach(item => {
+                const prod = findProduct(item.productId);
+                const photoHtml = item.photo || prod?.photo ?
+                    `<img src="${item.photo || prod.photo}" class="product-thumb" style="width:40px;height:40px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none'" />` :
+                    '—';
+                rows += `<tr>
+                    <td>${photoHtml}</td>
+                    <td>${prod?prod.sku:'—'}</td>
+                    <td>${prod?prod.name:'—'}</td>
+                    <td>${item.quantity}</td>
+                    <td>${item.unitCost||0}</td>
+                    <td>${(item.quantity * (item.unitCost||0)).toFixed(2)}</td>
+                </tr>`;
+                totalQty += item.quantity;
+                totalGoods += item.quantity * (item.unitCost || 0);
+            });
+            body.innerHTML = rows || '<tr><td colspan="6" class="text-secondary text-center">No products.</td></tr>';
+            document.getElementById('detailTotalQty').textContent = totalQty;
+            document.getElementById('detailTotalGoods').textContent = 'LKR ' + totalGoods.toFixed(0);
+            document.getElementById('detailBrokerFee').textContent = 'LKR ' + (shipment.brokerFee || 0).toFixed(0);
+            document.getElementById('detailItemsFooter').innerHTML = `
+                <tr style="font-weight:700;"><td colspan="3" class="text-end">Totals:</td><td>${totalQty}</td><td></td><td>${totalGoods.toFixed(2)}</td></tr>
+            `;
+
+            // Handoff timeline
+            const hdiv = document.getElementById('handoffTimeline');
+            if (!shipment.handoffs || !shipment.handoffs.length) {
+                hdiv.innerHTML = '<p class="text-secondary">No handoff events.</p>';
+            } else {
+                const hlabs = { 'shop': 'Shop Handoff', 'broker': 'Broker Receipt', 'china-agent': 'CN Agent Receipt',
+                    'shipping': 'Loaded/Shipped', 'sl-agent': 'SL Agent Receipt',
+                    'shop-received': 'Received at Shop' };
+                let hhtml = '';
+                shipment.handoffs.forEach(h => {
+                    hhtml +=
+                        `<div class="timeline-item"><strong>${hlabs[h.stage]||h.stage}</strong> <span class="date">${h.date||'—'}</span>${h.notes?` <span class="text-secondary">— ${h.notes}</span>`:''}</div>`;
+                });
+                hdiv.innerHTML = hhtml;
+            }
+
+            // Payments
+            renderDetailPayments(shipment);
+
+            // Cost
+            renderDetailCost(shipment);
+
+            // Comments
+            renderComments(shipment);
+
+            // Documents
+            renderDocuments(shipment);
+
+            // Container
+            document.getElementById('containerDetails').innerHTML =
+                `<p><strong>Container:</strong> ${shipment.containerNumber||'N/A'}</p><p><strong>Carrier:</strong> ${shipment.carrier||'N/A'}</p><p><strong>Status:</strong> ${statusMap[lastStage]||lastStage}</p>`;
+
+            // Delete
+            document.getElementById('deleteShipmentBtn').onclick = function() {
+                if (confirm('Delete this shipment?')) {
+                    appData.shipments = appData.shipments.filter(s => s.id !== shipment.id);
+                    saveData(appData);
+                    showToast('Shipment deleted');
+                    backToList();
+                }
+            };
+
+            // Invoice
+            document.getElementById('generateInvoiceBtn').onclick = function() { generateInvoice(shipment); };
+
+            setTimeout(() => initMap(shipment), 300);
+        }
+
+        function backToList() {
+            document.getElementById('shipmentDetail').style.display = 'none';
+            document.getElementById('page-shipments').style.display = 'block';
+            renderShipmentList();
+        }
+        document.getElementById('backToListBtn').addEventListener('click', backToList);
+
+        function initMap(shipment) {
+            const mapDiv = document.getElementById('map');
+            if (!mapDiv) return;
+            if (mapInstance) { mapInstance.remove();
+                mapInstance = null; }
+            const route = [
+                { lat: 31.23, lng: 121.47, label: 'Shanghai' },
+                { lat: 10, lng: 110, label: 'Singapore' },
+                { lat: 6.93, lng: 79.85, label: 'Colombo' }
+            ];
+            try {
+                mapInstance = L.map(mapDiv).setView([15, 110], 5);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OpenStreetMap' })
+                    .addTo(mapInstance);
+                const points = route.map(p => [p.lat, p.lng]);
+                L.polyline(points, { color: '#6366f1', weight: 3, opacity: 0.7 }).addTo(mapInstance);
+                route.forEach((p) => {
+                    L.marker([p.lat, p.lng]).addTo(mapInstance).bindPopup(`<strong>${p.label}</strong>`);
+                });
+                setTimeout(() => { mapInstance.invalidateSize(); }, 400);
+            } catch (e) {
+                console.warn('Map error:', e);
+                mapDiv.innerHTML = '<div class="text-secondary p-3">Map could not load.</div>';
+            }
+        }
+
+        function renderDetailPayments(shipment) {
+            const div = document.getElementById('detailPaymentInfo');
+            if (!div) return;
+            const goodsCost = (shipment.products || []).reduce((sum, it) => {
+                const p = findProduct(it.productId);
+                return sum + (p ? p.costPrice : 0) * it.quantity;
+            }, 0);
+            let html = '';
+            const totalBroker = goodsCost + (shipment.brokerFee || 0);
+            const paidBroker = (shipment.brokerPayments || []).reduce((s, p) => s + p.amount, 0);
+            html += `<h6>Broker (Fee: ${shipment.brokerFee||0} LKR, Due: ${totalBroker} LKR)</h6>`;
+            if (shipment.brokerPayments && shipment.brokerPayments.length) {
+                html += `<table class="table table-sm"><tr><th>Amount</th><th>Date</th><th>#</th><th>Status</th></tr>`;
+                shipment.brokerPayments.forEach(p => {
+                    html +=
+                        `<tr><td>${p.amount}</td><td>${p.date}</td><td>#${p.installment}</td><td>${p.status}</td></tr>`;
+                });
+                html += '</table>';
+            } else {
+                html += '<p class="text-secondary">No broker payments.</p>';
+            }
+            html +=
+                `<p><strong>Outstanding:</strong> ${(totalBroker-paidBroker)>0 ? 'LKR '+(totalBroker-paidBroker).toFixed(2) : '✅ Paid'}</p>`;
+            html +=
+                `<button class="btn btn-sm btn-neon-outline add-payment-btn" data-type="broker"><i class="fas fa-plus me-1"></i>Add Broker Payment</button>`;
+
+            const paidCn = (shipment.cnAgentPayments || []).reduce((s, p) => s + p.amount, 0);
+            html += `<h6>CN Agent (Fee: ${shipment.cnAgentFee||0} LKR)</h6>`;
+            if (shipment.cnAgentPayments && shipment.cnAgentPayments.length) {
+                html += `<table class="table table-sm"><tr><th>Amount</th><th>Date</th><th>#</th><th>Status</th></tr>`;
+                shipment.cnAgentPayments.forEach(p => {
+                    html +=
+                        `<tr><td>${p.amount}</td><td>${p.date}</td><td>#${p.installment}</td><td>${p.status}</td></tr>`;
+                });
+                html += '</table>';
+            } else {
+                html += '<p class="text-secondary">No CN agent payments.</p>';
+            }
+            html +=
+                `<p><strong>Outstanding:</strong> ${((shipment.cnAgentFee||0)-paidCn)>0 ? 'LKR '+((shipment.cnAgentFee||0)-paidCn).toFixed(2) : '✅ Paid'}</p>`;
+            html +=
+                `<button class="btn btn-sm btn-neon-outline add-payment-btn" data-type="cn-agent"><i class="fas fa-plus me-1"></i>Add CN Agent Payment</button>`;
+
+            const paidSl = (shipment.slAgentPayments || []).reduce((s, p) => s + p.amount, 0);
+            html += `<h6>SL Agent (Fee: ${shipment.slAgentFee||0} LKR)</h6>`;
+            if (shipment.slAgentPayments && shipment.slAgentPayments.length) {
+                html += `<table class="table table-sm"><tr><th>Amount</th><th>Date</th><th>#</th><th>Status</th></tr>`;
+                shipment.slAgentPayments.forEach(p => {
+                    html +=
+                        `<tr><td>${p.amount}</td><td>${p.date}</td><td>#${p.installment}</td><td>${p.status}</td></tr>`;
+                });
+                html += '</table>';
+            } else {
+                html += '<p class="text-secondary">No SL agent payments.</p>';
+            }
+            html +=
+                `<p><strong>Outstanding:</strong> ${((shipment.slAgentFee||0)-paidSl)>0 ? 'LKR '+((shipment.slAgentFee||0)-paidSl).toFixed(2) : '✅ Paid'}</p>`;
+            html +=
+                `<button class="btn btn-sm btn-neon-outline add-payment-btn" data-type="sl-agent"><i class="fas fa-plus me-1"></i>Add SL Agent Payment</button>`;
+
+            div.innerHTML = html;
+            div.querySelectorAll('.add-payment-btn').forEach(btn => btn.addEventListener('click', function() {
+                const type = this.dataset.type;
+                document.getElementById('pShipmentSelect').innerHTML =
+                    `<option value="${shipment.id}">${shipment.shipmentNumber}</option>`;
+                document.getElementById('pType').value = type;
+                document.getElementById('pAmount').value = '';
+                document.getElementById('pDate').value = new Date().toISOString().split('T')[0];
+                const instCount = (type === 'broker' ? shipment.brokerPayments : type === 'cn-agent' ?
+                    shipment.cnAgentPayments : shipment.slAgentPayments)?.length || 0;
+                document.getElementById('pInstallment').value = instCount + 1;
+                document.getElementById('pStatus').value = 'Paid';
+                new bootstrap.Modal(document.getElementById('paymentModal')).show();
+            }));
+        }
+
+        function renderDetailCost(shipment) {
+            const div = document.getElementById('detailCostInfo');
+            if (!div) return;
+            const goodsCost = (shipment.products || []).reduce((sum, it) => {
+                const p = findProduct(it.productId);
+                return sum + (p ? p.costPrice : 0) * it.quantity;
+            }, 0);
+            const total = goodsCost + (shipment.brokerFee || 0) + (shipment.cnAgentFee || 0) + (shipment.slAgentFee ||
+                0) + (shipment.freight || 0) + (shipment.insurance || 0);
+            const totalSell = (shipment.products || []).reduce((sum, it) => {
+                const p = findProduct(it.productId);
+                return sum + (p ? p.sellPrice : 0) * it.quantity;
+            }, 0);
+            const profit = totalSell - total;
+            div.innerHTML = `
+                <div class="d-flex justify-content-between"><span>Goods Cost</span><span>${goodsCost.toFixed(2)} LKR</span></div>
+                <div class="d-flex justify-content-between"><span>Broker Fee</span><span>${(shipment.brokerFee||0).toFixed(2)} LKR</span></div>
+                <div class="d-flex justify-content-between"><span>CN Agent Fee</span><span>${(shipment.cnAgentFee||0).toFixed(2)} LKR</span></div>
+                <div class="d-flex justify-content-between"><span>SL Agent Fee</span><span>${(shipment.slAgentFee||0).toFixed(2)} LKR</span></div>
+                <div class="d-flex justify-content-between"><span>Freight</span><span>${(shipment.freight||0).toFixed(2)} LKR</span></div>
+                <div class="d-flex justify-content-between"><span>Insurance</span><span>${(shipment.insurance||0).toFixed(2)} LKR</span></div>
+                <hr /><div class="d-flex justify-content-between fw-bold"><span>Total Landed</span><span>${total.toFixed(2)} LKR</span></div>
+                <div class="d-flex justify-content-between text-success"><span>Potential Profit</span><span>${profit.toFixed(2)} LKR</span></div>
+            `;
+        }
+
+        function renderComments(shipment) {
+            const div = document.getElementById('commentThread');
+            if (!div) return;
+            if (!shipment.comments || !shipment.comments.length) {
+                div.innerHTML = '<p class="text-secondary">No comments.</p>';
+                return;
+            }
+            let html = '';
+            shipment.comments.forEach(c => {
+                html +=
+                    `<div class="comment"><strong>${c.author||'User'}</strong> <span class="meta">${c.date||''}</span><div>${c.text}</div></div>`;
+            });
+            div.innerHTML = html;
+        }
+
+        document.getElementById('addCommentBtn').addEventListener('click', function() {
+            const text = document.getElementById('commentInput').value.trim();
+            if (!text) return;
+            const shipment = findShipment(currentDetailId);
+            if (!shipment) return;
+            if (!shipment.comments) shipment.comments = [];
+            shipment.comments.push({ author: 'User', date: new Date().toLocaleString(), text: text });
+            updateShipment(shipment);
+            renderComments(shipment);
+            document.getElementById('commentInput').value = '';
+            addActivity('Comment added to ' + shipment.shipmentNumber);
+        });
+
+        function renderDocuments(shipment) {
+            const container = document.getElementById('documentsContainer');
+            if (!container) return;
+            const stageFilter = document.getElementById('docStageFilter').value;
+            const typeFilter = document.getElementById('docTypeFilter').value;
+            let docs = shipment.documents || [];
+            if (stageFilter) docs = docs.filter(d => d.stage === stageFilter);
+            if (typeFilter) {
+                if (typeFilter === 'image') docs = docs.filter(d => d.type && d.type.match(/jpg|jpeg|png|gif|webp/i));
+                else if (typeFilter === 'pdf') docs = docs.filter(d => d.type && d.type.toLowerCase() === 'pdf');
+                else if (typeFilter === 'doc') docs = docs.filter(d => d.type && d.type.match(/doc|docx/i));
+                else if (typeFilter === 'xls') docs = docs.filter(d => d.type && d.type.match(/xls|xlsx/i));
+            }
+            if (!docs.length) {
+                container.innerHTML = '<div class="text-secondary p-3">No documents.</div>';
+                return;
+            }
+            const stageLabels = { 'shop': 'Shop', 'broker': 'Broker', 'china-agent': 'CN Agent', 'shipping': 'Loaded',
+                'sl-agent': 'SL Agent', 'shop-received': 'Received' };
+            let html = '';
+            const groups = {};
+            docs.forEach(doc => {
+                if (!groups[doc.stage]) groups[doc.stage] = [];
+                groups[doc.stage].push(doc);
+            });
+            for (const [stage, docsList] of Object.entries(groups)) {
+                html += `<div class="col-12"><h6 class="text-primary">${stageLabels[stage] || stage}</h6><div class="row g-2">`;
+                docsList.forEach(doc => {
+                    const isImage = doc.type && doc.type.match(/jpg|jpeg|png|gif|webp/i);
+                    html += `
+                        <div class="col-md-3 col-6">
+                            <div class="doc-card">
+                                ${isImage ? `<img src="${doc.url}" class="doc-thumb" style="width:100%;height:auto;max-height:100px;object-fit:cover;" />` : `<div class="doc-thumb d-flex align-items-center justify-content-center" style="background:var(--bg-body);"><i class="fas fa-file-alt fa-2x text-secondary"></i></div>`}
+                                <div class="doc-info mt-1">
+                                    <div class="doc-stage">${stageLabels[stage] || stage}</div>
+                                    <div class="doc-name">${doc.name || 'Document'}</div>
+                                    <div class="doc-date">${doc.date || ''}</div>
+                                </div>
+                                <a href="${doc.url}" target="_blank" class="btn btn-sm btn-neon-outline mt-1 w-100">View</a>
+                                <button class="btn btn-sm btn-outline-danger mt-1 w-100 remove-doc" data-stage="${stage}" data-idx="${docsList.indexOf(doc)}"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div></div>';
+            }
+            container.innerHTML = html;
+            container.querySelectorAll('.remove-doc').forEach(btn => btn.addEventListener('click', function() {
+                const stage = this.dataset.stage;
+                const idx = parseInt(this.dataset.idx);
+                const shipment2 = findShipment(currentDetailId);
+                if (!shipment2) return;
+                const docsList = shipment2.documents.filter(d => d.stage === stage);
+                if (docsList[idx]) {
+                    const docToRemove = docsList[idx];
+                    const index = shipment2.documents.indexOf(docToRemove);
+                    if (index !== -1) {
+                        shipment2.documents.splice(index, 1);
+                        updateShipment(shipment2);
+                        renderDocuments(shipment2);
+                        showToast('Document removed');
+                        addActivity('Removed document from ' + shipment2.shipmentNumber);
+                    }
+                }
+            }));
+        }
+
+        document.getElementById('docStageFilter').addEventListener('change', function() {
+            const shipment = findShipment(currentDetailId);
+            if (shipment) renderDocuments(shipment);
+        });
+        document.getElementById('docTypeFilter').addEventListener('change', function() {
+            const shipment = findShipment(currentDetailId);
+            if (shipment) renderDocuments(shipment);
+        });
+        document.getElementById('clearDocFilters').addEventListener('click', function() {
+            document.getElementById('docStageFilter').value = '';
+            document.getElementById('docTypeFilter').value = '';
+            const shipment = findShipment(currentDetailId);
+            if (shipment) renderDocuments(shipment);
+        });
+
+        let stageDocData = null;
+        let stageDocName = '';
+        let stageTargetStage = '';
+
+        const stageDropZone = document.getElementById('stageDocDropZone');
+        const stageFileInput = document.getElementById('stageDocFileInput');
+        const stagePreview = document.getElementById('stageDocPreview');
+        const stagePreviewImg = document.getElementById('stageDocPreviewImg');
+        const stageFileName = document.getElementById('stageDocFileName');
+
+        stageDropZone.addEventListener('click', () => stageFileInput.click());
+        stageDropZone.addEventListener('dragover', function(e) { e.preventDefault();
+            this.classList.add('dragover'); });
+        stageDropZone.addEventListener('dragleave', function(e) { this.classList.remove('dragover'); });
+        stageDropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleStageDocFile(e.dataTransfer.files[0]);
+            }
+        });
+        stageFileInput.addEventListener('change', function(e) {
+            if (this.files && this.files[0]) {
+                handleStageDocFile(this.files[0]);
+            }
+        });
+
+        function handleStageDocFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                stageDocData = ev.target.result;
+                stageDocName = file.name;
+                if (file.type.startsWith('image/')) {
+                    stagePreviewImg.src = ev.target.result;
+                    stagePreviewImg.style.display = 'block';
+                } else {
+                    stagePreviewImg.style.display = 'none';
+                }
+                stageFileName.textContent = file.name;
+                stagePreview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        document.getElementById('stageModalConfirm').addEventListener('click', function() {
+            const shipment = findShipment(currentDetailId);
+            if (!shipment) return;
+            const stage = stageTargetStage;
+            const notes = document.getElementById('stageNotes').value.trim();
+            const docName = document.getElementById('stageDocName').value.trim() || (stageDocName || 'Document');
+            const date = new Date().toISOString().split('T')[0];
+            if (!shipment.handoffs) shipment.handoffs = [];
+            shipment.handoffs.push({ stage, date, notes: notes || 'Updated', photo: '' });
+            if (stage === 'shipping') shipment.loadingDate = date;
+            if (stage === 'shop-received') {
+                (shipment.products || []).forEach(item => { if (!item.received) item.received = item.quantity; });
+            }
+            if (stageDocData) {
+                if (!shipment.documents) shipment.documents = [];
+                shipment.documents.push({
+                    stage: stage,
+                    name: docName,
+                    url: stageDocData,
+                    date: date,
+                    type: stageDocName ? (stageDocName.match(/\.(\w+)$/) || [])[1] || 'file' : 'file'
+                });
+            }
+            updateShipment(shipment);
+            bootstrap.Modal.getInstance(document.getElementById('stageModal')).hide();
+            showDetail(currentDetailId);
+            showToast('Updated stage: ' + stage + (stageDocData ? ' with document' : ''));
+            addActivity('Updated stage to ' + stage + ' for ' + shipment.shipmentNumber);
+            addNotification('Shipment ' + shipment.shipmentNumber + ' moved to ' + stage);
+        });
+
+        function generateInvoice(shipment) {
+            const goodsCost = (shipment.products || []).reduce((sum, it) => {
+                const p = findProduct(it.productId);
+                return sum + (p ? p.costPrice : 0) * it.quantity;
+            }, 0);
+            const total = goodsCost + (shipment.brokerFee || 0) + (shipment.cnAgentFee || 0) + (shipment.slAgentFee ||
+                0) + (shipment.freight || 0) + (shipment.insurance || 0);
+            const win = window.open('', '_blank');
+            win.document.write(`
+                <html><head><title>Invoice ${shipment.shipmentNumber}</title>
+                <style>body{font-family:'Times New Roman',serif;padding:40px;background:#fff;color:#000;} .header{border-bottom:2px solid #6366f1;padding-bottom:10px;margin-bottom:20px;} .total{font-size:1.2rem;font-weight:700;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ccc;padding:8px;text-align:left;}
+</style></head><body>
+<div class="header"><h1>INVOICE</h1><p><strong>Shipment:</strong> ${shipment.shipmentNumber}</p><p><strong>Date:</strong> ${new Date().toISOString().split('T')[0]}</p><p><strong>Broker:</strong> ${shipment.broker}</p></div>
+<table><tr><th>Description</th><th>Amount (LKR)</th></tr>
+<tr><td>Goods Cost</td><td>${goodsCost.toFixed(2)}</td></tr>
+<tr><td>Broker Fee</td><td>${(shipment.brokerFee||0).toFixed(2)}</td></tr>
+<tr><td>CN Agent Fee</td><td>${(shipment.cnAgentFee||0).toFixed(2)}</td></tr>
+<tr><td>SL Agent Fee</td><td>${(shipment.slAgentFee||0).toFixed(2)}</td></tr>
+<tr><td>Freight</td><td>${(shipment.freight||0).toFixed(2)}</td></tr>
+<tr><td>Insurance</td><td>${(shipment.insurance||0).toFixed(2)}</td></tr>
+<tr class="total"><td><strong>TOTAL</strong></td><td><strong>${total.toFixed(2)} LKR</strong></td></tr>
+</table>
+<p class="mt-3">Thank you!</p>
+</body></html>`);
+            win.document.close();
+            win.print();
+        }
+
+        // ============================================================
+        // NEW SHIPMENT MODAL
+        // ============================================================
+        let fProductRows = [];
+        let uploadedPhotos = [];
+
+        function renderProductRows() {
+            const tbody = document.getElementById('fProductRows');
+            if (!tbody) return;
+            const rows = tbody.querySelectorAll('tr');
+            let totalQty = 0,
+                totalAmt = 0;
+            rows.forEach(row => {
+                const qtyInput = row.querySelector('.qty-input');
+                const costInput = row.querySelector('.cost-input');
+                if (qtyInput && costInput) {
+                    const qty = parseInt(qtyInput.value) || 0;
+                    const cost = parseFloat(costInput.value) || 0;
+                    const total = qty * cost;
+                    const totalCell = row.querySelector('.row-total');
+                    if (totalCell) totalCell.textContent = total.toFixed(2);
+                    totalQty += qty;
+                    totalAmt += total;
+                }
+            });
+            document.getElementById('fTotalQty').textContent = totalQty;
+            document.getElementById('fTotalAmount').textContent = totalAmt.toFixed(2);
+        }
+
+        document.getElementById('fAddProductRowBtn').addEventListener('click', function() {
+            const tbody = document.getElementById('fProductRows');
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><span class="product-photo-preview">—</span></td>
+                <td><input class="form-control form-control-sm sku-input" placeholder="SKU" /></td>
+                <td><input class="form-control form-control-sm name-input" placeholder="Name" /></td>
+                <td><input class="form-control form-control-sm qty-input" type="number" value="0" min="0" /></td>
+                <td><input class="form-control form-control-sm cost-input" type="number" step="0.01" value="0" /></td>
+                <td class="row-total">0.00</td>
+                <td>
+                    <div class="row-photo-upload">
+                        <input type="file" class="row-photo-file" accept="image/*" style="display:none;" />
+                        <button class="btn btn-sm btn-neon-outline row-photo-btn"><i class="fas fa-upload"></i></button>
+                        <input class="form-control form-control-sm row-photo-url" placeholder="URL" style="width:80px;" />
+                        <button class="btn btn-sm btn-outline-secondary row-photo-apply"><i class="fas fa-check"></i></button>
+                    </div>
+                </td>
+                <td><button class="btn btn-sm btn-outline-danger remove-row"><i class="fas fa-times"></i></button></td>
+            `;
+            tbody.appendChild(row);
+            const fileInput = row.querySelector('.row-photo-file');
+            const photoBtn = row.querySelector('.row-photo-btn');
+            const urlInput = row.querySelector('.row-photo-url');
+            const applyBtn = row.querySelector('.row-photo-apply');
+            const previewSpan = row.querySelector('.product-photo-preview');
+            photoBtn.addEventListener('click', function() { fileInput.click(); });
+            fileInput.addEventListener('change', function(e) {
+                if (this.files && this.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(ev) {
+                        const data = ev.target.result;
+                        previewSpan.innerHTML =
+                            `<img src="${data}" class="product-thumb" style="width:40px;height:40px;object-fit:cover;" />`;
+                        row.dataset.photo = data;
+                    };
+                    reader.readAsDataURL(this.files[0]);
+                }
+            });
+            applyBtn.addEventListener('click', function() {
+                const url = urlInput.value.trim();
+                if (url) {
+                    previewSpan.innerHTML =
+                        `<img src="${url}" class="product-thumb" style="width:40px;height:40px;object-fit:cover;" onerror="this.style.display='none'" />`;
+                    row.dataset.photo = url;
+                    urlInput.value = '';
+                }
+            });
+            const inputs = row.querySelectorAll('input.sku-input, input.name-input, input.qty-input, input.cost-input');
+            inputs.forEach(inp => inp.addEventListener('input', renderProductRows));
+            row.querySelector('.remove-row').addEventListener('click', function() {
+                row.remove();
+                renderProductRows();
+            });
+            renderProductRows();
+        });
+
+        document.getElementById('addShipmentBtn').addEventListener('click', function() {
+            document.getElementById('fShipmentNumber').value = '';
+            document.getElementById('fLoadingDate').value = '';
+            document.getElementById('fCurrency').value = 'LKR';
+            document.getElementById('fIncoterms').value = 'FOB';
+            document.getElementById('fBrokerName').value = 'Default Broker';
+            document.getElementById('fChinaAgent').value = 'CN Clear';
+            document.getElementById('fSLAgent').value = 'SL Clear';
+            document.getElementById('fContainerNumber').value = '';
+            document.getElementById('fCarrier').value = '';
+            document.getElementById('fBrokerFee').value = 15000;
+            document.getElementById('fCnAgentFee').value = 25000;
+            document.getElementById('fSlAgentFee').value = 35000;
+            document.getElementById('fFreight').value = 0;
+            document.getElementById('fInsurance').value = 0;
+            document.getElementById('fProductRows').innerHTML = '';
+            document.getElementById('fPhotoPreviewContainer').innerHTML = '';
+            uploadedPhotos = [];
+            const select = document.getElementById('fShopSelect');
+            select.innerHTML = '';
+            (appData.shops || []).forEach(s => { select.innerHTML += `<option value="${s.id}">${s.name}</option>`; });
+            new bootstrap.Modal(document.getElementById('newShipmentModal')).show();
+        });
+
+        document.getElementById('saveNewShipment').addEventListener('click', function() {
+            const num = document.getElementById('fShipmentNumber').value.trim();
+            const loading = document.getElementById('fLoadingDate').value;
+            const currency = document.getElementById('fCurrency').value;
+            const incoterms = document.getElementById('fIncoterms').value;
+            const broker = document.getElementById('fBrokerName').value.trim() || 'Default Broker';
+            const chinaAgent = document.getElementById('fChinaAgent').value.trim() || 'CN Clear';
+            const slAgent = document.getElementById('fSLAgent').value.trim() || 'SL Clear';
+            const containerNumber = document.getElementById('fContainerNumber').value.trim();
+            const carrier = document.getElementById('fCarrier').value.trim() || 'N/A';
+            const brokerFee = parseFloat(document.getElementById('fBrokerFee').value) || 0;
+            const cnAgentFee = parseFloat(document.getElementById('fCnAgentFee').value) || 0;
+            const slAgentFee = parseFloat(document.getElementById('fSlAgentFee').value) || 0;
+            const freight = parseFloat(document.getElementById('fFreight').value) || 0;
+            const insurance = parseFloat(document.getElementById('fInsurance').value) || 0;
+            const shops = [...document.getElementById('fShopSelect').selectedOptions].map(o => parseInt(o.value));
+            if (!num || !shops.length) { alert('Shipment number and at least one shop required'); return; }
+            if (appData.shipments.some(s => s.shipmentNumber === num)) { alert('Shipment # already exists'); return; }
+            const productRows = document.querySelectorAll('#fProductRows tr');
+            const products = [];
+            let firstPhoto = uploadedPhotos.length > 0 ? uploadedPhotos[0] : '';
+            productRows.forEach(row => {
+                const sku = row.querySelector('.sku-input')?.value?.trim();
+                const name = row.querySelector('.name-input')?.value?.trim();
+                const qty = parseInt(row.querySelector('.qty-input')?.value) || 0;
+                const unitCost = parseFloat(row.querySelector('.cost-input')?.value) || 0;
+                const photo = row.dataset.photo || '';
+                if (sku && qty > 0) {
+                    let prod = appData.products.find(p => p.sku === sku);
+                    if (!prod) {
+                        prod = {
+                            id: appData.nextProductId++,
+                            sku: sku,
+                            name: name || sku,
+                            category: 'Unknown',
+                            costPrice: unitCost,
+                            sellPrice: 0,
+                            photo: photo || firstPhoto || '',
+                            stock: 0
+                        };
+                        appData.products.push(prod);
+                        saveData(appData);
+                    } else {
+                        if (photo) prod.photo = photo;
+                        saveData(appData);
+                    }
+                    products.push({
+                        productId: prod.id,
+                        quantity: qty,
+                        unitCost: unitCost,
+                        total: qty * unitCost,
+                        photo: photo || prod.photo || ''
+                    });
+                }
+            });
+            if (products.length === 0) {
+                if (!confirm('No products added. Create shipment anyway?')) { return; }
+            }
+            const newShip = {
+                id: appData.nextId++,
+                shipmentNumber: num,
+                loadingDate: loading || null,
+                broker: broker,
+                chinaAgent: chinaAgent,
+                slAgent: slAgent,
+                currency: currency,
+                incoterms: incoterms,
+                containerNumber: containerNumber || '',
+                carrier: carrier || 'N/A',
+                transitDays: 25,
+                shops: shops,
+                handoffs: [{ stage: 'shop', date: new Date().toISOString().split('T')[0], notes: 'Created' }],
+                products: products,
+                brokerPayments: [],
+                brokerFee: brokerFee,
+                cnAgentPayments: [],
+                cnAgentFee: cnAgentFee,
+                slAgentPayments: [],
+                slAgentFee: slAgentFee,
+                freight: freight,
+                insurance: insurance,
+                comments: [],
+                documents: []
+            };
+            appData.shipments.push(newShip);
+            saveData(appData);
+            bootstrap.Modal.getInstance(document.getElementById('newShipmentModal')).hide();
+            renderShipmentList();
+            showToast('Shipment created successfully');
+            addActivity('Created shipment ' + num);
+            addNotification('New shipment ' + num);
+            document.getElementById('fProductRows').innerHTML = '';
+            document.getElementById('fPhotoPreviewContainer').innerHTML = '';
+            uploadedPhotos = [];
+        });
+
+        // ============================================================
+        // RECEIVE GOODS
+        // ============================================================
+        document.getElementById('detailReceiveBtn')?.addEventListener('click', function() {
+            const shipment = findShipment(currentDetailId);
+            if (!shipment || !shipment.products || !shipment.products.length) { alert('No products to receive'); return; }
+            const tbody = document.getElementById('receiveBody');
+            let html = '';
+            shipment.products.forEach((item, idx) => {
+                const prod = findProduct(item.productId);
+                const photoHtml = item.photo || prod?.photo ?
+                    `<img src="${item.photo || prod.photo}" class="product-thumb" style="width:30px;height:30px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none'" />` :
+                    '—';
+                html +=
+                    `<tr data-item-index="${idx}"><td>${photoHtml}</td><td>${prod?prod.sku:'—'}</td><td>${prod?prod.name:'—'}</td><td>${item.quantity}</td><td><input type="number" class="form-control form-control-sm received-qty" value="${item.received||item.quantity}" min="0" max="${item.quantity}" /></td></tr>`;
+            });
+            tbody.innerHTML = html;
+            new bootstrap.Modal(document.getElementById('receiveModal')).show();
+        });
+
+        document.getElementById('confirmReceiveBtn').addEventListener('click', function() {
+            const shipment = findShipment(currentDetailId);
+            if (!shipment) return;
+            const rows = document.querySelectorAll('#receiveBody tr');
+            let discrepancies = 0,
+                totalOrdered = 0,
+                totalReceived = 0;
+            rows.forEach(row => {
+                const idx = parseInt(row.dataset.itemIndex);
+                const item = shipment.products[idx];
+                const received = parseInt(row.querySelector('.received-qty').value) || 0;
+                totalOrdered += item.quantity;
+                totalReceived += received;
+                if (received !== item.quantity) discrepancies++;
+                item.received = received;
+            });
+            if (discrepancies) {
+                showToast('⚠️ ' + discrepancies + ' discrepancies found', 'warning');
+                addNotification('Discrepancy in ' + shipment.shipmentNumber + ': ' + discrepancies + ' items');
+            } else {
+                showToast('✅ All ' + totalOrdered + ' items received', 'success');
+            }
+            const allReceived = (shipment.products || []).every(it => (it.received || 0) >= it.quantity);
+            if (allReceived && !shipment.handoffs.some(h => h.stage === 'shop-received')) {
+                shipment.handoffs.push({ stage: 'shop-received', date: new Date().toISOString().split('T')[0],
+                    notes: 'Auto-received', photo: '' });
+            }
+            updateShipment(shipment);
+            bootstrap.Modal.getInstance(document.getElementById('receiveModal')).hide();
+            showDetail(currentDetailId);
+            showToast('Receipt confirmed');
+            addActivity('Received goods for ' + shipment.shipmentNumber);
+        });
+
+        // Add receive button if not present
+        const detailActions = document.getElementById('detailActions');
+        if (detailActions && !document.getElementById('detailReceiveBtn')) {
+            const receiveBtn = document.createElement('button');
+            receiveBtn.className = 'btn-stage btn-stage-received';
+            receiveBtn.id = 'detailReceiveBtn';
+            receiveBtn.innerHTML = '<i class="fas fa-check-circle me-1"></i>Receive';
+            detailActions.appendChild(receiveBtn);
+            receiveBtn.addEventListener('click', function() {
+                const shipment = findShipment(currentDetailId);
+                if (!shipment || !shipment.products || !shipment.products.length) { alert('No products to receive'); return; }
+                const tbody = document.getElementById('receiveBody');
+                let html = '';
+                shipment.products.forEach((item, idx) => {
+                    const prod = findProduct(item.productId);
+                    const photoHtml = item.photo || prod?.photo ?
+                        `<img src="${item.photo || prod.photo}" class="product-thumb" style="width:30px;height:30px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none'" />` :
+                        '—';
+                    html +=
+                        `<tr data-item-index="${idx}"><td>${photoHtml}</td><td>${prod?prod.sku:'—'}</td><td>${prod?prod.name:'—'}</td><td>${item.quantity}</td><td><input type="number" class="form-control form-control-sm received-qty" value="${item.received||item.quantity}" min="0" max="${item.quantity}" /></td></tr>`;
+                });
+                tbody.innerHTML = html;
+                new bootstrap.Modal(document.getElementById('receiveModal')).show();
+            });
+        }
+
+        // ============================================================
+        // EXPORT
+        // ============================================================
+        document.getElementById('exportCSV').addEventListener('click', function() {
+            let csv = 'Shipment,Shops,Status,Loading,Items,Cost(LKR)\n';
+            (appData.shipments || []).forEach(s => {
+                const shopNames = s.shops.map(id => findShop(id)?.name || '').join(';');
+                const status = s.handoffs && s.handoffs.length ? s.handoffs[s.handoffs.length - 1].stage :
+                'shop';
+                const items = (s.products || []).reduce((sum, it) => sum + it.quantity, 0);
+                const cost = (s.products || []).reduce((sum, it) => {
+                    const p = findProduct(it.productId);
+                    return sum + (p ? p.costPrice : 0) * it.quantity;
+                }, 0) + (s.brokerFee || 0) + (s.cnAgentFee || 0) + (s.slAgentFee || 0) + (s.freight ||
+                    0) + (s.insurance || 0);
+                csv += `${s.shipmentNumber},${shopNames},${status},${s.loadingDate||''},${items},${cost.toFixed(2)}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'shipments_export.csv';
+            link.click();
+            showToast('CSV exported');
+        });
+
+        document.getElementById('exportEncryptedBtn').addEventListener('click', function() {
+            const password = prompt('Set password:');
+            if (!password) return;
+            const data = JSON.stringify(appData);
+            const encrypted = btoa(data);
+            const blob = new Blob([encrypted], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'encrypted_export.dat';
+            link.click();
+            showToast('Encrypted export created (password: ' + password + ')');
+        });
+
+        // ============================================================
+        // BULK ACTIONS
+        // ============================================================
+        document.getElementById('bulkActionsBtn').addEventListener('click', function() {
+            if (selectedShipments.size === 0) { showToast('Select shipments first', 'warning'); return; }
+            const action = prompt('Bulk action: delete / status:Stage / export');
+            if (!action) return;
+            if (action === 'delete') {
+                if (confirm('Delete ' + selectedShipments.size + ' shipments?')) {
+                    appData.shipments = appData.shipments.filter(s => !selectedShipments.has(s.id));
+                    saveData(appData);
+                    selectedShipments.clear();
+                    renderShipmentList();
+                    showToast('Deleted');
+                    addActivity('Bulk deleted ' + selectedShipments.size + ' shipments');
+                }
+            } else if (action.startsWith('status:')) {
+                const stage = action.split(':')[1];
+                if (['shop', 'broker', 'china-agent', 'shipping', 'sl-agent', 'shop-received'].includes(stage)) {
+                    selectedShipments.forEach(id => {
+                        const s = findShipment(id);
+                        if (s) { if (!s.handoffs) s.handoffs = [];
+                            s.handoffs.push({ stage, date: new Date().toISOString().split('T')[0],
+                                notes: 'Bulk', photo: '' });
+                            updateShipment(s); }
+                    });
+                    selectedShipments.clear();
+                    renderShipmentList();
+                    showToast('Updated to ' + stage);
+                    addActivity('Bulk status update to ' + stage);
+                }
+            } else if (action === 'export') {
+                let csv = 'Shipment,Status,Loading,Cost\n';
+                selectedShipments.forEach(id => {
+                    const s = findShipment(id);
+                    if (s) {
+                        const cost = (s.products || []).reduce((sum, it) => {
+                            const p = findProduct(it.productId);
+                            return sum + (p ? p.costPrice : 0) * it.quantity;
+                        }, 0) + (s.brokerFee || 0) + (s.cnAgentFee || 0) + (s.slAgentFee || 0) + (s
+                            .freight || 0) + (s.insurance || 0);
+                        csv += `${s.shipmentNumber},${s.status},${s.loadingDate},${cost}\n`;
+                    }
+                });
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'bulk_export.csv';
+                link.click();
+                showToast('Exported');
+            }
+        });
+
+        // ============================================================
+        // QUICK TOOLBAR
+        // ============================================================
+        document.getElementById('quickAddShipment').addEventListener('click', function() { document.getElementById(
+                'addShipmentBtn').click(); });
+        document.getElementById('quickAddPayment').addEventListener('click', function() { document.getElementById(
+                'addPaymentBtn').click(); });
+        document.getElementById('quickGenerateInvoice').addEventListener('click', function() {
+            const shipment = appData.shipments[0];
+            if (shipment) generateInvoice(shipment);
+        });
+
+        // ============================================================
+        // GET CURRENT IP
+        // ============================================================
+        fetch('https://api.ipify.org?format=json')
+            .then(res => res.json())
+            .then(data => {
+                const ips = document.querySelectorAll('#currentIp');
+                ips.forEach(el => el.value = data.ip);
+            })
+            .catch(() => {
+                const ips = document.querySelectorAll('#currentIp');
+                ips.forEach(el => el.value = 'Unable to fetch');
+            });
+
+        // ============================================================
+        // SIDEBAR TOGGLE
+        // ============================================================
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarBackdrop').classList.toggle('show');
+        });
+        document.getElementById('sidebarBackdrop').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.remove('open');
+            this.classList.remove('show');
+        });
+
+        // ============================================================
+        // ADVANCED FILTER TOGGLE
+        // ============================================================
+        document.getElementById('advancedFilterToggle').addEventListener('click', function() {
+            const el = document.getElementById('advancedFilters');
+            el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+        });
+
+        // ============================================================
+        // ADD PRODUCT ROW IN SHIPMENT DETAIL
+        // ============================================================
+        document.getElementById('addProductRowBtn').addEventListener('click', function() {
+            const shipment = findShipment(currentDetailId);
+            if (!shipment) return;
+            const productId = prompt('Enter Product ID (from Products list):');
+            if (!productId) return;
+            const prod = findProduct(parseInt(productId));
+            if (!prod) { showToast('Product not found', 'danger'); return; }
+            const qty = parseInt(prompt('Enter quantity:')) || 0;
+            if (qty <= 0) { showToast('Invalid quantity', 'warning'); return; }
+            const unitCost = parseFloat(prompt('Enter unit cost (LKR):')) || 0;
+            if (!shipment.products) shipment.products = [];
+            shipment.products.push({ productId: prod.id, quantity: qty, unitCost: unitCost, total: qty * unitCost,
+                photo: prod.photo || '' });
+            updateShipment(shipment);
+            showDetail(currentDetailId);
+            showToast('Product added');
+            addActivity('Added product to ' + shipment.shipmentNumber);
+        });
+
+        // ============================================================
+        // AUTH LISTENER – START THE APP
+        // ============================================================
+        if (auth) {
+            auth.onAuthStateChanged(onAuthStateChanged);
+        } else {
+            // If auth failed, show login with error
+            showLogin();
+            document.getElementById('loginError').textContent = 'Firebase authentication failed. Please refresh.';
+        }
+
         console.log('🚀 ImportFlow Pro with Firebase Login Loaded');
-        console.log('Firebase initialized:', firebaseInitialized);
-
-        // Load data if already logged in (will be replaced by auth state)
-        loadData();
-
-        // If user is already logged in from previous session, show app
-        // auth.onAuthStateChanged will handle this
+        console.log('Firebase initialized:', !!auth);
+        console.log('App data:', appData);
     </script>
 </body>
 </html>
