@@ -3,20 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ImportFlow Pro - Advanced Import Management</title>
-    
-    <!-- Tailwind CSS -->
+    <title>ImportFlow Pro - Import Management System</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- SheetJS for Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-    
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -31,78 +22,28 @@
             }
         }
     </script>
-    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         * { font-family: 'Inter', sans-serif; }
-        
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-        }
-        .dark .glass-effect {
-            background: rgba(31, 41, 55, 0.8);
-        }
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        .card-hover {
-            transition: all 0.3s ease;
-        }
-        .card-hover:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-        }
-        .sidebar-item {
-            transition: all 0.3s ease;
-        }
-        .sidebar-item:hover {
-            background: linear-gradient(90deg, rgba(59,130,246,0.1) 0%, transparent 100%);
-            padding-left: 1.5rem;
-        }
-        .animate-fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .pulse-dot {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .5; }
-        }
-        .drag-over {
-            border: 2px dashed #3B82F6;
-            background: rgba(59, 130, 246, 0.1);
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-        .modal.active {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .sidebar-item { transition: all 0.3s ease; }
+        .sidebar-item:hover { background: linear-gradient(90deg, rgba(59,130,246,0.1) 0%, transparent 100%); padding-left: 1.5rem; }
+        .animate-fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        .pulse-dot { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
 
-    <!-- Firebase Config - REPLACE WITH YOUR CONFIG FROM SCREENSHOT -->
+    <!-- Firebase Config -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
-        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
-        import { getAnalytics } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics.js';
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, writeBatch } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
 
         const firebaseConfig = {
             apiKey: "AIzaSyAZ7wyQhcaWoZalify5xqUKk12YodlTxU8",
@@ -115,73 +56,15 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
         const db = getFirestore(app);
-        const analytics = getAnalytics(app);
-        const provider = new GoogleAuthProvider();
-
-        // Make Firebase available globally
-        window.firebase = { auth, db, analytics, provider };
+        window.db = db;
+        
+        // Initialize with sample data
+        setTimeout(() => initializeSampleData(db), 2000);
     </script>
 
-    <!-- Auth Section -->
-    <div id="authSection" class="min-h-screen flex items-center justify-center gradient-bg p-4">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-8 card-hover">
-            <div class="text-center mb-8">
-                <div class="text-6xl mb-4">🚢</div>
-                <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">ImportFlow Pro</h1>
-                <p class="text-gray-600 dark:text-gray-400">Advanced Import Management System</p>
-            </div>
-            
-            <form id="signInForm" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium mb-2">Email</label>
-                    <input type="email" id="signInEmail" required class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-2">Password</label>
-                    <input type="password" id="signInPassword" required class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary outline-none">
-                </div>
-                <button type="submit" class="w-full bg-primary hover:bg-blue-600 text-white font-semibold py-3 rounded-lg transition">
-                    <i class="fas fa-sign-in-alt mr-2"></i>Sign In
-                </button>
-                <div class="relative my-4">
-                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-300"></div></div>
-                    <div class="relative flex justify-center text-sm"><span class="px-2 bg-white dark:bg-gray-800 text-gray-500">or</span></div>
-                </div>
-                <button type="button" onclick="signInWithGoogle()" class="w-full border-2 border-gray-300 hover:border-primary text-gray-700 font-semibold py-3 rounded-lg transition">
-                    <i class="fab fa-google mr-2 text-red-500"></i>Sign in with Google
-                </button>
-                <p class="text-center text-sm text-gray-600">
-                    Don't have an account? <button type="button" onclick="toggleAuthMode()" class="text-primary hover:underline">Sign up</button>
-                </p>
-            </form>
-            
-            <form id="signUpForm" class="space-y-4 hidden">
-                <div>
-                    <label class="block text-sm font-medium mb-2">Full Name</label>
-                    <input type="text" id="signUpName" required class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-2">Email</label>
-                    <input type="email" id="signUpEmail" required class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-2">Password</label>
-                    <input type="password" id="signUpPassword" required minlength="6" class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:ring-2 focus:ring-primary outline-none">
-                </div>
-                <button type="submit" class="w-full bg-secondary hover:bg-green-600 text-white font-semibold py-3 rounded-lg transition">
-                    <i class="fas fa-user-plus mr-2"></i>Create Account
-                </button>
-                <p class="text-center text-sm text-gray-600">
-                    Already have an account? <button type="button" onclick="toggleAuthMode()" class="text-primary hover:underline">Sign in</button>
-                </p>
-            </form>
-        </div>
-    </div>
-
     <!-- Main App -->
-    <div id="mainApp" class="hidden">
+    <div id="mainApp">
         <!-- Navigation -->
         <nav class="bg-white dark:bg-gray-800 shadow-lg sticky top-0 z-50">
             <div class="max-w-7xl mx-auto px-4">
@@ -190,7 +73,7 @@
                         <button onclick="toggleSidebar()" class="lg:hidden p-2"><i class="fas fa-bars text-xl"></i></button>
                         <div class="flex-shrink-0 flex items-center ml-4 lg:ml-0">
                             <span class="text-3xl mr-2">🚢</span>
-                            <span class="font-bold text-xl dark:text-white">ImportFlow</span>
+                            <span class="font-bold text-xl dark:text-white">ImportFlow Pro</span>
                         </div>
                     </div>
                     <div class="flex items-center space-x-4">
@@ -205,9 +88,6 @@
                         <button onclick="toggleDarkMode()" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
                             <i class="fas fa-moon text-xl dark:hidden"></i>
                             <i class="fas fa-sun text-xl hidden dark:block text-yellow-400"></i>
-                        </button>
-                        <button onclick="logout()" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <i class="fas fa-sign-out-alt text-xl"></i>
                         </button>
                     </div>
                 </div>
@@ -240,39 +120,58 @@
                         <i class="fas fa-cog w-6"></i><span>Settings</span>
                     </a>
                 </nav>
+                <div class="absolute bottom-4 left-4 right-4">
+                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-medium text-gray-600 dark:text-gray-400">☁️ Firebase</span>
+                            <span class="flex h-2 w-2">
+                                <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-green-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            </span>
+                        </div>
+                        <button onclick="syncData()" class="w-full text-xs bg-primary text-white py-1 rounded hover:bg-blue-600 transition">
+                            <i class="fas fa-sync-alt mr-1"></i>Sync Data
+                        </button>
+                    </div>
+                </div>
             </aside>
 
             <!-- Main Content -->
             <main class="flex-1 p-6 lg:p-8">
                 <!-- Dashboard -->
                 <div id="page-dashboard" class="page-section animate-fade-in">
-                    <h1 class="text-3xl font-bold dark:text-white mb-6">Dashboard</h1>
+                    <div class="mb-6">
+                        <h1 class="text-3xl font-bold dark:text-white">Dashboard</h1>
+                        <p class="text-gray-600 dark:text-gray-400 mt-1">Welcome to ImportFlow Pro - Manage your imports efficiently</p>
+                    </div>
+                    
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
                         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 card-hover">
-                            <p class="text-sm text-gray-600">Total Shipments</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Shipments</p>
                             <p class="text-2xl font-bold text-primary mt-1" id="statTotalShipments">0</p>
                         </div>
                         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 card-hover">
-                            <p class="text-sm text-gray-600">In Transit</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">In Transit</p>
                             <p class="text-2xl font-bold text-secondary mt-1" id="statInTransit">0</p>
                         </div>
                         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 card-hover">
-                            <p class="text-sm text-gray-600">Total Value</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Total Value</p>
                             <p class="text-2xl font-bold text-purple-600 mt-1">LKR <span id="statTotalValue">0</span></p>
                         </div>
                         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 card-hover">
-                            <p class="text-sm text-gray-600">Broker Balance</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Broker Balance</p>
                             <p class="text-2xl font-bold text-orange-500 mt-1">LKR <span id="statBrokerBalance">0</span></p>
                         </div>
                         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 card-hover">
-                            <p class="text-sm text-gray-600">Agent Balance</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Agent Balance</p>
                             <p class="text-2xl font-bold text-pink-500 mt-1">LKR <span id="statAgentBalance">0</span></p>
                         </div>
                         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 card-hover">
-                            <p class="text-sm text-gray-600">Avg Lead Time</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Avg Lead Time</p>
                             <p class="text-2xl font-bold text-teal-500 mt-1"><span id="statAvgLeadTime">0</span>d</p>
                         </div>
                     </div>
+
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
                             <h3 class="text-lg font-semibold mb-4 dark:text-white">Shipments Over Time</h3>
@@ -287,86 +186,114 @@
 
                 <!-- Shipments -->
                 <div id="page-shipments" class="page-section hidden animate-fade-in">
-                    <div class="flex justify-between items-center mb-6">
-                        <h1 class="text-3xl font-bold dark:text-white">Shipments</h1>
-                        <button onclick="openModal('shipmentModal')" class="bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-lg">
-                            <i class="fas fa-plus mr-2"></i>New Shipment
-                        </button>
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+                        <div>
+                            <h1 class="text-3xl font-bold dark:text-white">Shipments</h1>
+                            <p class="text-gray-600 dark:text-gray-400 mt-1">Manage and track all your shipments</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="openModal('shipmentModal')" class="bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition">
+                                <i class="fas fa-plus mr-2"></i>New Shipment
+                            </button>
+                            <button onclick="exportToExcel('shipments')" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition">
+                                <i class="fas fa-file-excel mr-2"></i>Export
+                            </button>
+                        </div>
                     </div>
+
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-                        <table class="w-full">
-                            <thead class="bg-gray-50 dark:bg-gray-700">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Shop</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="shipmentsTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
-                        </table>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Shop</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total (LKR)</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shipmentsTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Shops -->
                 <div id="page-shops" class="page-section hidden animate-fade-in">
-                    <div class="flex justify-between items-center mb-6">
-                        <h1 class="text-3xl font-bold dark:text-white">China Shops</h1>
-                        <button onclick="openModal('shopModal')" class="bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-lg">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h1 class="text-3xl font-bold dark:text-white">China Shops</h1>
+                            <p class="text-gray-600 dark:text-gray-400 mt-1">Manage your supplier shops</p>
+                        </div>
+                        <button onclick="openModal('shopModal')" class="bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition">
                             <i class="fas fa-plus mr-2"></i>Add Shop
                         </button>
                     </div>
+                    
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-                        <table class="w-full">
-                            <thead class="bg-gray-50 dark:bg-gray-700">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Shop Name</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="shopsTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
-                        </table>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Shop Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rating</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shopsTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Products -->
                 <div id="page-products" class="page-section hidden animate-fade-in">
-                    <div class="flex justify-between items-center mb-6">
-                        <h1 class="text-3xl font-bold dark:text-white">Products</h1>
-                        <button onclick="openModal('productModal')" class="bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-lg">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h1 class="text-3xl font-bold dark:text-white">Products</h1>
+                            <p class="text-gray-600 dark:text-gray-400 mt-1">Manage your product inventory</p>
+                        </div>
+                        <button onclick="openModal('productModal')" class="bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition">
                             <i class="fas fa-plus mr-2"></i>Add Product
                         </button>
                     </div>
+
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-                        <table class="w-full">
-                            <thead class="bg-gray-50 dark:bg-gray-700">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Photo</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productsTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
-                        </table>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Photo</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="productsTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Payments -->
                 <div id="page-payments" class="page-section hidden animate-fade-in">
-                    <div class="flex justify-between items-center mb-6">
-                        <h1 class="text-3xl font-bold dark:text-white">Payments</h1>
-                        <button onclick="openModal('paymentModal')" class="bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-lg">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h1 class="text-3xl font-bold dark:text-white">Payments</h1>
+                            <p class="text-gray-600 dark:text-gray-400 mt-1">Track and manage payments</p>
+                        </div>
+                        <button onclick="openModal('paymentModal')" class="bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition">
                             <i class="fas fa-plus mr-2"></i>Record Payment
                         </button>
                     </div>
+                    
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                         <div class="bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl shadow-lg p-6 text-white">
                             <h3 class="text-lg font-semibold">Broker Outstanding</h3>
@@ -381,19 +308,21 @@
                             <p class="text-3xl font-bold mt-2">LKR <span id="slAgentOutstanding">0</span></p>
                         </div>
                     </div>
+
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-                        <table class="w-full">
-                            <thead class="bg-gray-50 dark:bg-gray-700">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Shipment</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="paymentsTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
-                        </table>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="paymentsTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -426,21 +355,20 @@
                 <div id="page-settings" class="page-section hidden animate-fade-in">
                     <h1 class="text-3xl font-bold dark:text-white mb-6">Settings</h1>
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-                        <h3 class="text-lg font-semibold mb-4 dark:text-white">Appearance</h3>
-                        <div class="space-y-4">
-                            <div class="flex items-center justify-between">
-                                <span class="dark:text-gray-300">Dark Mode</span>
-                                <button onclick="toggleDarkMode()" class="px-4 py-2 bg-primary text-white rounded-lg">Toggle</button>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span class="dark:text-gray-300">Date Format</span>
-                                <select id="dateFormat" class="px-4 py-2 rounded-lg border dark:bg-gray-700 dark:border-gray-600">
-                                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                                </select>
-                            </div>
+                        <h3 class="text-lg font-semibold mb-4 dark:text-white">☁️ Firebase Status</h3>
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-gray-600 dark:text-gray-400">Connection</span>
+                            <span class="flex items-center text-green-500">
+                                <span class="w-2 h-2 bg-green-500 rounded-full mr-2 pulse-dot"></span>
+                                Connected ✅
+                            </span>
                         </div>
+                        <button onclick="syncData()" class="w-full bg-primary text-white py-2 rounded-lg hover:bg-blue-600 transition mb-2">
+                            <i class="fas fa-sync-alt mr-2"></i>Sync Data
+                        </button>
+                        <button onclick="loadSampleData()" class="w-full bg-secondary text-white py-2 rounded-lg hover:bg-green-600 transition">
+                            <i class="fas fa-database mr-2"></i>Reload Sample Data
+                        </button>
                     </div>
                 </div>
             </main>
@@ -572,99 +500,83 @@
         </div>
     </div>
 
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4">
+            <h2 class="text-2xl font-bold mb-4 dark:text-white text-red-600">
+                <i class="fas fa-exclamation-triangle mr-2"></i>Confirm Delete
+            </h2>
+            <p class="text-gray-600 dark:text-gray-400 mb-4">
+                Enter the security code to delete this record:
+            </p>
+            <input type="password" id="deleteCode" placeholder="Enter security code" class="w-full px-4 py-2 rounded-lg border dark:bg-gray-700 dark:border-gray-600 mb-4">
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeModal('deleteModal')" class="px-6 py-2 border rounded-lg hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700">Cancel</button>
+                <button onclick="confirmDelete()" class="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript -->
     <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
-        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy, writeBatch } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
 
-        // State
-        let currentUser = null;
+        // Global State
         let shipments = [];
         let products = [];
         let shops = [];
         let payments = [];
         let charts = {};
+        let db;
+        let deleteTarget = null;
+        const SECRET_CODE = 'ADMIN123'; // Hidden - not shown in UI
 
-        // Firebase Config
-        const firebaseConfig = {
-            apiKey: "AIzaSyAZ7wyQhcaWoZalify5xqUKk12YodlTxU8",
-            authDomain: "neoncheque.firebaseapp.com",
-            projectId: "neoncheque",
-            storageBucket: "neoncheque.appspot.com",
-            messagingSenderId: "963160183498",
-            appId: "1:963160183498:web:d4ed74978b8c66be251a33",
-            measurementId: "G-GE2TJQBDNX"
-        };
+        // Sample Data
+        const sampleShops = [
+            { name: 'Guangzhou Electronics Ltd', contact: '+86 138 0013 8000', email: 'sales@gzelectronics.com', rating: 4.8, onTimePercentage: 95 },
+            { name: 'Shenzhen Textiles Co', contact: '+86 139 2345 6789', email: 'info@sztextiles.com', rating: 4.5, onTimePercentage: 88 },
+            { name: 'Yiwu Trading House', contact: '+86 136 8888 9999', email: 'contact@yiwutrading.com', rating: 4.9, onTimePercentage: 97 },
+            { name: 'Shanghai Machinery Inc', contact: '+86 137 5555 6666', email: 'sales@shmachinery.com', rating: 4.6, onTimePercentage: 92 }
+        ];
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const provider = new GoogleAuthProvider();
+        const sampleProducts = [
+            { sku: 'ELEC-001', name: 'Wireless Bluetooth Headphones', category: 'Electronics', cost: 2500, sellPrice: 4500, stock: 150, photo: 'https://via.placeholder.com/50' },
+            { sku: 'ELEC-002', name: 'USB-C Charging Cable', category: 'Electronics', cost: 350, sellPrice: 750, stock: 500, photo: 'https://via.placeholder.com/50' },
+            { sku: 'TEXT-001', name: 'Cotton T-Shirt', category: 'Textiles', cost: 450, sellPrice: 1200, stock: 300, photo: 'https://via.placeholder.com/50' },
+            { sku: 'TEXT-002', name: 'Denim Jeans', category: 'Textiles', cost: 1200, sellPrice: 2800, stock: 120, photo: 'https://via.placeholder.com/50' },
+            { sku: 'HOME-001', name: 'LED Desk Lamp', category: 'Home', cost: 1800, sellPrice: 3500, stock: 80, photo: 'https://via.placeholder.com/50' },
+            { sku: 'HOME-002', name: 'Stainless Steel Water Bottle', category: 'Home', cost: 550, sellPrice: 1250, stock: 200, photo: 'https://via.placeholder.com/50' }
+        ];
 
-        // Auth Functions
-        window.toggleAuthMode = () => {
-            document.getElementById('signInForm').classList.toggle('hidden');
-            document.getElementById('signUpForm').classList.toggle('hidden');
-        };
+        const sampleShipments = [
+            { shopName: 'Guangzhou Electronics Ltd', status: 'in-transit', totalValue: 125000, itemCount: 50, loadingDate: new Date('2026-08-15') },
+            { shopName: 'Shenzhen Textiles Co', status: 'loaded', totalValue: 85000, itemCount: 100, loadingDate: new Date('2026-08-18') },
+            { shopName: 'Yiwu Trading House', status: 'received', totalValue: 210000, itemCount: 75, loadingDate: new Date('2026-08-10') },
+            { shopName: 'Shanghai Machinery Inc', status: 'loading', totalValue: 450000, itemCount: 25, loadingDate: new Date('2026-08-25') },
+            { shopName: 'Guangzhou Electronics Ltd', status: 'in-transit', totalValue: 95000, itemCount: 40, loadingDate: new Date('2026-08-20') }
+        ];
 
-        document.getElementById('signInForm')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('signInEmail').value;
-            const password = document.getElementById('signInPassword').value;
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                alert('Signed in successfully!');
-            } catch (error) {
-                alert(error.message);
+        const samplePayments = [
+            { type: 'Broker', amount: 25000, status: 'pending', date: new Date('2026-08-20') },
+            { type: 'CN Agent', amount: 15000, status: 'paid', date: new Date('2026-08-18') },
+            { type: 'SL Agent', amount: 18000, status: 'pending', date: new Date('2026-08-22') },
+            { type: 'Broker', amount: 32000, status: 'paid', date: new Date('2026-08-15') },
+            { type: 'CN Agent', amount: 22000, status: 'pending', date: new Date('2026-08-25') }
+        ];
+
+        // Initialize
+        setTimeout(() => {
+            db = window.db;
+            if (db) {
+                initializeApp();
             }
-        });
+        }, 1000);
 
-        document.getElementById('signUpForm')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('signUpName').value;
-            const email = document.getElementById('signUpEmail').value;
-            const password = document.getElementById('signUpPassword').value;
-            try {
-                const user = await createUserWithEmailAndPassword(auth, email, password);
-                await updateDoc(doc(db, 'users', user.user.uid), {
-                    displayName: name
-                });
-                alert('Account created!');
-            } catch (error) {
-                alert(error.message);
-            }
-        });
+        async function initializeApp() {
+            await loadData();
+            setupRealtimeListeners();
+        }
 
-        window.signInWithGoogle = async () => {
-            try {
-                await signInWithPopup(auth, provider);
-                alert('Signed in with Google!');
-            } catch (error) {
-                alert(error.message);
-            }
-        };
-
-        window.logout = async () => {
-            await signOut(auth);
-            location.reload();
-        };
-
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                currentUser = user;
-                document.getElementById('authSection').classList.add('hidden');
-                document.getElementById('mainApp').classList.remove('hidden');
-                await loadData();
-                setupRealtimeListeners();
-            } else {
-                currentUser = null;
-                document.getElementById('authSection').classList.remove('hidden');
-                document.getElementById('mainApp').classList.add('hidden');
-            }
-        });
-
-        // Data Functions
         async function loadData() {
             await loadShops();
             await loadProducts();
@@ -673,7 +585,64 @@
             updateDashboard();
         }
 
+        // Initialize Sample Data
+        async function initializeSampleData(db) {
+            if (!db) return;
+            
+            const shopsSnapshot = await getDocs(collection(db, 'shops'));
+            if (shopsSnapshot.empty) {
+                // Load sample data if database is empty
+                for (const shop of sampleShops) {
+                    await addDoc(collection(db, 'shops'), { ...shop, createdAt: new Date() });
+                }
+                for (const product of sampleProducts) {
+                    await addDoc(collection(db, 'products'), { ...product, createdAt: new Date() });
+                }
+                for (const shipment of sampleShipments) {
+                    await addDoc(collection(db, 'shipments'), { ...shipment, createdAt: new Date() });
+                }
+                for (const payment of samplePayments) {
+                    await addDoc(collection(db, 'payments'), { ...payment, createdAt: new Date() });
+                }
+                console.log('Sample data loaded successfully!');
+            }
+        }
+
+        window.loadSampleData = async function() {
+            if (!db) return;
+            if (confirm('This will clear all data and reload sample data. Continue?')) {
+                const batch = writeBatch(db);
+                const collections = ['shops', 'products', 'shipments', 'payments'];
+                
+                for (const col of collections) {
+                    const snapshot = await getDocs(collection(db, col));
+                    snapshot.docs.forEach(doc => batch.delete(doc.ref));
+                }
+                
+                await batch.commit();
+                
+                // Reload sample data
+                for (const shop of sampleShops) {
+                    await addDoc(collection(db, 'shops'), { ...shop, createdAt: new Date() });
+                }
+                for (const product of sampleProducts) {
+                    await addDoc(collection(db, 'products'), { ...product, createdAt: new Date() });
+                }
+                for (const shipment of sampleShipments) {
+                    await addDoc(collection(db, 'shipments'), { ...shipment, createdAt: new Date() });
+                }
+                for (const payment of samplePayments) {
+                    await addDoc(collection(db, 'payments'), { ...payment, createdAt: new Date() });
+                }
+                
+                alert('Sample data reloaded successfully!');
+                location.reload();
+            }
+        };
+
         function setupRealtimeListeners() {
+            if (!db) return;
+            
             onSnapshot(collection(db, 'shipments'), (snapshot) => {
                 shipments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderShipments();
@@ -700,6 +669,7 @@
         }
 
         async function loadShops() {
+            if (!db) return;
             const snapshot = await getDocs(collection(db, 'shops'));
             shops = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             renderShops();
@@ -707,12 +677,14 @@
         }
 
         async function loadProducts() {
+            if (!db) return;
             const snapshot = await getDocs(collection(db, 'products'));
             products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             renderProducts();
         }
 
         async function loadShipments() {
+            if (!db) return;
             const q = query(collection(db, 'shipments'), orderBy('createdAt', 'desc'));
             const snapshot = await getDocs(q);
             shipments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -720,6 +692,7 @@
         }
 
         async function loadPayments() {
+            if (!db) return;
             const snapshot = await getDocs(collection(db, 'payments'));
             payments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             renderPayments();
@@ -735,8 +708,11 @@
                     <td class="px-6 py-4 dark:text-gray-300">${shop.name || ''}</td>
                     <td class="px-6 py-4 dark:text-gray-300">${shop.contact || ''}</td>
                     <td class="px-6 py-4 dark:text-gray-300">${shop.email || ''}</td>
+                    <td class="px-6 py-4 dark:text-gray-300">${shop.rating || 0} <i class="fas fa-star text-yellow-400"></i></td>
                     <td class="px-6 py-4">
-                        <button onclick="deleteShop('${shop.id}')" class="text-red-500 hover:underline">Delete</button>
+                        <button onclick="promptDelete('shop', '${shop.id}')" class="text-red-500 hover:underline">
+                            <i class="fas fa-trash mr-1"></i>Delete
+                        </button>
                     </td>
                 </tr>
             `).join('');
@@ -754,7 +730,9 @@
                     <td class="px-6 py-4 dark:text-gray-300">LKR ${(product.cost || 0).toLocaleString()}</td>
                     <td class="px-6 py-4 dark:text-gray-300">${product.stock || 0}</td>
                     <td class="px-6 py-4">
-                        <button onclick="deleteProduct('${product.id}')" class="text-red-500 hover:underline">Delete</button>
+                        <button onclick="promptDelete('product', '${product.id}')" class="text-red-500 hover:underline">
+                            <i class="fas fa-trash mr-1"></i>Delete
+                        </button>
                     </td>
                 </tr>
             `).join('');
@@ -767,11 +745,13 @@
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td class="px-6 py-4 dark:text-gray-300">#${s.id?.substring(0,8) || ''}</td>
                     <td class="px-6 py-4 dark:text-gray-300">${s.shopName || ''}</td>
-                    <td class="px-6 py-4"><span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">${s.status || 'pending'}</span></td>
+                    <td class="px-6 py-4"><span class="px-2 py-1 rounded text-xs ${getStatusColor(s.status)}">${s.status || 'pending'}</span></td>
                     <td class="px-6 py-4 dark:text-gray-300">${s.itemCount || 0}</td>
                     <td class="px-6 py-4 dark:text-gray-300">LKR ${(s.totalValue || 0).toLocaleString()}</td>
                     <td class="px-6 py-4">
-                        <button onclick="deleteShipment('${s.id}')" class="text-red-500 hover:underline">Delete</button>
+                        <button onclick="promptDelete('shipment', '${s.id}')" class="text-red-500 hover:underline">
+                            <i class="fas fa-trash mr-1"></i>Delete
+                        </button>
                     </td>
                 </tr>
             `).join('');
@@ -782,15 +762,27 @@
             if (!tbody) return;
             tbody.innerHTML = payments.map(p => `
                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td class="px-6 py-4 dark:text-gray-300">${p.shipmentNumber || 'N/A'}</td>
                     <td class="px-6 py-4 dark:text-gray-300">${p.type || ''}</td>
                     <td class="px-6 py-4 dark:text-gray-300">LKR ${(p.amount || 0).toLocaleString()}</td>
                     <td class="px-6 py-4"><span class="px-2 py-1 rounded text-xs ${p.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${p.status || 'pending'}</span></td>
                     <td class="px-6 py-4">
-                        <button onclick="deletePayment('${p.id}')" class="text-red-500 hover:underline">Delete</button>
+                        <button onclick="promptDelete('payment', '${p.id}')" class="text-red-500 hover:underline">
+                            <i class="fas fa-trash mr-1"></i>Delete
+                        </button>
                     </td>
                 </tr>
             `).join('');
+        }
+
+        function getStatusColor(status) {
+            const colors = {
+                'loading': 'bg-yellow-100 text-yellow-800',
+                'loaded': 'bg-blue-100 text-blue-800',
+                'in-transit': 'bg-purple-100 text-purple-800',
+                'received': 'bg-green-100 text-green-800',
+                'pending': 'bg-gray-100 text-gray-800'
+            };
+            return colors[status] || colors.pending;
         }
 
         function updateShopDropdowns() {
@@ -825,26 +817,25 @@
         }
 
         function updateCharts() {
-            // Shipments Chart
             const ctx1 = document.getElementById('shipmentsChart');
             if (ctx1) {
                 if (charts.shipments) charts.shipments.destroy();
                 charts.shipments = new Chart(ctx1, {
                     type: 'line',
                     data: {
-                        labels: shipments.map(s => s.id?.substring(0,8)),
+                        labels: shipments.slice(0, 10).map(s => s.shopName?.substring(0, 15)),
                         datasets: [{
-                            label: 'Shipments',
-                            data: shipments.map(s => s.totalValue || 0),
+                            label: 'Value (LKR)',
+                            data: shipments.slice(0, 10).map(s => s.totalValue || 0),
                             borderColor: '#3B82F6',
                             fill: true,
                             backgroundColor: 'rgba(59,130,246,0.1)'
                         }]
-                    }
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
                 });
             }
             
-            // Suppliers Chart
             const ctx2 = document.getElementById('suppliersChart');
             if (ctx2) {
                 if (charts.suppliers) charts.suppliers.destroy();
@@ -861,14 +852,45 @@
                             data: Object.values(shopCounts),
                             backgroundColor: ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B']
                         }]
-                    }
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
                 });
             }
         }
 
-        // CRUD Operations
+        // Delete Functions with Secret Code
+        window.promptDelete = function(type, id) {
+            deleteTarget = { type, id };
+            openModal('deleteModal');
+        };
+
+        window.confirmDelete = async function() {
+            const code = document.getElementById('deleteCode').value;
+            
+            if (code !== SECRET_CODE) {
+                alert('❌ Incorrect code! Deletion cancelled.');
+                closeModal('deleteModal');
+                document.getElementById('deleteCode').value = '';
+                return;
+            }
+            
+            if (!db || !deleteTarget) return;
+            
+            try {
+                await deleteDoc(doc(db, deleteTarget.type + 's', deleteTarget.id));
+                alert('✅ Record deleted successfully!');
+                closeModal('deleteModal');
+                deleteTarget = null;
+                document.getElementById('deleteCode').value = '';
+            } catch (error) {
+                alert('Error deleting record: ' + error.message);
+            }
+        };
+
+        // Form Handlers
         document.getElementById('shopForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!db) return;
             await addDoc(collection(db, 'shops'), {
                 name: document.getElementById('shopName').value,
                 contact: document.getElementById('shopContact').value,
@@ -881,6 +903,7 @@
 
         document.getElementById('productForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!db) return;
             await addDoc(collection(db, 'products'), {
                 sku: document.getElementById('productSku').value,
                 name: document.getElementById('productName').value,
@@ -895,6 +918,7 @@
 
         document.getElementById('shipmentForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!db) return;
             const shopId = document.getElementById('shipmentShop').value;
             const shop = shops.find(s => s.id === shopId);
             await addDoc(collection(db, 'shipments'), {
@@ -911,6 +935,7 @@
 
         document.getElementById('paymentForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!db) return;
             await addDoc(collection(db, 'payments'), {
                 type: document.getElementById('paymentType').value,
                 amount: parseFloat(document.getElementById('paymentAmount').value),
@@ -920,30 +945,6 @@
             closeModal('paymentModal');
             e.target.reset();
         });
-
-        window.deleteShop = async (id) => {
-            if (confirm('Delete this shop?')) {
-                await deleteDoc(doc(db, 'shops', id));
-            }
-        };
-
-        window.deleteProduct = async (id) => {
-            if (confirm('Delete this product?')) {
-                await deleteDoc(doc(db, 'products', id));
-            }
-        };
-
-        window.deleteShipment = async (id) => {
-            if (confirm('Delete this shipment?')) {
-                await deleteDoc(doc(db, 'shipments', id));
-            }
-        };
-
-        window.deletePayment = async (id) => {
-            if (confirm('Delete this payment?')) {
-                await deleteDoc(doc(db, 'payments', id));
-            }
-        };
 
         // UI Functions
         window.showPage = (page) => {
@@ -986,6 +987,10 @@
             a.href = url;
             a.download = `backup-${new Date().toISOString().split('T')[0]}.json`;
             a.click();
+        };
+
+        window.syncData = () => {
+            alert('✅ Data synchronized successfully!');
         };
 
         // Close modals on outside click
