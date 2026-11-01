@@ -5210,5 +5210,60 @@ toast('Firebase Cloud Sync Enabled');
 
 })();
 </script>
+<!-- FORCE SYNC BUTTON PATCH -->
+<script>
+(function(){
+  const ERP = window.ERP;
+  if(!ERP) return;
+  const {h, toast, page, card, modal} = ERP.ui;
+
+  const originalSettings = ERP.screens.settings;
+  ERP.screens.settings = function() {
+    const screen = originalSettings();
+    
+    // Create Force Sync Card
+    const syncCard = card({
+      title: 'Force Sync to Google Sheets',
+      body: h('div', null,
+        h('p', {class:'hint'}, 'If your Google Sheet looks messy or missing data, click this to push ALL local records to Google Sheets immediately.'),
+        h('button', {class:'btn btn-primary', onclick: async (e) => {
+          const btn = e.target;
+          btn.textContent = 'Syncing... Please wait...';
+          btn.disabled = true;
+
+          const collections = ['items', 'parties', 'salesInvoices', 'purchaseInvoices', 'journalEntries', 'employees'];
+          let count = 0;
+
+          for (const col of collections) {
+            const records = ERP.db.all(col);
+            for (const rec of records) {
+              if (ERP.cloud && ERP.cloud.sync) {
+                await ERP.cloud.sync(col, rec);
+                count++;
+              }
+            }
+          }
+          
+          btn.textContent = 'Sync Complete! (' + count + ' records sent)';
+          btn.style.background = 'var(--ok)';
+          btn.style.borderColor = 'var(--ok)';
+          toast('All data pushed to Google Sheets', 'ok');
+        }}, '🚀 Push All Local Data to Cloud')
+      )
+    });
+
+    // Inject it into the Settings view
+    const contentDiv = screen.querySelector('.card-body');
+    if(contentDiv) {
+       contentDiv.appendChild(h('div', {style:{marginTop:'16px'}}, syncCard));
+    }
+    
+    return screen;
+  };
+  
+  ERP.router.add('settings', ERP.screens.settings);
+  ERP.router.render();
+})();
+</script>
 </body>
 </html>
