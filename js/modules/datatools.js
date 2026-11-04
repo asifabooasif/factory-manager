@@ -1,0 +1,37 @@
+/* PART 15 — Data tools: export any list to CSV (opens in Excel), import customers/suppliers and items from CSV, print barcode labels. */
+(E=>{const at=E.N.findIndex(n=>n.id==='settings');E.N.splice(at,0,{g:'System',id:'datatools',ico:'🧰',label:'Import / Export'});
+const EXP={items:['art','name','cat','unit','pack','price','min','active'],variants:['sku','itemId','color','size','barcode','active'],parties:['code','name','type','phone','addr','limit','days','active'],employees:['code','name','nic','phone','payType','amount','allow','join','active'],invoices:['no','date','partyId','gross','disc','total','paid','cancelled'],purchases:['no','date','partyId','invNo','total','paid','cancelled'],journalEntries:['no','date','ref','narr','source'],stockMoves:['date','itemId','variantId','qty','value','type','ref','job'],attendance:['date','empId','status','ot'],qc:['date','jobId','code','stage','inspected','rejected','defect']};
+const MONEY=new Set(['price','limit','amount','allow','gross','disc','total','paid','value']);
+const NAMES={items:'Items',variants:'SKUs / variants',parties:'Customers & suppliers',employees:'Employees',invoices:'Sales invoices',purchases:'Purchase bills',journalEntries:'Journal entries',stockMoves:'Stock movements',attendance:'Attendance',qc:'Quality inspections'};
+const CATS=['Raw Material','Accessory','Finished Good','Packing'],TYPES=['Customer','Supplier','Both'];
+/* ---------- EAN-13 barcode as SVG ---------- */
+const L=['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'],G=['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'],R=['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'],P=['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+function ean(code){if(!/^\d{13}$/.test(code))return '<div class="nb">'+E.esc(code||'no barcode')+'</div>';let b='101';const p=P[+code[0]];
+ for(let i=1;i<7;i++)b+=(p[i-1]==='L'?L:G)[+code[i]];b+='01010';for(let i=7;i<13;i++)b+=R[+code[i]];b+='101';
+ let x='';[...b].forEach((c,i)=>{if(c==='1')x+=`<rect x="${i+5}" y="0" width="1" height="38"/>`});
+ return `<svg viewBox="0 0 ${b.length+10} 50" width="100%" style="max-width:150px"><g fill="#000">${x}</g><text x="${(b.length+10)/2}" y="48" font-size="9" text-anchor="middle" font-family="monospace">${code}</text></svg>`}
+E.route('datatools','Import / Export',()=>`<div class="card"><h3>Export to CSV (opens in Excel)</h3><div class="g2"><div class="f">What to export<select id="dx_c">${Object.keys(EXP).map(k=>`<option value="${k}">${NAMES[k]}</option>`).join('')}</select></div><div class="f">&nbsp;<button class="btn p" data-a="dxExport">Download CSV</button></div></div><p class="muted">Money columns are exported in rupees. Only the active factory's records are included.</p></div>
+ <div class="card"><h3>Import from CSV</h3><p class="muted">First row must be the column names. Download a template, fill it in Excel, save as CSV, then upload. Existing records are never overwritten; duplicates are skipped.</p>
+ <div class="g2"><div class="f">Import what<select id="di_t"><option value="parties">Customers & suppliers</option><option value="items">Items (articles)</option></select></div><div class="f">CSV file<input id="di_f" type="file" accept=".csv"></div></div>
+ <button class="btn" data-a="diTemplate">Download template</button> <button class="btn p" data-a="diImport">Import</button><div id="di_r" class="muted" style="margin-top:10px"></div></div>
+ <div class="card"><h3>Barcode labels</h3><p class="muted">Prints EAN-13 labels for finished-good SKUs, with article, colour and size. Set how many copies of each.</p><div class="g2"><div class="f">Copies per SKU<input id="bl_n" type="number" min="1" value="1"></div><div class="f">Article filter (optional)<input id="bl_q" placeholder="e.g. article no"></div></div><button class="btn p" data-a="blPrint">Print labels</button></div>`);
+E.A.dxExport=()=>{const c=E.val('dx_c'),h=EXP[c],rows=E.rows(c);const ln=[h.join(',')].concat(rows.map(o=>h.map(k=>{let v=o[k];if(MONEY.has(k)&&typeof v==='number')v=(v/100).toFixed(2);if(typeof v==='boolean')v=v?'Yes':'No';return E.csvCell(v)}).join(',')));
+ E.download(c+'-'+E.today()+'.csv',ln.join('\n'),'text/csv');E.toast(rows.length+' rows exported','success')};
+const TPL={parties:'name,type,phone,addr,limit,days\nABC Footwear,Customer,0771234567,"12 Main St, Colombo",500000,30\n',items:'art,name,cat,unit,pack,price,min\nSL-101,Ladies Slipper,Finished Good,Pair,6,1250,24\n'};
+E.A.diTemplate=()=>{const t=E.val('di_t');E.download(t+'-template.csv',TPL[t],'text/csv')};
+E.A.diImport=async()=>{try{const f=E.$('di_f').files[0];if(!f)throw new Error('Choose a CSV file first');const rows=E.parseCsv(await f.text());if(rows.length<2)throw new Error('The file has no data rows');
+ const h=rows[0].map(x=>x.trim().toLowerCase()),t=E.val('di_t'),get=(r,k)=>(r[h.indexOf(k)]||'').trim();if(!h.includes('name'))throw new Error('Column "name" is missing');
+ let ok=0,skip=[];for(let i=1;i<rows.length;i++){const r=rows[i],name=get(r,'name');if(!name){skip.push('Row '+(i+1)+': no name');continue}
+  if(t==='parties'){if(E.rows('parties').some(p=>p.name.toLowerCase()===name.toLowerCase())){skip.push('Row '+(i+1)+': '+name+' already exists');continue}
+   const ty=TYPES.find(x=>x.toLowerCase()===get(r,'type').toLowerCase())||'Customer';
+   await E.save('parties',{active:true,code:await E.next('PTY'),name,type:ty,phone:get(r,'phone'),addr:get(r,'addr'),limit:E.c(get(r,'limit')),days:parseInt(get(r,'days'))||0});ok++}
+  else{const art=get(r,'art');if(!art){skip.push('Row '+(i+1)+': article no missing');continue}if(E.rows('items').some(x=>x.art===art)){skip.push('Row '+(i+1)+': '+art+' already exists');continue}
+   const cat=CATS.find(x=>x.toLowerCase()===get(r,'cat').toLowerCase());if(!cat){skip.push('Row '+(i+1)+': category must be one of '+CATS.join(' / '));continue}
+   await E.save('items',{art,active:true,name,cat,unit:get(r,'unit')||'Pair',pack:Math.max(0,parseInt(get(r,'pack'))||0),price:E.c(get(r,'price')),min:parseFloat(get(r,'min'))||0});ok++}}
+ E.$('di_r').innerHTML='<b class="ok">'+ok+' imported.</b>'+(skip.length?'<br><b class="bad">'+skip.length+' skipped:</b><br>'+skip.slice(0,30).map(E.esc).join('<br>'):'');E.toast(ok+' imported','success')}catch(e){E.toast(e.message,'error')}};
+E.A.blPrint=()=>{const n=Math.max(1,parseInt(E.val('bl_n'))||1),q=E.val('bl_q').toLowerCase();const it=id=>E.D.items.find(x=>x.id===id);
+ const L=E.skuList(i=>i.cat==='Finished Good').filter(k=>!q||k.label.toLowerCase().includes(q));if(!L.length)return E.toast('No finished-good SKUs found','error');
+ const cell=k=>`<div class="lb"><div class="t">${E.esc(k.name)}</div><div class="s">${E.esc(k.label.split(' (')[1]?'('+k.label.split(' (')[1]:'')}</div>${ean(k.barcode)}<div class="s">${E.esc(k.code)}</div></div>`;
+ const w=window.open('','_blank');if(!w)return E.toast('Allow pop-ups to print','error');
+ w.document.write('<html><head><style>body{font:11px Arial;margin:8px}.g{display:flex;flex-wrap:wrap;gap:6px}.lb{width:180px;border:1px dashed #999;padding:6px;text-align:center;page-break-inside:avoid}.t{font-weight:bold}.s{font-size:10px}.nb{font:11px monospace}</style></head><body><div class="g">'+L.map(k=>cell(k).repeat(n)).join('')+'</div></body></html>');w.document.close();w.print()};
+})(window.ERP);
