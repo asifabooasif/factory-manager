@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /erp_data/{doc} {
+      // Replace with the Google email addresses allowed to use the system
+      allow read, write: if request.auth != null
+        && request.auth.token.email in ['YOUR_EMAIL@gmail.com', 'ACCOUNTANT_EMAIL@gmail.com'];
+    }
+  }
+}
