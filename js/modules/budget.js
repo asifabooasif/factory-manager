@@ -1,0 +1,23 @@
+/* PART 20 — Budget vs Actual. Set a monthly budget for each income and expense account, then compare with what the ledger really shows, for the month or year-to-date. */
+(E=>{const at=E.N.findIndex(n=>n.id==='ledger');E.N.splice(at,0,{g:'Reports',id:'budget',ico:'🎯',label:'Budget vs Actual'});
+const F={tab:'rep',month:E.today().slice(0,7),ytd:'no'},bid=(m,c)=>'bud-'+E.fid+'-'+m+'-'+c,get=(m,c)=>E.D.budgets.find(b=>b.id===bid(m,c));
+const accts=()=>E.rows('coa').filter(a=>a.type==='income'||a.type==='expense').sort((a,b)=>a.code.localeCompare(b.code));
+const prev=m=>{const [y,n]=m.split('-').map(Number),d=new Date(Date.UTC(y,n-2,1));return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')};
+const months=()=>{const y=F.month.slice(0,4),o=[];for(let i=1;i<=+F.month.slice(5);i++)o.push(y+'-'+String(i).padStart(2,'0'));return F.ytd==='yes'?o:[F.month]};
+function actuals(ms){const a={};E.rows('journalEntries').forEach(j=>{if(!ms.includes(j.date.slice(0,7)))return;j.lines.forEach(l=>{const c=E.acct(l.acc);if(!c)return;a[l.acc]=(a[l.acc]||0)+(c.type==='income'?l.cr-l.dr:l.dr-l.cr)})});return a}
+function report(){const ms=months(),act=actuals(ms);let bi=0,ai=0,be=0,ae=0;
+ const rows=accts().map(a=>{const bud=ms.reduce((s,m)=>s+((get(m,a.code)||{}).amount||0),0),ac=act[a.code]||0;if(!bud&&!ac)return '';
+  const v=a.type==='income'?ac-bud:bud-ac,bad=v<0;if(a.type==='income'){bi+=bud;ai+=ac}else{be+=bud;ae+=ac}
+  return `<tr><td>${a.code} - ${E.esc(a.name)}</td><td><span class="tag">${a.type}</span></td><td class="r">${E.m(bud)}</td><td class="r">${E.m(ac)}</td><td class="r ${bad?'bad':'ok'}"><b>${E.m(v)}</b></td><td class="r ${bad?'bad':''}">${bud?(ac/bud*100).toFixed(0)+'% used':'No budget'}</td></tr>`}).join('');
+ return `<div class="kp">${E.kpi('Budgeted profit',E.m(bi-be),'Income - expenses')}${E.kpi('Actual profit',E.m(ai-ae),'From the ledger')}${E.kpi('Difference',`<span class="${ai-ae-(bi-be)<0?'bad':'ok'}">${E.m(ai-ae-(bi-be))}</span>`,'Actual - budget')}</div><div class="tw"><table><thead><tr><th>Account</th><th>Type</th><th class="r">Budget</th><th class="r">Actual</th><th class="r">Favourable / (Adverse)</th><th class="r">Usage</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="muted">No budget or activity for this period. Use "Set budget".</td></tr>'}</tbody></table></div><p class="muted">Favourable = income above budget or expenses below budget.</p>`}
+const setup=()=>`<p class="muted">Budget for <b>${F.month}</b>. Leave blank or 0 for no budget.</p><div class="tw"><table><thead><tr><th>Account</th><th class="r">Budget (Rs)</th></tr></thead><tbody>${accts().map(a=>`<tr><td>${a.code} - ${E.esc(a.name)} <span class="tag">${a.type}</span></td><td class="r"><input class="fs bdi" data-c="${a.code}" type="number" step="0.01" style="width:150px;text-align:right" value="${(get(F.month,a.code)||{}).amount?get(F.month,a.code).amount/100:''}"></td></tr>`).join('')}</tbody></table></div><button class="btn" data-a="bdCopy">Copy last month's budget</button> <button class="btn p" data-a="bdSave">Save budget</button>`;
+const body=()=>F.tab==='rep'?report():setup();
+E.route('budget','Budget vs Actual',()=>`<div class="bar"><button class="btn ${F.tab==='rep'?'p':''}" data-a="bdTab" data-id="rep">Report</button><button class="btn ${F.tab==='set'?'p':''}" data-a="bdTab" data-id="set">Set budget</button><div class="f" style="margin:0">Month<input class="fs" type="month" data-f="bd.month" value="${F.month}"></div>${F.tab==='rep'?`<select class="fs" data-f="bd.ytd"><option value="no" ${F.ytd==='no'?'selected':''}>This month</option><option value="yes" ${F.ytd==='yes'?'selected':''}>Year to date</option></select>`:''}</div><div id="bdb">${body()}</div>`);
+E.hooks.push(e=>{const f=e.target.dataset&&e.target.dataset.f;if(f&&f.startsWith('bd.')){if(f==='bd.month'&&!e.target.value)return;F[f.slice(3)]=e.target.value;E.$('bdb').innerHTML=body()}});
+E.A.bdTab=t=>{F.tab=t;E.go()};
+E.A.bdCopy=()=>{document.querySelectorAll('.bdi').forEach(i=>{const b=get(prev(F.month),i.dataset.c);if(b&&b.amount)i.value=b.amount/100})};
+E.A.bdSave=async()=>{try{let n=0;for(const i of document.querySelectorAll('.bdi')){const c=i.dataset.c,v=E.c(i.value),o=get(F.month,c);if(v<0)throw new Error('Budget cannot be negative');
+  if(!v){if(o){await E.audit('delete','budgets',o.id,o,null);await E.del('budgets',o.id);n++}continue}
+  if(o&&o.amount===v)continue;await E.save('budgets',{id:bid(F.month,c),month:F.month,acc:c,amount:v},o?JSON.parse(JSON.stringify(o)):null);n++}
+ E.go();E.toast(n?n+' budget line(s) saved':'Nothing changed','success')}catch(e){E.toast(e.message,'error')}};
+})(window.ERP);

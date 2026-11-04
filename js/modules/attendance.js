@@ -1,0 +1,24 @@
+/* PART 13 — Attendance. Daily mark per worker (Present / Half day / Absent / Leave) plus overtime hours, and a monthly summary to help prepare payroll. Information only: it never posts to the ledger. */
+(E=>{const ai=E.N.findIndex(n=>n.id==='payroll');E.N.splice(ai+1,0,{g:'Factory',id:'attendance',ico:'🗓️',label:'Attendance'});
+const F={tab:'day',date:E.today(),month:E.today().slice(0,7)};
+const ST=['Present','Half day','Absent','Leave'],emps=()=>E.rows('employees').filter(e=>e.active).sort((a,b)=>(a.code||'').localeCompare(b.code||''));
+const aid=(d,e)=>'att-'+E.fid+'-'+d+'-'+e,rec=(d,e)=>E.D.attendance.find(a=>a.id===aid(d,e));
+const day=()=>{const L=emps();return `<div class="bar"><div class="f" style="margin:0">Date<input type="date" class="fs" data-f="at.date" value="${F.date}"></div><span class="gap"></span><button class="btn" data-a="atAll">Mark all Present</button><button class="btn p" data-a="atSave">Save attendance</button></div>
+ <div class="tw"><table><thead><tr><th>Code</th><th>Name</th><th>Status</th><th class="r">Overtime hrs</th></tr></thead><tbody>${L.map(e=>{const r=rec(F.date,e.id)||{};return `<tr><td>${E.esc(e.code)}</td><td>${E.esc(e.name)}</td><td><select class="fs ats" data-e="${e.id}"><option value="">- not marked -</option>${ST.map(s=>`<option ${r.status===s?'selected':''}>${s}</option>`).join('')}</select></td><td class="r"><input class="fs ato" data-e="${e.id}" type="number" step="0.25" min="0" style="width:90px;text-align:right" value="${r.ot||''}"></td></tr>`}).join('')||'<tr><td colspan="4" class="muted">No active employees. Add them under Employees.</td></tr>'}</tbody></table></div>`};
+function summary(){const L=emps(),M=F.month,A=E.rows('attendance').filter(a=>a.date.slice(0,7)===M);
+ const rows=L.map(e=>{const x=A.filter(a=>a.empId===e.id),c=s=>x.filter(a=>a.status===s).length,ot=x.reduce((s,a)=>s+(a.ot||0),0);return {e,p:c('Present'),h:c('Half day'),a:c('Absent'),l:c('Leave'),ot,days:c('Present')+c('Half day')/2}});
+ return `<div class="bar"><div class="f" style="margin:0">Month<input type="month" class="fs" data-f="at.month" value="${M}"></div><span class="gap"></span><button class="btn" data-a="atCsv">Download CSV</button><button class="btn" data-a="atPrint">Print</button></div>
+ <div class="tw" id="atsum"><table><thead><tr><th>Code</th><th>Name</th><th class="r">Present</th><th class="r">Half</th><th class="r">Absent</th><th class="r">Leave</th><th class="r">Days worked</th><th class="r">OT hours</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${E.esc(r.e.code)}</td><td>${E.esc(r.e.name)}</td><td class="r">${r.p}</td><td class="r">${r.h}</td><td class="r ${r.a?'bad':''}">${r.a}</td><td class="r">${r.l}</td><td class="r"><b>${r.days}</b></td><td class="r">${r.ot}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">No employees</td></tr>'}</tbody></table></div><p class="muted">Use "Days worked" for daily-wage workers and "OT hours" when preparing payroll.</p>`}
+E.route('attendance','Attendance',()=>`<div class="bar"><button class="btn ${F.tab==='day'?'p':''}" data-a="atTab" data-id="day">Daily sheet</button><button class="btn ${F.tab==='sum'?'p':''}" data-a="atTab" data-id="sum">Monthly summary</button></div><div id="atb">${F.tab==='day'?day():summary()}</div>`);
+E.hooks.push(e=>{const f=e.target.dataset&&e.target.dataset.f;if(f&&f.startsWith('at.')){F[f.slice(3)]=e.target.value;E.$('atb').innerHTML=F.tab==='day'?day():summary()}});
+E.A.atTab=t=>{F.tab=t;E.go()};
+E.A.atAll=()=>document.querySelectorAll('.ats').forEach(s=>{if(!s.value)s.value='Present'});
+E.A.atSave=async()=>{try{if(!F.date)throw new Error('Pick a date');let n=0;
+ for(const s of document.querySelectorAll('.ats')){const e=s.dataset.e,ot=parseFloat(document.querySelector('.ato[data-e="'+e+'"]').value)||0,old=rec(F.date,e);
+  if(!s.value){if(old){await E.del('attendance',old.id);n++}continue}
+  if(old&&old.status===s.value&&(old.ot||0)===ot)continue;
+  await E.save('attendance',{id:aid(F.date,e),date:F.date,empId:e,status:s.value,ot},old?JSON.parse(JSON.stringify(old)):null);n++}
+ E.go();E.toast(n?n+' record(s) saved':'Nothing changed','success')}catch(e){E.toast(e.message,'error')}};
+E.A.atCsv=()=>{const rows=[...document.querySelectorAll('#atsum tr')].map(r=>[...r.children].map(c=>'"'+c.textContent.replace(/"/g,'""')+'"').join(','));E.download('attendance-'+F.month+'.csv',rows.join('\n'),'text/csv')};
+E.A.atPrint=()=>{const w=window.open('','_blank');if(!w)return;w.document.write('<html><head><style>body{font:13px Arial;padding:20px}table{width:100%;border-collapse:collapse}td,th{padding:6px;border-bottom:1px solid #ccc;text-align:left}.r{text-align:right}</style></head><body><h2>'+E.esc(E.factory().name)+'</h2><h3>Attendance summary '+F.month+'</h3>'+E.$('atsum').innerHTML+'</body></html>');w.document.close();w.print()};
+})(window.ERP);

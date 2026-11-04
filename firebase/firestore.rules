@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- who is who ---------------------------------------------------
+    function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function mail()     { return request.auth.token.email.lower(); }
+    function isDefaultOwner() { return signedIn() && mail() == 'asifabooasif@gmail.com'; }
+    function hasProfile() { return exists(/databases/$(database)/documents/erp_users/$(mail())); }
+    function profile()    { return get(/databases/$(database)/documents/erp_users/$(mail())).data; }
+    function active()     { return signedIn() && hasProfile() && profile().active == true; }
+
+    function isOwner()    { return isDefaultOwner() || (active() && profile().role == 'owner'); }
+    function isMember()   { return isDefaultOwner() || active(); }
+    function canWrite()   { return isDefaultOwner() || (active() && profile().role in ['owner', 'accountant']); }
+
+    // ---- business data: members read, owners/accountants write ---------
+    match /erp_data/{d} {
+      allow read:  if isMember();
+      allow write: if canWrite();
+    }
+
+    // ---- user list: owners manage it; each person may read their own entry
+    //      and refresh only their last-sign-in / name / photo -------------
+    match /erp_users/{e} {
+      allow read:   if signedIn() && (mail() == e || isOwner());
+      allow create: if isOwner();
+      allow update: if isOwner()
+                    || (signedIn() && mail() == e
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt', 'name', 'photo']));
+      allow delete: if isOwner() && e != 'asifabooasif@gmail.com';
+    }
+  }
+}
