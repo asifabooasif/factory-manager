@@ -9,19 +9,25 @@ Open `index.html` to run. Works offline; data is saved in your browser. Use **Cl
 4. After about a minute your system is at `https://YOURNAME.github.io/lanka-slipper-erp/`.
 5. To update later: upload the changed files the same way (they replace the old ones).
 
-## 2. Sign-in, users and cloud data (Firebase)
-Everyone signs in with Google to enter. The default owner is **asifabooasif@gmail.com** (built in, cannot be removed). The owner adds people under **System → Users & Access** and gives each a role: Owner, Accountant (edit data) or Viewer (read only). When someone signs in, their data loads from the cloud automatically.
+## 2. Factories, sign-in, users and cloud (Firebase)
+**Every factory is completely separate**: its own local database in the browser, its own cloud data tree in Firebase (`erp_factories/<factory>/data`), its own users and its own Google Sheet. Nothing is shared between factories. Switch factory from the box at the top (shown only when you can use more than one).
 
-One-time setup in console.firebase.google.com → project **factory-manager-1b5fa**:
-1. **Build → Authentication → Get started → Sign-in method → Google → Enable → Save.**
-2. Authentication → **Settings → Authorized domains → Add domain**: `YOURNAME.github.io` (the address you open the system from).
-3. **Build → Firestore Database → Create database** (production mode).
-4. Firestore → **Rules**: paste the whole of `firebase/firestore.rules` and click **Publish**. (The owner email is already in it; nothing to edit.)
-5. Open the system from its **web address** (GitHub Pages or localhost), not by double-clicking index.html.
-6. Sign in as asifabooasif@gmail.com. Existing data uploads automatically. Then add the others in **Users & Access**.
-7. Check anything at any time: **Cloud & Backup → Test connection**.
+Everyone signs in with Google. The default owner is **asifabooasif@gmail.com** (built in, cannot be removed). Under **System -> Users & Access** the owner adds people as **Owner** (all factories) or **Staff** (tick the factories they may use and give a role in each: Accountant = edit, Viewer = read only).
 
-## 3. Google Sheets copy — optional
+One-time setup in console.firebase.google.com -> project **factory-manager-1b5fa**:
+1. Build -> Authentication -> Sign-in method -> Google -> Enable.
+2. Authentication -> Settings -> Authorized domains -> add `YOURNAME.github.io`.
+3. Build -> Firestore Database -> Create database.
+4. Firestore -> Rules: paste ALL of `firebase/firestore.rules` and **Publish** (replaces the old rules).
+5. Open the system from its web address (not by double-clicking index.html).
+6. Sign in as the owner. Existing data (from earlier versions) is split into separate factory databases automatically and uploaded.
+
+## 2b. Packs, categories and barcodes
+Finished goods are made, counted and sold in **colour packs**: one pack = one size run in one colour (for example F001, Flat, Black, sizes 6,7,7,8,8,9). Stock, jobs, deliveries and invoices all use **packs** per Article + Colour. One barcode per Article + Colour (never per size). Labels (Inventory or Import / Export -> Barcode labels) print the BIG article number, colour, size run and barcode. Finished-goods categories (Flat, PU...) are edited in Settings. Bills of materials are now per PACK. Price lists are per pack.
+
+Wherever you choose an item or a customer, click the box: a panel opens with category chips and a search bar (type letters, scan a barcode, use arrow keys and Enter).
+
+## 3. Google Sheets (one sheet per factory) copy — optional
 1. Create a Google Sheet, open **Extensions → Apps Script**, delete the sample code, paste `apps-script/sheets-sync.gs`, change `CHANGE_THIS_SECRET` to your own secret word.
 2. Click **Deploy → New deployment → Web app**, Execute as **Me**, Who has access **Anyone**, click **Deploy**, copy the Web App URL.
 3. In the system: **Cloud & Backup**, paste the URL and the same secret, click **Save**, then **Send all existing data now**.

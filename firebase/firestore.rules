@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---- who is who ---------------------------------------------------
+    // ---- who is who ---------------------------------------------------------------
     function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
     function mail()     { return request.auth.token.email.lower(); }
     function isDefaultOwner() { return signedIn() && mail() == 'asifabooasif@gmail.com'; }
@@ -10,18 +10,35 @@ service cloud.firestore {
     function profile()    { return get(/databases/$(database)/documents/erp_users/$(mail())).data; }
     function active()     { return signedIn() && hasProfile() && profile().active == true; }
 
-    function isOwner()    { return isDefaultOwner() || (active() && profile().role == 'owner'); }
-    function isMember()   { return isDefaultOwner() || active(); }
-    function canWrite()   { return isDefaultOwner() || (active() && profile().role in ['owner', 'accountant']); }
+    function isOwner() { return isDefaultOwner() || (active() && profile().role == 'owner'); }
 
-    // ---- business data: members read, owners/accountants write ---------
-    match /erp_data/{d} {
-      allow read:  if isMember();
-      allow write: if canWrite();
+    // role of this person INSIDE one factory: 'owner' | 'accountant' | 'viewer' | 'none'
+    function factoryRole(fid) {
+      return isOwner() ? 'owner'
+           : (active() ? profile().get('access', {}).get(fid, 'none') : 'none');
+    }
+    function canRead(fid)  { return factoryRole(fid) in ['owner', 'accountant', 'viewer']; }
+    function canWrite(fid) { return factoryRole(fid) in ['owner', 'accountant']; }
+
+    // ---- every factory is its own separate tree --------------------------------------
+    match /erp_factories/{fid} {
+      allow get:    if signedIn() && canRead(fid);
+      allow list:   if isOwner();
+      allow create, update, delete: if isOwner();
+
+      // business records of THIS factory only
+      match /data/{d} {
+        allow read:  if canRead(fid);
+        allow write: if canWrite(fid);
+      }
+      // this factory's own Google Sheet link + secret (never visible to viewers)
+      match /private/{d} {
+        allow read, write: if canWrite(fid);
+      }
     }
 
-    // ---- user list: owners manage it; each person may read their own entry
-    //      and refresh only their last-sign-in / name / photo -------------
+    // ---- people: owners manage the list; each person may read their own entry and
+    //      refresh only their last-sign-in / name / photo -----------------------------
     match /erp_users/{e} {
       allow read:   if signedIn() && (mail() == e || isOwner());
       allow create: if isOwner();
