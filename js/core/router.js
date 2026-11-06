@@ -1,10 +1,16 @@
 (E=>{E.route=(id,title,fn)=>E.R[id]={title,fn};E.nav=(g,id,ico,label,soon)=>E.N.push({g,id,ico,label,soon});let cur='dashboard';
 E.go=()=>{cur=location.hash.replace(/^#\/?/,'')||'dashboard';if(!E.R[cur])cur='dashboard';
- let h='',g='';E.N.forEach(n=>{if(n.only&&E.role!==n.only)return;if(n.g!==g){h+=`<div class="nl">${n.g}</div>`;g=n.g}h+=`<div class="ni ${cur===n.id?'on':''} ${n.soon?'soon':''}" data-nav="${n.id}"><span>${n.ico}</span><span>${n.label}</span></div>`});
+ const GM={dashboard:'Overview',quotes:'Sales',sales:'Sales',returns:'Sales',parties:'Sales',purchases:'Purchases & Stock',items:'Purchases & Stock',inventory:'Purchases & Stock',stock:'Purchases & Stock',matledger:'Purchases & Stock',mrp:'Purchases & Stock',jobs:'Production',production:'Production',qc:'Production',employees:'People & Payroll',attendance:'People & Payroll',payroll:'People & Payroll',empledger:'People & Payroll',accounts:'Accounting',banking:'Accounting',petty:'Accounting',expenses:'Accounting',journal:'Accounting',tb:'Accounting',assets:'Accounting',reports:'Reports',profit:'Reports',ledger:'Reports',budget:'Reports',cashflow:'Reports',closing:'Reports',health:'Reports',setup:'System',opening:'System',datatools:'System',cloud:'System',access:'System',guide:'System',settings:'System'},
+ ORD=['Overview','Sales','Purchases & Stock','Production','People & Payroll','Accounting','Reports','System'],IC={Overview:'▦',Sales:'🛒','Purchases & Stock':'📦',Production:'🏭','People & Payroll':'👷',Accounting:'🧾',Reports:'📊',System:'⚙️'};
+ let op={};try{op=JSON.parse(localStorage.getItem('erp_nav')||'{}')}catch(x){}
+ const vis=E.N.filter(n=>!(n.only&&E.role!==n.only)).map(n=>Object.assign({},n,{g:GM[n.id]||n.g})),gs=ORD.concat([...new Set(vis.map(n=>n.g))].filter(x=>!ORD.includes(x)));
+ let h='';gs.forEach(g=>{const it=vis.filter(n=>n.g===g);if(!it.length)return;const has=it.some(n=>n.id===cur),o=g==='Overview'||has||op[g];
+  h+=`<div class="nl ng ${o?'open':''}" data-grp="${g}"><span>${IC[g]||'•'} ${g}</span><i>▸</i></div><div class="nb" style="display:${o?'block':'none'}">`+it.map(n=>`<div class="ni ${cur===n.id?'on':''} ${n.soon?'soon':''}" data-nav="${n.id}"><span>${n.ico}</span><span>${n.label}</span></div>`).join('')+'</div>'});
  E.$('nav').innerHTML=h;E.$('pt').textContent=E.R[cur].title;
  try{E.$('v').innerHTML=(E.fid&&E.factory())?E.R[cur].fn():'<div class="card"><h3>Welcome</h3><p class="muted" style="margin-bottom:14px">Create your factory to begin.</p><button class="btn p" data-a="firstFac">Create factory</button></div>'}catch(e){E.$('v').innerHTML='<div class="card bad">Error: '+E.esc(e.message)+'</div>';console.error(e)}};
 addEventListener('hashchange',E.go);
-document.addEventListener('click',e=>{const n=e.target.closest('[data-nav]');
+document.addEventListener('click',e=>{const gh=e.target.closest('[data-grp]');if(gh){const b=gh.nextElementSibling,o=b.style.display==='none';b.style.display=o?'block':'none';gh.classList.toggle('open',o);let m={};try{m=JSON.parse(localStorage.getItem('erp_nav')||'{}')}catch(x){}m[gh.dataset.grp]=o;localStorage.setItem('erp_nav',JSON.stringify(m));return}
+ const n=e.target.closest('[data-nav]');
  if(n){const it=E.N.find(x=>x.id===n.dataset.nav);if(it.soon)return E.toast('Coming in a later part');location.hash='#/'+it.id;return}
  const a=e.target.closest('[data-a]');if(a&&E.A[a.dataset.a])E.A[a.dataset.a](a.dataset.id,e)});
 document.addEventListener('input',e=>E.hooks.forEach(h=>h(e)));
