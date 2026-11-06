@@ -27,6 +27,16 @@ Finished goods are made, counted and sold in **colour packs**: one pack = one si
 
 Wherever you choose an item or a customer, click the box: a panel opens with category chips and a search bar (type letters, scan a barcode, use arrow keys and Enter).
 
+## 2c. Enterprise version — what is new
+- **Setup Wizard** (opens for every new factory): articles with size runs and colours, materials and accessories with PURCHASE prices, operations and piece rates, employees, opening stock. Review before anything is saved.
+- **Materials and accessories use purchase prices only** (selling prices are for finished goods).
+- **Daily Production**: worker x job x article/colour x operation x packs; wage from the rate card; charged to the job at once (Dr 1310 / Cr 2210).
+- **Payroll rebuilt**: one wage run pays piece wages by operation, daily wages (from attendance), monthly salaries, OT, bonus; advances with the remaining balance; EPF/ETF; payslips with operation breakdown; **Employee Ledger**.
+- **Expenses & Costs**: expense heads show direct / indirect / admin / selling / finance; charge to jobs, factory overhead pool or period; accrued expenses; **overhead absorption** into jobs; cost analysis.
+- **Material Ledger**: full item history, daily usage, reorder and cover, **Issue by BOM**.
+- **Month-end Close** checklist and period lock. **User Guide** inside the system and in docs/.
+- New collections (operations, rateCards, prodLogs, costRuns) are created automatically (database version 9). New accounts are added to existing factories automatically when an Owner/Accountant opens them.
+
 ## 3. Google Sheets (one sheet per factory) copy — optional
 1. Create a Google Sheet, open **Extensions → Apps Script**, delete the sample code, paste `apps-script/sheets-sync.gs`, change `CHANGE_THIS_SECRET` to your own secret word.
 2. Click **Deploy → New deployment → Web app**, Execute as **Me**, Who has access **Anyone**, click **Deploy**, copy the Web App URL.

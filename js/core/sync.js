@@ -104,7 +104,7 @@ E.sync.pushAll=async()=>{if(!fs||!E.sync.user)throw new Error('Sign in first');i
  for(const c of E.cfg.cols)if(c!=='factories')for(const o of E.D[c]||[])items.push([did(c,o.id),doc(c,o)]);return commitAll(E.fid,items)};
 
 /* ---------- open the app once the active factory's data has loaded ---------- */
-function openApp(){if(opened)return;opened=true;clearTimeout(tOpen);hideGate();chip();E.renderFSel();E.go()}
+function openApp(){if(opened)return;opened=true;clearTimeout(tOpen);hideGate();chip();E.renderFSel();E.go();if(E.maybeSetup)E.maybeSetup()}
 
 /* ---------- live data of ONE factory (its own cloud collection) ---------- */
 function listenData(fid){if(unsubData){unsubData();unsubData=null}first=true;st('Cloud: loading '+((E.factory()||{}).name||'factory')+'…','warn');
@@ -126,7 +126,7 @@ E.sync.switchTo=async fid=>{
  if(unsubData){unsubData();unsubData=null}opened=false;
  E.setF(fid);gate('loading','Opening '+((E.factory()||{}).name||'factory')+'…');
  try{await E.openFactory(fid)}catch(e){gate('error',explain(e));return}
- setRole();chip();E.renderFSel();await loadSheetCfg(fid);
+ setRole();chip();E.renderFSel();await loadSheetCfg(fid);if(canWrite())try{await E.ensureCoa()}catch(e){}
  clearTimeout(tOpen);tOpen=setTimeout(openApp,12000);
  if(fs&&E.sync.granted&&!E.sync.offlineGrace)listenData(fid);else openApp()};
 
