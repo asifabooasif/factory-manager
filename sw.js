@@ -1,13 +1,6 @@
-/* Lanka Slipper ERP — Service Worker (v32)
-   ────────────────────────────────────────────────────────────────────────
-   Offline cache: network first, falls back to saved copy when offline.
-   Every module is pre-cached on install.
+/* Lanka Slipper ERP — Service Worker (v33) */
 
-   When you add or change files in index.html, also update CORE here and
-   bump V so devices pick up the change.
-   ──────────────────────────────────────────────────────────────────────── */
-
-const V = 'lanka-erp-v32';
+const V = 'lanka-erp-v33';
 
 const CORE = [
   "./",
@@ -70,20 +63,13 @@ const CORE = [
   "js/modules/setup.js",
   "js/modules/closing.js",
   "js/modules/guide.js",
-  "js/modules/ai-coach.js",
-  "js/modules/ai-agent.js"
+  "js/modules/ai-assistant.js"
 ];
 
-/* ── install: pre-cache everything, take over immediately ── */
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(V)
-      .then(c => c.addAll(CORE))
-      .then(() => self.skipWaiting())
-  );
+  e.waitUntil(caches.open(V).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
 });
 
-/* ── activate: drop old caches, become active immediately ── */
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
@@ -92,24 +78,14 @@ self.addEventListener('activate', e => {
   );
 });
 
-/* ── fetch: network first, then cache, then index.html fallback ── */
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
-
   if (e.request.method !== 'GET') return;
   if (u.origin !== location.origin &&
       !(u.hostname === 'www.gstatic.com' && u.pathname.startsWith('/firebasejs/'))) return;
-
   e.respondWith(
     fetch(e.request)
-      .then(r => {
-        const c = r.clone();
-        caches.open(V).then(x => x.put(e.request, c));
-        return r;
-      })
-      .catch(() =>
-        caches.match(e.request)
-          .then(r => r || caches.match('index.html'))
-      )
+      .then(r => { const c = r.clone(); caches.open(V).then(x => x.put(e.request, c)); return r; })
+      .catch(() => caches.match(e.request).then(r => r || caches.match('index.html')))
   );
 });

@@ -11,9 +11,6 @@
 </head>
 <body>
 
-  <!-- ============================================================
-       APP SHELL
-       ============================================================ -->
   <div class="app">
     <aside class="sb">
       <div class="brand"><span>🏭</span><span>Lanka Slipper ERP</span></div>
@@ -32,13 +29,10 @@
     </div>
   </div>
 
-  <!-- Modal container + toast container (used by every module) -->
   <div id="mw"></div>
   <div id="ts"></div>
 
-  <!-- ============================================================
-       CORE ENGINES  (order matters — each depends on the previous)
-       ============================================================ -->
+  <!-- CORE ENGINES -->
   <script src="js/core/config.js"></script>
   <script src="js/core/money.js"></script>
   <script src="js/core/utils.js"></script>
@@ -53,9 +47,7 @@
   <script src="js/core/sync.js"></script>
   <script src="js/core/router.js"></script>
 
-  <!-- ============================================================
-       FEATURE MODULES  (each registers its routes, nav, actions)
-       ============================================================ -->
+  <!-- MODULES -->
   <script src="js/modules/dashboard.js"></script>
   <script src="js/modules/journal.js"></script>
   <script src="js/modules/items.js"></script>
@@ -98,23 +90,10 @@
   <script src="js/modules/closing.js"></script>
   <script src="js/modules/guide.js"></script>
 
-  <!-- ============================================================
-       AI COACH — Guided setup steps + Today's Tasks widgets
-       Loads BEFORE ai-agent so it can hook the AI's ask() method
-       and take over coach queries like "what's next" / "guide me"
-       ============================================================ -->
-  <script src="js/modules/ai-coach.js"></script>
+  <!-- AI ASSISTANT PRO (single merged module — replaces ai-agent.js and ai-coach.js) -->
+  <script src="js/modules/ai-assistant.js"></script>
 
-  <!-- ============================================================
-       AI ASSISTANT — Floating chat + 25+ intents + LLM bridge
-       Loads AFTER ai-coach so the coach patch is applied first
-       ============================================================ -->
-  <script src="js/modules/ai-agent.js"></script>
-
-  <!-- ============================================================
-       BOOTSTRAP — must be last
-       Calls E.initDB() → E.reload() → E.syncInit() → registers SW
-       ============================================================ -->
+  <!-- BOOTSTRAP -->
   <script src="js/app.js"></script>
 
 </body>
