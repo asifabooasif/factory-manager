@@ -1,21 +1,31 @@
+/* Employees — 3 pay categories with V6 model compatibility.
+
+     ─ Wage Worker       → wage runs only (days × rate + piece)
+     ─ Daily Salaried    → daily salary records + wage runs (piece only)
+     ─ Monthly Salaried  → monthly salary runs + wage runs (piece only)
+
+   The `piece` flag is available for ALL types — signals that the person
+   also performs production work, so admins aren't surprised when they
+   appear in wage runs.
+
+   Legacy migration: payType 'Daily' → 'Wage', 'Monthly' → 'MonthlySalaried'.
+*/
 (E => {
   const n = E.N.find(x => x.id === 'employees');
   if (n) n.soon = 0;
   const F = { q: '', type: '', act: '1' };
 
-  /* ─────────────────────────────────────────────────────────────────
-     Canonical pay category — migrates legacy values
-     ───────────────────────────────────────────────────────────────── */
   const payCat = p => {
     const pt = p && p.payType;
     if (pt === 'MonthlySalaried' || pt === 'Monthly') return 'MonthlySalaried';
     if (pt === 'DailySalaried') return 'DailySalaried';
     return 'Wage';
   };
-  const CAT_LABEL = {
-    Wage: 'Wage Worker',
-    DailySalaried: 'Daily Salaried',
-    MonthlySalaried: 'Monthly Salaried'
+  const CAT_LABEL = { Wage: 'Wage Worker', DailySalaried: 'Daily Salaried', MonthlySalaried: 'Monthly Salaried' };
+  const CAT_STYLE = {
+    Wage: '',
+    DailySalaried: 'background:#dbeafe;color:#1e40af',
+    MonthlySalaried: 'background:#f3e8ff;color:#7c3aed'
   };
   const RATE_UNIT = { Wage: '/day', DailySalaried: '/day', MonthlySalaried: '/month' };
   const RATE_LABEL = {
@@ -27,9 +37,13 @@
   const advBal = id => (E.advBal ? E.advBal(id) : 0);
   const used = id => E.D.wageRuns.some(w => JSON.stringify(w).includes(id));
 
-  /* ─────────────────────────────────────────────────────────────────
-     LIST
-     ───────────────────────────────────────────────────────────────── */
+  const paidIn = p => {
+    const cat = payCat(p);
+    if (cat === 'Wage') return 'wages only';
+    if (cat === 'DailySalaried') return 'daily salary + wage runs';
+    return 'monthly salary + wage runs';
+  };
+
   function tbl() {
     const s = F.q.toLowerCase();
     const rows = E.rows('employees')
@@ -43,22 +57,26 @@
     return `<div class="tw"><table>
       <thead><tr>
         <th>Code</th><th>Name</th><th>NIC</th><th>Phone</th>
-        <th>Pay Type</th><th class="r">Rate</th><th class="r">Allowance</th>
+        <th>Pay Type &amp; Where Paid</th>
+        <th class="r">Rate</th><th class="r">Allowance</th>
         <th>Piece</th><th>EPF</th><th class="r">Advance</th><th></th>
       </tr></thead>
       <tbody>${rows.map(p => {
         const cat = payCat(p);
         const sal = isSalaried(p);
         const bal = sal ? advBal(p.id) : 0;
-        const catStyle = cat === 'Wage' ? '' :
-          cat === 'DailySalaried' ? 'background:#dbeafe;color:#1e40af' :
-            'background:#f3e8ff;color:#7c3aed';
         return `<tr style="${p.active ? '' : 'opacity:.5'}">
           <td>${p.code}</td>
-          <td><b>${E.esc(p.name)}</b></td>
+          <td>
+            <b>${E.esc(p.name)}</b>
+            ${p.piece ? ' <span title="Performs piece-rate work" style="opacity:.7">🧵</span>' : ''}
+          </td>
           <td>${E.esc(p.nic)}</td>
           <td>${E.esc(p.phone)}</td>
-          <td><span class="tag" style="${catStyle}">${CAT_LABEL[cat]}</span></td>
+          <td>
+            <span class="tag" style="${CAT_STYLE[cat]}">${CAT_LABEL[cat]}</span>
+            <div class="muted" style="font-size:11px;margin-top:3px">${paidIn(p)}</div>
+          </td>
           <td class="r">${E.m(p.amount)}${RATE_UNIT[cat]}</td>
           <td class="r">${p.allow ? E.m(p.allow) : '—'}</td>
           <td>${p.piece ? 'Yes' : '—'}</td>
@@ -101,9 +119,6 @@
     if (e.target.id === 'e_type') updateFormVisibility();
   });
 
-  /* ─────────────────────────────────────────────────────────────────
-     FORM
-     ───────────────────────────────────────────────────────────────── */
   const form = id => {
     const p = id ? E.D.employees.find(x => x.id === id) : null;
     const cat = payCat(p);
@@ -123,7 +138,7 @@
         <div class="f">Pay type *
           <select id="e_type">
             <option value="Wage" ${isW ? 'selected' : ''}>Wage Worker — attendance + piece</option>
-            <option value="DailySalaried" ${isDS ? 'selected' : ''}>Daily Salaried — fixed daily rate</option>
+            <option value="DailySalaried" ${isDS ? 'selected' : ''}>Daily Salaried — fixed daily base pay</option>
             <option value="MonthlySalaried" ${isMS ? 'selected' : ''}>Monthly Salaried — fixed monthly salary</option>
           </select>
         </div>
@@ -132,68 +147,82 @@
         </div>
       </div>
       <div class="f" id="e_allow_grp" style="${isMS ? '' : 'display:none'}">
-        Fixed allowances per month (Rs)
+        Fixed monthly allowances (Rs)
         <input id="e_allow" type="number" step="0.01" value="${p && p.allow ? p.allow / 100 : ''}">
+        <small class="muted">Added to monthly base salary in Monthly Salary runs</small>
       </div>
       <div class="g2">
-        <div class="f">Where charged by default
+        <div class="f">Default charge account
           <select id="e_tgt">
             <option value="OH" ${((p && p.target === 'OH') || !p || !p.target) ? 'selected' : ''}>Factory overhead (indirect)</option>
             <option value="ADM" ${p && p.target === 'ADM' ? 'selected' : ''}>Admin salaries</option>
           </select>
+          <small class="muted">Where time-based earnings go by default</small>
         </div>
         <div class="f" id="e_inst_grp" style="${isSal ? '' : 'display:none'}">
-          Monthly advance recovery (Rs) — blank = recover all
+          Monthly advance recovery (Rs) — blank = recover full balance
           <input id="e_inst" type="number" step="0.01" value="${p && p.advInstall ? p.advInstall / 100 : ''}">
+          <small class="muted">Applied to <b>monthly salary runs</b> only. Daily salary records use manual amount each time.</small>
         </div>
       </div>
-      <label class="f" id="e_piece_grp" style="flex-direction:row;gap:8px;${isW ? '' : 'display:none'}">
-        <input type="checkbox" id="e_piece" style="width:auto" ${p ? (p.piece ? 'checked' : '') : 'checked'}>
-        Paid piece-rate wages for production
+      <label class="f" style="flex-direction:row;gap:8px;align-items:flex-start">
+        <input type="checkbox" id="e_piece" style="width:auto;margin-top:3px" ${p ? (p.piece ? 'checked' : '') : ''}>
+        <span>
+          Also performs <b>piece-rate production work</b>
+          <div class="muted" style="font-size:11px;font-weight:400;margin-top:2px">
+            Any employee with piece work automatically appears in <b>Wage runs</b> — their piece earnings are paid there separately from base salary.
+          </div>
+        </span>
       </label>
       <label class="f" style="flex-direction:row;gap:8px">
         <input type="checkbox" id="e_epf" style="width:auto" ${p ? (p.epf ? 'checked' : '') : 'checked'}>
         EPF/ETF member
       </label>
-      <p class="muted" id="e_hint" style="margin-top:10px">
-        ${isW
-          ? 'Wage workers are paid from attendance (days × rate) plus piece work. No advances.'
-          : isDS
-            ? 'Daily salaried workers are paid a fixed daily amount. Advances are recovered from their salaries.'
-            : 'Monthly salaried workers are paid a fixed monthly amount. Advances are recovered from their salaries.'}
+      <p class="muted" id="e_hint" style="margin-top:14px;padding:12px;background:var(--s2);border-radius:8px;line-height:1.6">
+        ${formHint(cat)}
       </p>
     `, `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="saveEmp" data-id="${id || ''}">Save</button>`, 1);
   };
 
+  function formHint(cat) {
+    if (cat === 'Wage') return `
+      <b>Wage Worker</b><br>
+      • Attendance days × daily rate paid in <b>Wage runs</b><br>
+      • Piece work (if any) paid in the same <b>Wage run</b><br>
+      • No advances — wage workers do not take advances`;
+    if (cat === 'DailySalaried') return `
+      <b>Daily Salaried</b><br>
+      • Fixed daily base pay recorded in <b>Daily Salaries</b><br>
+      • Any piece work paid separately in <b>Wage runs</b><br>
+      • Advances recovered from daily salary records (manual amount each time)`;
+    return `
+      <b>Monthly Salaried</b><br>
+      • Fixed monthly salary paid in <b>Monthly Salary runs</b><br>
+      • Any piece work paid separately in <b>Wage runs</b><br>
+      • Advances recovered from monthly salary runs (default = field above)`;
+  }
+
   function updateFormVisibility() {
     const cat = E.val('e_type');
-    const isW = cat === 'Wage';
     const isMS = cat === 'MonthlySalaried';
-    const isSal = !isW;
+    const isSal = cat !== 'Wage';
     if (E.$('e_rate_lbl')) E.$('e_rate_lbl').textContent = RATE_LABEL[cat] || 'Rate (Rs) *';
     if (E.$('e_allow_grp')) E.$('e_allow_grp').style.display = isMS ? '' : 'none';
     if (E.$('e_inst_grp')) E.$('e_inst_grp').style.display = isSal ? '' : 'none';
-    if (E.$('e_piece_grp')) E.$('e_piece_grp').style.display = isW ? '' : 'none';
-    if (E.$('e_hint')) E.$('e_hint').textContent = isW
-      ? 'Wage workers are paid from attendance (days × rate) plus piece work. No advances.'
-      : cat === 'DailySalaried'
-        ? 'Daily salaried workers are paid a fixed daily amount. Advances are recovered from their salaries.'
-        : 'Monthly salaried workers are paid a fixed monthly amount. Advances are recovered from their salaries.';
+    if (E.$('e_hint')) E.$('e_hint').innerHTML = formHint(cat);
   }
 
   E.A.newEmp = () => form();
   E.A.editEmp = id => form(id);
 
-  /* ─────────────────────────────────────────────────────────────────
-     SAVE
-     ───────────────────────────────────────────────────────────────── */
   E.A.saveEmp = async id => {
     const name = E.val('e_name');
     const nic = E.val('e_nic');
     const cat = E.val('e_type');
+    const rate = E.c(E.val('e_amt'));
 
     if (!name) return E.toast('Name required', 'error');
-    if (!E.c(E.val('e_amt'))) return E.toast('Enter the rate', 'error');
+    if (!rate) return E.toast('Enter the ' + (cat === 'MonthlySalaried' ? 'monthly salary' : 'daily rate'), 'error');
     if (!['Wage', 'DailySalaried', 'MonthlySalaried'].includes(cat))
       return E.toast('Invalid pay type', 'error');
     if (nic && E.rows('employees').some(p => p.id !== id && p.nic === nic))
@@ -208,9 +237,9 @@
       phone: E.val('e_ph'),
       join: E.val('e_join'),
       payType: cat,
-      amount: E.c(E.val('e_amt')),
+      amount: rate,
       allow: cat === 'MonthlySalaried' && E.$('e_allow') ? E.c(E.val('e_allow')) : 0,
-      piece: cat === 'Wage' && E.$('e_piece') ? E.$('e_piece').checked : false,
+      piece: E.$('e_piece') ? E.$('e_piece').checked : false,
       target: E.val('e_tgt') || 'OH',
       advInstall: cat !== 'Wage' && E.$('e_inst') ? E.c(E.val('e_inst')) : 0,
       epf: E.$('e_epf') ? E.$('e_epf').checked : false
@@ -222,9 +251,6 @@
     E.toast('Employee saved', 'success');
   };
 
-  /* ─────────────────────────────────────────────────────────────────
-     DELETE / DEACTIVATE
-     ───────────────────────────────────────────────────────────────── */
   E.A.delEmp = async id => {
     const p = E.D.employees.find(x => x.id === id);
     if (used(id)) {

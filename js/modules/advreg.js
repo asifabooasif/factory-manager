@@ -1,22 +1,24 @@
-/* Salary & Advance Register — per worker for a chosen month:
-   advances taken, recovered, balance, and every payment type paid out
-   (wages / daily salaries / monthly salaries shown separately).
+/* Salary & Advance Register
+   ────────────────────────────────────────────────────────────────────────
+   Per-employee monthly summary showing:
+     • Advances given / recovered / balance (SALARIED workers only)
+     • Wages earned this month       (from wage runs — any worker)
+     • Daily Salary received         (from daily-salary records)
+     • Monthly Salary received       (from monthly runs)
 
-   Reads all three pay record kinds:
-     ─ wageRuns kind='run' with type='Monthly'   → Monthly Salary
-     ─ wageRuns kind='run' (other types)         → Wages
-     ─ wageRuns kind='daily-salary'              → Daily Salary
-     ─ wageRuns kind='advance'                   → Advance (given)
-
-   Advance columns are hidden (N/A) for wage workers — they never get advances.
-*/
+   Reads all three pay record kinds in wageRuns:
+     kind='run'  type='Weekly'/'Fortnightly'/'Daily'  → Wages
+     kind='run'  type='Monthly'                       → Monthly Salary
+     kind='daily-salary'                              → Daily Salary
+     kind='advance'                                   → Advance (given)
+   ──────────────────────────────────────────────────────────────────────── */
 (E => {
   let M = E.today().slice(0, 7);
   E.nav('People & Payroll', 'advreg', '📒', 'Salary & Advance Register');
 
-  /* ── pay category helper (mirrors employees.js) ── */
-  const payCat = p => {
-    const pt = p && p.payType;
+  /* ── classification (mirrors employees.js / payroll.js) ── */
+  const payCat = e => {
+    const pt = (e && e.payType) || 'Wage';
     if (pt === 'MonthlySalaried' || pt === 'Monthly') return 'MonthlySalaried';
     if (pt === 'DailySalaried') return 'DailySalaried';
     return 'Wage';
@@ -31,88 +33,93 @@
     DailySalaried: 'background:#dbeafe;color:#1e40af',
     MonthlySalaried: 'background:#f3e8ff;color:#7c3aed'
   };
+  const isSalaried = e => payCat(e) !== 'Wage';
 
-  /* ── all pay runs (both multi-line wages/monthly and single daily records) ── */
-  const allRuns = () => E.rows('wageRuns').filter(r =>
-    (r.kind === 'run' || r.kind === 'daily-salary') && !r.cancelled
-  );
-  const advs = () => E.rows('wageRuns').filter(r => r.kind === 'advance' && !r.cancelled);
+  /* ── all run records (any kind, not cancelled) ── */
+  const allRuns = () => E.rows('wageRuns').filter(r => !r.cancelled);
+  const advances = () => E.rows('wageRuns').filter(r => r.kind === 'advance' && !r.cancelled);
 
-  /* ── extract one employee's pay data from a run — handles both shapes ── */
-  const payOf = (r, empId) => {
-    if (r.kind === 'daily-salary') {
-      return r.empId === empId ? {
-        net: r.net || 0,
-        advRec: r.advRec || 0,
-        gross: r.gross || 0,
-        kind: 'daily-salary'
-      } : null;
-    }
+  /* ── extract this employee's advance recovery amount from a run record ── */
+  const recoveryOf = (r, empId) => {
     if (r.kind === 'run') {
       const line = (r.lines || []).find(l => l.empId === empId);
-      return line ? {
+      return line ? (line.advRec || 0) : 0;
+    }
+    if (r.kind === 'daily-salary' && r.empId === empId) {
+      return r.advRec || 0;
+    }
+    return 0;
+  };
+
+  /* ── extract this employee's net pay from a run record, tagged by category ── */
+  const netOf = (r, empId) => {
+    if (r.kind === 'run') {
+      const line = (r.lines || []).find(l => l.empId === empId);
+      if (!line) return null;
+      return {
         net: line.net || 0,
-        advRec: line.advRec || 0,
-        gross: line.gross || 0,
-        kind: r.type === 'Monthly' ? 'monthly-salary' : 'wage'
-      } : null;
+        category: r.type === 'Monthly' ? 'monthly' : 'wages'
+      };
+    }
+    if (r.kind === 'daily-salary' && r.empId === empId) {
+      return { net: r.net || 0, category: 'daily' };
     }
     return null;
   };
 
-  /* ── build the full per-employee dataset for the selected month ── */
+  /* ── build the full dataset for the selected month ── */
   function data() {
     const f = M + '-01';
     const t = M + '-31';
+    const runs = allRuns();
+    const advs = advances();
 
     return E.rows('employees')
       .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
       .map(e => {
-        const A = advs().filter(r => r.empId === e.id);
-        const R = allRuns()
-          .map(r => ({ r, p: payOf(r, e.id) }))
-          .filter(x => x.p);
+        const cat = payCat(e);
+        const sal = isSalaried(e);
 
-        /* advances given before the month */
-        const g0 = A.filter(r => r.date < f).reduce((s, r) => s + r.amount, 0);
-        /* advances recovered in runs before the month */
-        const c0 = R.filter(x => x.r.date < f).reduce((s, x) => s + x.p.advRec, 0);
+        const empAdv = advs.filter(r => r.empId === e.id);
+        const given0 = empAdv.filter(r => r.date < f).reduce((s, r) => s + (r.amount || 0), 0);
+        const givenM = empAdv.filter(r => r.date >= f && r.date <= t).reduce((s, r) => s + (r.amount || 0), 0);
 
-        /* advances given during the month */
-        const gm = A.filter(r => r.date >= f && r.date <= t);
-        /* runs during the month */
-        const cm = R.filter(x => x.r.date >= f && x.r.date <= t);
+        const rec0 = runs.filter(r => r.date < f).reduce((s, r) => s + recoveryOf(r, e.id), 0);
+        const recM = runs.filter(r => r.date >= f && r.date <= t).reduce((s, r) => s + recoveryOf(r, e.id), 0);
 
-        const g = gm.reduce((s, r) => s + r.amount, 0);
-        const c = cm.reduce((s, x) => s + x.p.advRec, 0);
-
-        const netWage    = cm.filter(x => x.p.kind === 'wage').reduce((s, x) => s + x.p.net, 0);
-        const netDaily   = cm.filter(x => x.p.kind === 'daily-salary').reduce((s, x) => s + x.p.net, 0);
-        const netMonthly = cm.filter(x => x.p.kind === 'monthly-salary').reduce((s, x) => s + x.p.net, 0);
-        const net        = netWage + netDaily + netMonthly;
+        const mRuns = runs.filter(r => r.date >= f && r.date <= t);
+        let netWages = 0, netDaily = 0, netMonthly = 0;
+        mRuns.forEach(r => {
+          const n = netOf(r, e.id);
+          if (!n) return;
+          if (n.category === 'wages') netWages += n.net;
+          else if (n.category === 'daily') netDaily += n.net;
+          else if (n.category === 'monthly') netMonthly += n.net;
+        });
+        const netTotal = netWages + netDaily + netMonthly;
 
         return {
-          e,
-          cat: payCat(e),
-          open: g0 - c0,
-          gm, g, c,
-          close: g0 - c0 + g - c,
-          net, netWage, netDaily, netMonthly
+          e, cat, sal,
+          open: given0 - rec0,
+          givenM, recM,
+          close: given0 - rec0 + givenM - recM,
+          netWages, netDaily, netMonthly, netTotal
         };
       })
-      .filter(x => x.open || x.g || x.c || x.net || x.close);
+      .filter(x => x.open || x.givenM || x.recM || x.netTotal || x.close);
   }
 
-  /* ── render the body ── */
+  /* ── render body ── */
   const body = () => {
     const D = data();
-    const S = k => D.reduce((s, x) => s + x[k], 0);
+    const S = k => D.reduce((s, x) => s + (x[k] || 0), 0);
+    const salaried = D.filter(x => x.sal);
 
     return `<div class="kp">
-      ${E.kpi('Advances given', E.m(S('g')), M)}
-      ${E.kpi('Recovered from salaries', E.m(S('c')), 'this month')}
-      ${E.kpi('Advance balance', E.m(S('close')), 'still owed by salaried staff')}
-      ${E.kpi('Wages (net)', E.m(S('netWage')), 'piece & daily workers')}
+      ${E.kpi('Advances given', E.m(salaried.reduce((s, x) => s + x.givenM, 0)), M)}
+      ${E.kpi('Recovered from salaries', E.m(salaried.reduce((s, x) => s + x.recM, 0)), 'this month')}
+      ${E.kpi('Advance balance', E.m(salaried.reduce((s, x) => s + x.close, 0)), 'still owed')}
+      ${E.kpi('Wages (net)', E.m(S('netWages')), 'paid via wage runs')}
       ${E.kpi('Daily Salaries (net)', E.m(S('netDaily')), 'daily-salaried staff')}
       ${E.kpi('Monthly Salaries (net)', E.m(S('netMonthly')), 'monthly-salaried staff')}
     </div>
@@ -121,44 +128,49 @@
         <th>Employee</th>
         <th>Category</th>
         <th class="r">Opening Advance</th>
-        <th>Advances Taken This Month</th>
+        <th>Advances This Month</th>
         <th class="r">Total Taken</th>
         <th class="r">Recovered</th>
         <th class="r">Closing Balance</th>
-        <th class="r">Wages (net)</th>
-        <th class="r">Daily Salary (net)</th>
-        <th class="r">Monthly Salary (net)</th>
+        <th class="r">Wages Net</th>
+        <th class="r">Daily Sal. Net</th>
+        <th class="r">Monthly Sal. Net</th>
       </tr></thead>
       <tbody>${D.map(x => {
-        const hasAdv = x.cat !== 'Wage';
+        const advCell = (val, bold) => x.sal
+          ? (bold ? `<b class="${val > 0 ? 'bad' : ''}">${E.m(val)}</b>` : E.m(val))
+          : '<span class="muted">N/A</span>';
+        const advGiven = x.sal
+          ? x.givenM
+            ? E.m(x.givenM)
+            : '—'
+          : '<span class="muted">—</span>';
         return `<tr>
           <td>
             <b>${E.esc(x.e.name)}</b><br>
             <span class="muted">${E.esc(x.e.code || '')}</span>
           </td>
           <td><span class="tag" style="${CAT_STYLE[x.cat]}">${CAT_LABEL[x.cat]}</span></td>
-          <td class="r">${hasAdv ? E.m(x.open) : '<span class="muted">N/A</span>'}</td>
-          <td>${hasAdv
-            ? (x.gm.map(r => r.date.slice(5) + ' · ' + E.m(r.amount)).join('<br>') || '—') +
-              `<div class="muted" style="font-size:11px">${x.gm.length ? x.gm.length + ' advance(s)' : ''}</div>`
-            : '<span class="muted">—</span>'}</td>
-          <td class="r">${hasAdv ? E.m(x.g) : '—'}</td>
-          <td class="r">${hasAdv ? E.m(x.c) : '—'}</td>
-          <td class="r">${hasAdv
-            ? `<b class="${x.close > 0 ? 'bad' : ''}">${E.m(x.close)}</b>`
-            : '—'}</td>
-          <td class="r">${x.netWage    ? E.m(x.netWage)    : '—'}</td>
-          <td class="r">${x.netDaily   ? E.m(x.netDaily)   : '—'}</td>
-          <td class="r"><b>${x.netMonthly ? E.m(x.netMonthly) : '—'}</b></td>
+          <td class="r">${advCell(x.open)}</td>
+          <td>${advGiven}</td>
+          <td class="r">${advCell(x.givenM)}</td>
+          <td class="r">${advCell(x.recM)}</td>
+          <td class="r">${advCell(x.close, true)}</td>
+          <td class="r">${x.netWages    ? E.m(x.netWages)    : '—'}</td>
+          <td class="r">${x.netDaily    ? E.m(x.netDaily)    : '—'}</td>
+          <td class="r">${x.netMonthly  ? `<b>${E.m(x.netMonthly)}</b>` : '—'}</td>
         </tr>`;
       }).join('') || '<tr><td colspan="10" class="muted">No advances or payments in this month</td></tr>'}</tbody>
     </table></div>
-    <p class="muted" style="margin-top:10px">
-      Wages are paid from attendance and piece work. Daily Salaries are fixed daily-rate
-      payments recorded in <a href="#/daily-salaries" style="color:var(--ac)">Daily Salaries</a>.
-      Monthly Salaries are run from
-      <a href="#/monthly-salaries" style="color:var(--ac)">Monthly Salaries</a>.
-      Advances can only be given to salaried staff and are recovered from their salaries.
+    <p class="muted" style="margin-top:10px;font-size:12px;line-height:1.6">
+      <b>How to read this:</b>
+      Wage workers can only appear in the <em>Wages Net</em> column — they have no advances.
+      Daily-salaried staff appear in <em>Daily Sal. Net</em> (their fixed daily pay) and possibly <em>Wages Net</em> (piece work).
+      Monthly-salaried staff appear in <em>Monthly Sal. Net</em> (their fixed monthly pay) and possibly <em>Wages Net</em> (piece work).
+      Advances are only recovered from salary records — never from wage runs.
+      Wages come from <a href="#/wages" style="color:var(--ac)">Wages</a>,
+      daily salaries from <a href="#/daily-salaries" style="color:var(--ac)">Daily Salaries</a>,
+      monthly from <a href="#/monthly-salaries" style="color:var(--ac)">Monthly Salaries</a>.
     </p>`;
   };
 
@@ -172,7 +184,7 @@
     </div>
     <div id="arb">${body()}</div>`);
 
-  /* ── live update when month changes ── */
+  /* ── live update on month change ── */
   E.hooks.push(e => {
     if (e.target.dataset && e.target.dataset.f === 'ar.m' && e.target.value) {
       M = e.target.value;
