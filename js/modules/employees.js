@@ -1,21 +1,240 @@
-/* PART 2 — Employees: fixed monthly staff and temporary daily workers; either can also earn weekly piece-rate wages. */
-(E=>{const n=E.N.find(x=>x.id==='employees');if(n)n.soon=0;const F={q:'',type:'',act:'1'};
-const used=id=>E.D.wageRuns.some(w=>JSON.stringify(w).includes(id));
-function tbl(){const s=F.q.toLowerCase();
- const rows=E.rows('employees').filter(p=>(!F.type||p.payType===F.type)&&(F.act===''||p.active===(F.act==='1'))&&(!s||(p.name+p.code+p.nic+p.phone).toLowerCase().includes(s))).sort((a,b)=>a.code.localeCompare(b.code));
- return `<div class="tw"><table><thead><tr><th>Code</th><th>Name</th><th>NIC</th><th>Phone</th><th>Pay type</th><th class="r">Basic / daily rate</th><th class="r">Allowances</th><th>Piece work</th><th>EPF</th><th></th></tr></thead><tbody>${rows.map(p=>`<tr style="${p.active?'':'opacity:.5'}"><td>${p.code}</td><td><b>${E.esc(p.name)}</b></td><td>${E.esc(p.nic)}</td><td>${E.esc(p.phone)}</td><td><span class="tag">${p.payType}</span></td><td class="r">${E.m(p.amount)}${p.payType==='Daily'?' /day':' /month'}</td><td class="r">${p.allow?E.m(p.allow):'—'}</td><td>${p.piece?'Yes':'—'}</td><td>${p.epf?'Yes':'—'}</td><td class="r"><button class="btn sm" data-a="editEmp" data-id="${p.id}">Edit</button> <button class="btn sm d" data-a="delEmp" data-id="${p.id}">${used(p.id)?(p.active?'Deactivate':'Activate'):'Delete'}</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">No employees found</td></tr>'}</tbody></table></div>`}
-E.route('employees','Employees',()=>`<div class="bar"><input style="max-width:320px" class="fs" placeholder="Search name, code, NIC, phone…" data-f="em.q" value="${E.esc(F.q)}"><select class="fs" data-f="em.type"><option value="">All pay types</option><option ${F.type==='Monthly'?'selected':''}>Monthly</option><option ${F.type==='Daily'?'selected':''}>Daily</option></select><select class="fs" data-f="em.act"><option value="1" ${F.act==='1'?'selected':''}>Active</option><option value="0" ${F.act==='0'?'selected':''}>Inactive</option><option value="" ${F.act===''?'selected':''}>All</option></select><span class="gap"></span><button class="btn p" data-a="newEmp">+ New Employee</button></div><div id="tbl">${tbl()}</div>`);
-E.hooks.push(e=>{const f=e.target.dataset&&e.target.dataset.f;if(f&&f.startsWith('em.')){F[f.slice(3)]=e.target.value;E.$('tbl').innerHTML=tbl()}});
-const form=id=>{const p=id?E.D.employees.find(x=>x.id===id):null;
- E.modal(p?'Edit Employee':'New Employee',`<div class="g2"><div class="f">Full name *<input id="e_name" value="${E.esc(p?.name)}"></div><div class="f">NIC<input id="e_nic" value="${E.esc(p?.nic)}"></div><div class="f">Phone<input id="e_ph" value="${E.esc(p?.phone)}"></div><div class="f">Joined on<input id="e_join" type="date" value="${p?.join||E.today()}"></div>
- <div class="f">Pay type *<select id="e_type"><option value="Monthly" ${p?.payType==='Monthly'?'selected':''}>Monthly salary (fixed worker)</option><option value="Daily" ${p?.payType==='Daily'?'selected':''}>Daily wage (temporary)</option></select></div><div class="f">Basic monthly salary / daily rate (Rs) *<input id="e_amt" type="number" step="0.01" value="${p?p.amount/100:''}"></div><div class="f">Fixed allowances per month (Rs)<input id="e_allow" type="number" step="0.01" value="${p&&p.allow?p.allow/100:''}"></div></div>
- <div class="g2"><div class="f">Wages normally charged to<select id="e_tgt"><option value="OH" ${p?.target==='OH'||!p?.target?'selected':''}>Factory overhead (indirect)</option><option value="ADM" ${p?.target==='ADM'?'selected':''}>Admin salaries</option></select></div><div class="f">Monthly advance recovery (Rs) — blank = recover all<input id="e_inst" type="number" step="0.01" value="${p&&p.advInstall?p.advInstall/100:''}"></div></div><label class="f" style="flex-direction:row;gap:8px"><input type="checkbox" id="e_piece" style="width:auto" ${p?.piece?'checked':''}> Also paid weekly piece-rate wages for production</label><label class="f" style="flex-direction:row;gap:8px"><input type="checkbox" id="e_epf" style="width:auto" ${p?(p.epf?'checked':''):'checked'}> EPF/ETF member</label>`,`<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="saveEmp" data-id="${id||''}">Save</button>`,1)};
-E.A.newEmp=()=>form();E.A.editEmp=id=>form(id);
-E.A.saveEmp=async id=>{const name=E.val('e_name'),nic=E.val('e_nic');if(!name)return E.toast('Name required','error');if(!E.c(E.val('e_amt')))return E.toast('Enter the salary or daily rate','error');
- if(nic&&E.rows('employees').some(p=>p.id!==id&&p.nic===nic))return E.toast('This NIC is already registered','error');
- const p=id?E.D.employees.find(x=>x.id===id):{active:true,code:await E.next('EMP')},b=id?JSON.parse(JSON.stringify(p)):null;
- Object.assign(p,{name,nic,phone:E.val('e_ph'),join:E.val('e_join'),payType:E.val('e_type'),amount:E.c(E.val('e_amt')),allow:E.c(E.val('e_allow')),piece:E.$('e_piece').checked,target:E.val('e_tgt')||'OH',advInstall:E.c(E.val('e_inst')),epf:E.$('e_epf').checked});
- await E.save('employees',p,b);E.closeM();E.go();E.toast('Employee saved','success')};
-E.A.delEmp=async id=>{const p=E.D.employees.find(x=>x.id===id);
- if(used(id)){const b=JSON.parse(JSON.stringify(p));p.active=!p.active;await E.save('employees',p,b)}
- else if(confirm('Delete '+p.name+'?')){await E.del('employees',id);await E.audit('delete','employees',id,p,null)}E.go()};})(window.ERP);
+(E => {
+  const n = E.N.find(x => x.id === 'employees');
+  if (n) n.soon = 0;
+  const F = { q: '', type: '', act: '1' };
+
+  /* ─────────────────────────────────────────────────────────────────
+     Canonical pay category — migrates legacy values
+     ───────────────────────────────────────────────────────────────── */
+  const payCat = p => {
+    const pt = p && p.payType;
+    if (pt === 'MonthlySalaried' || pt === 'Monthly') return 'MonthlySalaried';
+    if (pt === 'DailySalaried') return 'DailySalaried';
+    return 'Wage';
+  };
+  const CAT_LABEL = {
+    Wage: 'Wage Worker',
+    DailySalaried: 'Daily Salaried',
+    MonthlySalaried: 'Monthly Salaried'
+  };
+  const RATE_UNIT = { Wage: '/day', DailySalaried: '/day', MonthlySalaried: '/month' };
+  const RATE_LABEL = {
+    Wage: 'Daily rate (Rs) *',
+    DailySalaried: 'Daily salary (Rs) *',
+    MonthlySalaried: 'Monthly salary (Rs) *'
+  };
+  const isSalaried = p => payCat(p) !== 'Wage';
+  const advBal = id => (E.advBal ? E.advBal(id) : 0);
+  const used = id => E.D.wageRuns.some(w => JSON.stringify(w).includes(id));
+
+  /* ─────────────────────────────────────────────────────────────────
+     LIST
+     ───────────────────────────────────────────────────────────────── */
+  function tbl() {
+    const s = F.q.toLowerCase();
+    const rows = E.rows('employees')
+      .filter(p =>
+        (!F.type || payCat(p) === F.type) &&
+        (F.act === '' || p.active === (F.act === '1')) &&
+        (!s || (p.name + p.code + (p.nic || '') + (p.phone || '')).toLowerCase().includes(s))
+      )
+      .sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+
+    return `<div class="tw"><table>
+      <thead><tr>
+        <th>Code</th><th>Name</th><th>NIC</th><th>Phone</th>
+        <th>Pay Type</th><th class="r">Rate</th><th class="r">Allowance</th>
+        <th>Piece</th><th>EPF</th><th class="r">Advance</th><th></th>
+      </tr></thead>
+      <tbody>${rows.map(p => {
+        const cat = payCat(p);
+        const sal = isSalaried(p);
+        const bal = sal ? advBal(p.id) : 0;
+        const catStyle = cat === 'Wage' ? '' :
+          cat === 'DailySalaried' ? 'background:#dbeafe;color:#1e40af' :
+            'background:#f3e8ff;color:#7c3aed';
+        return `<tr style="${p.active ? '' : 'opacity:.5'}">
+          <td>${p.code}</td>
+          <td><b>${E.esc(p.name)}</b></td>
+          <td>${E.esc(p.nic)}</td>
+          <td>${E.esc(p.phone)}</td>
+          <td><span class="tag" style="${catStyle}">${CAT_LABEL[cat]}</span></td>
+          <td class="r">${E.m(p.amount)}${RATE_UNIT[cat]}</td>
+          <td class="r">${p.allow ? E.m(p.allow) : '—'}</td>
+          <td>${p.piece ? 'Yes' : '—'}</td>
+          <td>${p.epf ? 'Yes' : '—'}</td>
+          <td class="r">${sal
+            ? (bal > 0 ? `<b class="bad">${E.m(bal)}</b>` : '—')
+            : '<span class="muted">N/A</span>'}</td>
+          <td class="r">
+            <button class="btn sm" data-a="editEmp" data-id="${p.id}">Edit</button>
+            <button class="btn sm d" data-a="delEmp" data-id="${p.id}">${used(p.id) ? (p.active ? 'Deactivate' : 'Activate') : 'Delete'}</button>
+          </td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="11" class="muted">No employees found</td></tr>'}</tbody>
+    </table></div>`;
+  }
+
+  E.route('employees', 'Employees', () => `<div class="bar">
+    <input style="max-width:320px" class="fs" placeholder="Search name, code, NIC, phone…" data-f="em.q" value="${E.esc(F.q)}">
+    <select class="fs" data-f="em.type">
+      <option value="">All pay types</option>
+      <option value="Wage" ${F.type === 'Wage' ? 'selected' : ''}>Wage Workers</option>
+      <option value="DailySalaried" ${F.type === 'DailySalaried' ? 'selected' : ''}>Daily Salaried</option>
+      <option value="MonthlySalaried" ${F.type === 'MonthlySalaried' ? 'selected' : ''}>Monthly Salaried</option>
+    </select>
+    <select class="fs" data-f="em.act">
+      <option value="1" ${F.act === '1' ? 'selected' : ''}>Active</option>
+      <option value="0" ${F.act === '0' ? 'selected' : ''}>Inactive</option>
+      <option value="" ${F.act === '' ? 'selected' : ''}>All</option>
+    </select>
+    <span class="gap"></span>
+    <button class="btn p" data-a="newEmp">+ New Employee</button>
+  </div><div id="tbl">${tbl()}</div>`);
+
+  E.hooks.push(e => {
+    const f = e.target.dataset && e.target.dataset.f;
+    if (f && f.startsWith('em.')) {
+      F[f.slice(3)] = e.target.value;
+      E.$('tbl').innerHTML = tbl();
+    }
+    if (e.target.id === 'e_type') updateFormVisibility();
+  });
+
+  /* ─────────────────────────────────────────────────────────────────
+     FORM
+     ───────────────────────────────────────────────────────────────── */
+  const form = id => {
+    const p = id ? E.D.employees.find(x => x.id === id) : null;
+    const cat = payCat(p);
+    const isW = cat === 'Wage';
+    const isDS = cat === 'DailySalaried';
+    const isMS = cat === 'MonthlySalaried';
+    const isSal = !isW;
+
+    E.modal(p ? 'Edit Employee' : 'New Employee', `
+      <div class="g2">
+        <div class="f">Full name *<input id="e_name" value="${E.esc(p && p.name)}"></div>
+        <div class="f">NIC<input id="e_nic" value="${E.esc(p && p.nic)}"></div>
+        <div class="f">Phone<input id="e_ph" value="${E.esc(p && p.phone)}"></div>
+        <div class="f">Joined on<input id="e_join" type="date" value="${(p && p.join) || E.today()}"></div>
+      </div>
+      <div class="g2">
+        <div class="f">Pay type *
+          <select id="e_type">
+            <option value="Wage" ${isW ? 'selected' : ''}>Wage Worker — attendance + piece</option>
+            <option value="DailySalaried" ${isDS ? 'selected' : ''}>Daily Salaried — fixed daily rate</option>
+            <option value="MonthlySalaried" ${isMS ? 'selected' : ''}>Monthly Salaried — fixed monthly salary</option>
+          </select>
+        </div>
+        <div class="f"><span id="e_rate_lbl">${RATE_LABEL[cat]}</span>
+          <input id="e_amt" type="number" step="0.01" value="${p ? p.amount / 100 : ''}">
+        </div>
+      </div>
+      <div class="f" id="e_allow_grp" style="${isMS ? '' : 'display:none'}">
+        Fixed allowances per month (Rs)
+        <input id="e_allow" type="number" step="0.01" value="${p && p.allow ? p.allow / 100 : ''}">
+      </div>
+      <div class="g2">
+        <div class="f">Where charged by default
+          <select id="e_tgt">
+            <option value="OH" ${((p && p.target === 'OH') || !p || !p.target) ? 'selected' : ''}>Factory overhead (indirect)</option>
+            <option value="ADM" ${p && p.target === 'ADM' ? 'selected' : ''}>Admin salaries</option>
+          </select>
+        </div>
+        <div class="f" id="e_inst_grp" style="${isSal ? '' : 'display:none'}">
+          Monthly advance recovery (Rs) — blank = recover all
+          <input id="e_inst" type="number" step="0.01" value="${p && p.advInstall ? p.advInstall / 100 : ''}">
+        </div>
+      </div>
+      <label class="f" id="e_piece_grp" style="flex-direction:row;gap:8px;${isW ? '' : 'display:none'}">
+        <input type="checkbox" id="e_piece" style="width:auto" ${p ? (p.piece ? 'checked' : '') : 'checked'}>
+        Paid piece-rate wages for production
+      </label>
+      <label class="f" style="flex-direction:row;gap:8px">
+        <input type="checkbox" id="e_epf" style="width:auto" ${p ? (p.epf ? 'checked' : '') : 'checked'}>
+        EPF/ETF member
+      </label>
+      <p class="muted" id="e_hint" style="margin-top:10px">
+        ${isW
+          ? 'Wage workers are paid from attendance (days × rate) plus piece work. No advances.'
+          : isDS
+            ? 'Daily salaried workers are paid a fixed daily amount. Advances are recovered from their salaries.'
+            : 'Monthly salaried workers are paid a fixed monthly amount. Advances are recovered from their salaries.'}
+      </p>
+    `, `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="saveEmp" data-id="${id || ''}">Save</button>`, 1);
+  };
+
+  function updateFormVisibility() {
+    const cat = E.val('e_type');
+    const isW = cat === 'Wage';
+    const isMS = cat === 'MonthlySalaried';
+    const isSal = !isW;
+    if (E.$('e_rate_lbl')) E.$('e_rate_lbl').textContent = RATE_LABEL[cat] || 'Rate (Rs) *';
+    if (E.$('e_allow_grp')) E.$('e_allow_grp').style.display = isMS ? '' : 'none';
+    if (E.$('e_inst_grp')) E.$('e_inst_grp').style.display = isSal ? '' : 'none';
+    if (E.$('e_piece_grp')) E.$('e_piece_grp').style.display = isW ? '' : 'none';
+    if (E.$('e_hint')) E.$('e_hint').textContent = isW
+      ? 'Wage workers are paid from attendance (days × rate) plus piece work. No advances.'
+      : cat === 'DailySalaried'
+        ? 'Daily salaried workers are paid a fixed daily amount. Advances are recovered from their salaries.'
+        : 'Monthly salaried workers are paid a fixed monthly amount. Advances are recovered from their salaries.';
+  }
+
+  E.A.newEmp = () => form();
+  E.A.editEmp = id => form(id);
+
+  /* ─────────────────────────────────────────────────────────────────
+     SAVE
+     ───────────────────────────────────────────────────────────────── */
+  E.A.saveEmp = async id => {
+    const name = E.val('e_name');
+    const nic = E.val('e_nic');
+    const cat = E.val('e_type');
+
+    if (!name) return E.toast('Name required', 'error');
+    if (!E.c(E.val('e_amt'))) return E.toast('Enter the rate', 'error');
+    if (!['Wage', 'DailySalaried', 'MonthlySalaried'].includes(cat))
+      return E.toast('Invalid pay type', 'error');
+    if (nic && E.rows('employees').some(p => p.id !== id && p.nic === nic))
+      return E.toast('This NIC is already registered', 'error');
+
+    const p = id ? E.D.employees.find(x => x.id === id) : { active: true, code: await E.next('EMP') };
+    const b = id ? JSON.parse(JSON.stringify(p)) : null;
+
+    Object.assign(p, {
+      name,
+      nic,
+      phone: E.val('e_ph'),
+      join: E.val('e_join'),
+      payType: cat,
+      amount: E.c(E.val('e_amt')),
+      allow: cat === 'MonthlySalaried' && E.$('e_allow') ? E.c(E.val('e_allow')) : 0,
+      piece: cat === 'Wage' && E.$('e_piece') ? E.$('e_piece').checked : false,
+      target: E.val('e_tgt') || 'OH',
+      advInstall: cat !== 'Wage' && E.$('e_inst') ? E.c(E.val('e_inst')) : 0,
+      epf: E.$('e_epf') ? E.$('e_epf').checked : false
+    });
+
+    await E.save('employees', p, b);
+    E.closeM();
+    E.go();
+    E.toast('Employee saved', 'success');
+  };
+
+  /* ─────────────────────────────────────────────────────────────────
+     DELETE / DEACTIVATE
+     ───────────────────────────────────────────────────────────────── */
+  E.A.delEmp = async id => {
+    const p = E.D.employees.find(x => x.id === id);
+    if (used(id)) {
+      const b = JSON.parse(JSON.stringify(p));
+      p.active = !p.active;
+      await E.save('employees', p, b);
+    } else if (confirm('Delete ' + p.name + '?')) {
+      await E.del('employees', id);
+      await E.audit('delete', 'employees', id, p, null);
+    }
+    E.go();
+  };
+})(window.ERP);
