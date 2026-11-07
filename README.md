@@ -70,3 +70,7 @@ Upload ALL changed files (index.html, sw.js, js/core/config.js and the new js/mo
 ## What's new (Part 21): Cash & Bank Accounts
 Open **Cash & Bank Accounts** (Accounting menu). Tabs: Accounts overview, Vouchers (payment, receipt, transfer/deposit, bank charges, interest, owner capital/drawings), Cash / Bank book, Cash count, Chart of accounts (add bank, cash, loan and credit-card accounts). See REQUIREMENTS.md for the full checklist of what is done and what is still open.
 Upload all changed files: index.html, sw.js, js/core/config.js, js/core/ledger.js and js/modules/accounts.js. Download a backup first.
+
+## What's new (Part 24): Loan Register
+Open **Loan Register** (Accounting menu). Add a loan with amount, yearly rate, reducing-balance or flat method, number of monthly instalments and dates; the schedule is built automatically and the money received is posted to the bank. Pay each instalment (principal + interest, interest editable), undo the last payment, settle early, print or download the schedule. Loans that began before you used the system can be entered with the instalments already paid; the balance owing is posted as an opening balance. Each loan has its own liability account (2400-2499) and the register checks it against the ledger.
+The database version is now 12 (new record type: loans). Download a backup first, close old tabs, then upload ALL changed files: index.html, sw.js, js/core/config.js, js/core/router.js, js/modules/loans.js, js/modules/datareset.js, js/modules/guide.js and docs.

@@ -26,7 +26,7 @@ Status: DONE = built and tested | NEW = added in this update | OPEN = not built 
 | Fixed assets and depreciation, disposal | DONE | Fixed Assets |
 | Budget vs actual | NEW | Reports |
 | Cash-flow forecast | NEW | Reports |
-| Loan register with instalment schedule and automatic interest | OPEN | - (loans can be handled with vouchers today) |
+| Loan register with instalment schedule and interest (reducing / flat), payments, early settlement, opening balances for existing loans | NEW | Loan Register |
 | Recurring vouchers (rent, lease, insurance) | OPEN | - |
 | Tax: VAT / SVAT / withholding tax / NBT calculation and returns | OPEN | Settings has a switch, not yet connected |
 | Bank statement import (CSV) with auto-matching | OPEN | - |
@@ -50,9 +50,9 @@ Status: DONE = built and tested | NEW = added in this update | OPEN = not built 
 | Profitability by article, customer and job, reconciled to ledger | NEW |
 | CSV import / export, barcode label printing | NEW |
 | Dashboard with live KPIs and alerts | NEW |
-| Purchase orders and goods-received notes | OPEN |
+| Purchase orders and goods-received notes | DONE |
 | Automatic payroll from attendance | OPEN |
-| Physical stock-take sheets with variance posting | OPEN |
+| Physical stock-take sheets with variance posting | DONE |
 | Production stage tracking per pair (cutting, sticking, packing) with piece-rate wages | OPEN |
 
 ## C. System and security

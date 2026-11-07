@@ -249,11 +249,27 @@ Then do bank reconciliation, print reports, take a **backup**, and **Lock the pe
 | A check on Month-end Close is red | Click Open next to it; the detail line shows both figures |
 | Cannot post — period is locked | An Owner can unlock the period on Month-end Close |
 
-## 17. Recommended next features
+## 17. Purchase orders, stock take and the Loan Register
+
+**Purchase Orders** (Purchases & Stock). Create an order with supplier, expected date and item lines. Saving posts nothing. Use **Receive goods** when the materials arrive: a numbered GRN is created and the normal purchase bill (stock in, amount owing to the supplier) is posted. You can receive in parts and cannot receive more than is pending. Close a PO short, or cancel it if nothing was received.
+
+**Stock Take** (Purchases & Stock). Start a count for all stock or one category, print a blind sheet, enter the counted quantities, then post. Losses are valued at average cost and go to Factory Loss; gains go to stock. One balanced journal entry is posted and the count is locked.
+
+**Loan Register** (Accounting). Use it for bank loans, leases and other borrowings.
+1. Click **+ New Loan**. Enter the lender, amount, yearly interest rate, method (reducing balance or flat rate), number of monthly instalments, the loan date and the first due date. The instalment, total interest and last due date show before you save.
+2. The money received is posted (Dr bank / Cr the loan's own liability account 2400-2499). The full schedule is created.
+3. Each month click **Pay** on the next instalment. It posts Dr loan account (principal) + Dr Finance Charges (interest) / Cr bank. Change the interest amount if the bank statement differs. Instalments must be paid in order. **Undo** reverses the last payment.
+4. **Settle in full** closes the loan early: enter the interest and any fee from the lender's letter.
+5. A loan that started before you used the system: tick "started before I used the system", enter the ORIGINAL amount, rate, term and dates and how many instalments are already paid. The balance still owing is posted as an opening balance and nothing is paid out.
+6. Each loan shows the ledger balance against the schedule (Agrees / Differs). Print the schedule or download it as CSV.
+
+Interest is charged to Finance Charges when it is paid, not accrued month by month. Do not post loan repayments through a manual payment voucher; use the register so the schedule stays correct.
+
+## 18. Recommended next features
 
 These are natural next steps to make the system even stronger:
 
-1. **Purchase orders and goods-received matching** with supplier price-variance reports.
+1. **Supplier price-variance reports** from purchase orders against bills.
 2. **Landed cost** — spread freight and duty over the materials bought.
 3. **Batch / lot numbers** for materials and finished goods, with traceability.
 4. **Standard costing** — standard cost per article against actual with variance analysis.
