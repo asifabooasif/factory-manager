@@ -5,7 +5,29 @@ E.today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toI
 E.toast=(m,t)=>{const e=document.createElement('div');e.className='ts '+(t||'');e.textContent=m;$('ts').appendChild(e);setTimeout(()=>e.remove(),3500)};
 E.modal=(t,b,f,w)=>{$('mw').innerHTML=`<div class="m ${w?'w':''}"><div class="mh"><span>${E.esc(t)}</span><button data-a="close">✕</button></div><div class="mb">${b}</div><div class="mf">${f}</div></div>`;$('mw').classList.add('o')};
 E.closeM=()=>{$('mw').classList.remove('o');$('mw').innerHTML=''};E.A.close=E.closeM;
-E.kpi=(l,v,s)=>`<div class="k"><small>${l}</small><div>${v}</div><i>${s||''}</i></div>`;})(window.ERP);
+E.kpi=(l,v,s)=>`<div class="k"><small>${l}</small><div>${v}</div><i>${s||''}</i></div>`;
+/* ── NEW: expand size ranges ──
+   "36-41"          → ['36','37','38','39','40','41']   (6 pairs)
+   "36-41,36-41"    → 12 pairs (each size twice)
+   "6,7,7,8,8,9"    → 6 pairs (as typed — repeats preserved)
+   "36-41,42-44"    → 9 pairs
+   Mixed, spaces, unicode dashes — all handled.
+*/
+E.expandSizes=function(str){
+  const out=[];
+  String(str||'').split(',').forEach(function(part){
+    part=part.trim();
+    if(!part)return;
+    var m=part.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+    if(m){
+      var s=parseInt(m[1],10),e=parseInt(m[2],10);
+      if(s<=e&&e-s<100){for(var i=s;i<=e;i++)out.push(String(i))}
+      return;
+    }
+    out.push(part);
+  });
+  return out;
+};})(window.ERP);
 /* Shared helpers added in Part 13: file download and CSV parsing. */
 (E=>{E.download=(name,text,type)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+text],{type:(type||'text/plain')+';charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)};
 E.csvCell=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
