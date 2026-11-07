@@ -1,39 +1,18 @@
-/* PART 9 (v3) — Sign-in gate, user registry and cloud sync.
-   - Everyone must sign in with Google to enter. Only emails in the owner's user list may use the system.
-   - Default owner (cannot be removed): asifabooasif@gmail.com. Owners add / suspend / remove people and set roles.
-   - After sign-in the user's cloud data loads live; the app keeps working offline (IndexedDB) and syncs when online.
-   - Every factory is its own world in Firestore:  erp_factories/{factoryId}/data/...  (records)  and  erp_factories/{factoryId}/private/sheet  (its Google Sheet link).
-   - People live in erp_users. An Owner sees every factory; Staff see only the factories they are given, each with its own role (Accountant / Viewer).
-   - Security lives in firebase/firestore.rules. */
+/* PART 9 (v4) — Sign-in, user registry, cloud sync + Sheets sync (33 collections) + debug log */
 (E=>{
 const OWNER='asifabooasif@gmail.com';
 const CFG={apiKey:"AIzaSyCemkHwGDXgINLKSZAGebuXufJV1Vgc6NI",authDomain:"factory-manager-1b5fa.firebaseapp.com",projectId:"factory-manager-1b5fa",storageBucket:"factory-manager-1b5fa.firebasestorage.app",messagingSenderId:"869478675654",appId:"1:869478675654:web:a2ff3d1b2c1e215b5893c7"};
 const SDK=['app','auth','firestore'].map(n=>'https://www.gstatic.com/firebasejs/10.8.0/firebase-'+n+'-compat.js');
 const FACT='erp_factories',USERS='erp_users';
-/* ═══════════════════════════════════════════════════════════════════════
-   SHEETS SYNC COLLECTIONS (changed from 9 to 33)
-   Every collection listed here is sent to the factory's Google Sheet.
-   Removed: factories (handled separately), settings/sequences/auditLog
-   (internal config — no business value to expose).
-   ═══════════════════════════════════════════════════════════════════════ */
 const SC=[
-  // Masters
   'items','variants','parties','employees','coa','operations','rateCards',
-  // Books
   'journalEntries',
-  // Sales
   'invoices','deliveries','receipts','quotes',
-  // Purchases
   'purchases','payments','purchaseOrders',
-  // Production
   'jobs','jobLines','prodLogs','issues',
-  // Inventory
   'stockMoves','stockTakes',
-  // Payroll
   'wageRuns','attendance',
-  // Accounting
   'expenses','vouchers','loans','cheques','assets','cashCounts','costRuns','recon',
-  // Quality & budgets
   'qc','budgets'
 ];
 let fs=null,auth=null,unsubData=null,unsubMe=null,unsubUsers=null,unsubFacts=[],first=true,opened=false,tWait=null,tOpen=null,tFact=null;
@@ -43,17 +22,15 @@ E.OWNER=OWNER;E.role='viewer';E.profile=null;
 E.sync={on:true,user:null,state:'Cloud: starting…',level:'warn',ready:false,authChecked:false,granted:false,users:[]};
 const iso=()=>new Date().toISOString(),norm=s=>String(s||'').trim().toLowerCase();
 const canWrite=()=>E.role==='owner'||E.role==='accountant';
-/* roles: Owner = everything in every factory. Staff = the role given for each factory (access map). */
 E.isOwner=()=>!!(E.profile&&E.profile.role==='owner');
 const roleFor=fid=>E.isOwner()?'owner':((E.profile&&E.profile.access&&E.profile.access[fid])||'');
 E.roleFor=roleFor;E.canSee=fid=>!!roleFor(fid);
 const setRole=()=>{E.role=E.fid?(roleFor(E.fid)||'viewer'):(E.isOwner()?'owner':'viewer')};
 
-/* ---------- status text in the header ---------- */
 const COLOR={ok:'#16a34a',warn:'#d97706',err:'#dc2626',off:'#6b7280'};
 const st=(t,lv)=>{E.sync.state=t;E.sync.level=lv||'warn';const e=E.$('syn');if(e){e.textContent=t;e.style.color=COLOR[E.sync.level];e.style.cursor='pointer';e.title='Open Cloud & Backup';e.onclick=()=>{location.hash='#/cloud'}}};
 const explain=e=>{const c=(e&&e.code)||'',m=(e&&e.message)||String(e);
- if(c==='permission-denied'||/insufficient permissions/i.test(m))return 'Firestore refused access. Publish the new firebase/firestore.rules in Firebase Console → Firestore Database → Rules (see README step 4).';
+ if(c==='permission-denied'||/insufficient permissions/i.test(m))return 'Firestore refused access. Publish the new firebase/firestore.rules in Firebase Console → Firestore Database → Rules.';
  if(c==='auth/unauthorized-domain')return 'This website address is not authorised. Firebase Console → Authentication → Settings → Authorized domains → Add domain: '+location.hostname;
  if(c==='auth/operation-not-allowed')return 'Google sign-in is switched off. Firebase Console → Authentication → Sign-in method → Google → Enable.';
  if(c==='auth/popup-blocked')return 'The browser blocked the sign-in window. Allow pop-ups for this site and try again.';
@@ -64,7 +41,6 @@ const explain=e=>{const c=(e&&e.code)||'',m=(e&&e.message)||String(e);
  return m};
 E.sync.explain=explain;
 
-/* ---------- full-screen sign-in gate ---------- */
 const G_LOGO='<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.3 0 11.7-2.1 15.6-5.7l-7.5-5.8c-2.1 1.4-4.8 2.3-8.1 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>';
 const gate=(mode,msg)=>{let g=E.$('gate');
  if(!g){const s=document.createElement('style');s.textContent='#gate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--sb,linear-gradient(180deg,#150b30,#3b1d7a))}#gate .gc{background:var(--s,#fff);color:var(--t,#1a1533);border-radius:18px;padding:34px 30px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}#gate .gl{font-size:44px;margin-bottom:6px}#gate h2{font-size:20px;margin-bottom:8px}#gate p{margin:8px 0;line-height:1.5}#gate .gbig{width:100%;justify-content:center;padding:12px 16px;font-size:14px;margin-top:14px}#gate .gerr{color:#dc2626;font-size:12px;min-height:16px}#gate .gb{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}.gsp{width:34px;height:34px;border:4px solid #ddd6f3;border-top-color:#7c3aed;border-radius:50%;margin:10px auto;animation:gspin .8s linear infinite}@keyframes gspin{to{transform:rotate(360deg)}}';document.head.appendChild(s);g=document.createElement('div');g.id='gate';document.body.appendChild(g)}
@@ -78,7 +54,6 @@ const gate=(mode,msg)=>{let g=E.$('gate');
  g.innerHTML='<div class="gc">'+(B[mode]||B.loading)+'</div>'};
 const hideGate=()=>{const g=E.$('gate');if(g)g.style.display='none'};
 
-/* ---------- user chip (name, role, sign-out) in the header ---------- */
 const ROLE={owner:'Owner',accountant:'Accountant',viewer:'View only'};E.ROLE=ROLE;
 const chip=()=>{const tr=document.querySelector('.tr');if(!tr)return;let c=E.$('uchip');
  if(!E.sync.granted||!E.profile){if(c)c.style.display='none';return}
@@ -89,18 +64,52 @@ const chip=()=>{const tr=document.querySelector('.tr');if(!tr)return;let c=E.$('
 
 const load=u=>new Promise((res,rej)=>{if(document.querySelector('script[src="'+u+'"]'))return res();const s=document.createElement('script');s.src=u;s.onload=res;s.onerror=()=>rej(new Error('offline'));document.head.appendChild(s)});
 const did=(c,i)=>c+'__'+i;
-/* ---------- per-factory Google Sheet link (kept on this device and in the factory's private cloud record) ---------- */
+
 const shKey=fid=>'erp_sheet_'+fid;
 const SH=()=>{try{return JSON.parse(localStorage.getItem(shKey(E.fid))||'{}')}catch(e){return{}}};
 E.sheetCfg=SH;
-E.sheetSave=async(url,key)=>{localStorage.setItem(shKey(E.fid),JSON.stringify({url,key}));if(fs&&E.sync.granted&&canWrite())await pdoc(E.fid).set({url,key,updatedAt:iso()})};
+
+/* ═════════════════════════════════════════════════════════════════
+   VALIDATE Google Apps Script URL before saving
+   ═════════════════════════════════════════════════════════════════ */
+function validateSheetUrl(url){
+  if (!url || !url.trim()) return { ok: false, error: 'URL is empty' };
+  const trimmed = url.trim();
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/(exec|dev)$/.test(trimmed)) {
+    if (trimmed.includes('/dev')) return { ok: false, error: 'You pasted a /dev URL. You must use the /exec URL from the deployment (not the editor test URL).' };
+    return { ok: false, error: 'Not a valid Apps Script URL. It should look like: https://script.google.com/macros/s/AKfyc.../exec' };
+  }
+  return { ok: true };
+}
+
+E.sheetSave=async(url,key)=>{
+  const v = validateSheetUrl(url);
+  if (!v.ok) throw new Error(v.error);
+  localStorage.setItem(shKey(E.fid),JSON.stringify({url:url.trim(),key:String(key||'').trim()}));
+  if(fs&&E.sync.granted&&canWrite())await pdoc(E.fid).set({url:url.trim(),key:String(key||'').trim(),updatedAt:iso()})
+};
+
 async function loadSheetCfg(fid){
- if(!localStorage.getItem(shKey(fid))){const lu=localStorage.getItem('erp_sheet_url');if(lu&&E.D.factories[0]&&E.D.factories[0].id===fid)localStorage.setItem(shKey(fid),JSON.stringify({url:lu,key:localStorage.getItem('erp_sheet_key')||''}))}   /* old single-sheet setting goes to the first factory */
+ if(!localStorage.getItem(shKey(fid))){const lu=localStorage.getItem('erp_sheet_url');if(lu&&E.D.factories[0]&&E.D.factories[0].id===fid)localStorage.setItem(shKey(fid),JSON.stringify({url:lu,key:localStorage.getItem('erp_sheet_key')||''}))}
  if(!fs||!E.sync.granted||!canWrite())return;
  try{const d=await pdoc(fid).get();if(d.exists&&fid===E.fid)localStorage.setItem(shKey(fid),JSON.stringify({url:d.data().url||'',key:d.data().key||''}))}catch(e){}}
 
+/* ═════════════════════════════════════════════════════════════════
+   DEBUG LOG — records last 20 sync attempts
+   ═════════════════════════════════════════════════════════════════ */
+const dlKey=()=>'erp_sheet_debug_'+E.fid;
+function dbgPush(entry){
+  try{
+    const arr=JSON.parse(localStorage.getItem(dlKey())||'[]');
+    arr.unshift(Object.assign({at:new Date().toISOString()},entry));
+    if(arr.length>20)arr.length=20;
+    localStorage.setItem(dlKey(),JSON.stringify(arr));
+  }catch(e){}
+}
+E.sheetDebug=()=>{try{return JSON.parse(localStorage.getItem(dlKey())||'[]')}catch(e){return[]}};
+E.sheetDebugClear=()=>{localStorage.removeItem(dlKey())};
+
 const doc=(c,o,del)=>({col:c,rid:o.id,factoryId:o.factoryId||'',updatedAt:o.updatedAt||iso(),deleted:!!del,json:del?'':JSON.stringify(o)});
-/* deletes made while offline / signed out are remembered (per factory) and sent later */
 const pk=()=>'erp_pend_del_'+E.fid;
 const pend=()=>{try{return JSON.parse(localStorage.getItem(pk())||'[]')}catch(e){return[]}};
 const setPend=a=>localStorage.setItem(pk(),JSON.stringify(a));
@@ -110,10 +119,86 @@ function push(c,o,del){
  if(c==='factories'){if(E.isOwner())fcol().doc(o.id).set({id:o.id,name:o.name||'',code:o.code||'',createdBy:o.createdBy||'',createdAt:o.createdAt||iso(),updatedAt:o.updatedAt||iso()}).catch(e=>st('Sync error: '+explain(e),'err'));return}
  if(!E.fid)return;
  dcol(E.fid).doc(did(c,o.id)).set(doc(c,o,del)).catch(e=>st('Sync error: '+explain(e),'err'))}
-function sheet(c,recs){const s=SH();if(!s.url||!SC.includes(c))return Promise.resolve();return fetch(s.url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({key:s.key,sheet:c,records:recs})}).catch(()=>{})}
+
+/* ═════════════════════════════════════════════════════════════════
+   SHEET SEND — logs every attempt so we can debug
+   ═════════════════════════════════════════════════════════════════ */
+function sheet(c,recs){
+  const s=SH();
+  if(!s.url||!SC.includes(c))return Promise.resolve();
+  const payload={key:s.key,sheet:c,records:recs};
+  const started=Date.now();
+  return fetch(s.url,{
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(payload)
+  }).then(r=>{
+    dbgPush({sheet:c,count:recs.length,ok:true,ms:Date.now()-started,type:r.type,url:s.url.slice(0,60)+'…'});
+  }).catch(e=>{
+    dbgPush({sheet:c,count:recs.length,ok:false,error:String(e&&e.message||e),url:s.url.slice(0,60)+'…'});
+  });
+}
+
+/* ═════════════════════════════════════════════════════════════════
+   PUBLIC: TEST SHEET CONNECTION
+   Returns detailed status without needing DevTools
+   ═════════════════════════════════════════════════════════════════ */
+E.sheetsTest=async function(){
+  const s=SH();
+  const out={checks:[]};
+  const add=(t,ok,h)=>out.checks.push({t,ok:!!ok,h:ok?'':(h||'')});
+
+  /* 1. Is URL configured? */
+  add('URL configured', !!s.url, 'Paste the Web App URL in the box above and click Save.');
+  if(!s.url) return out;
+
+  /* 2. Is URL format valid? */
+  const v=validateSheetUrl(s.url);
+  add('URL format valid ('+s.url.slice(0,50)+'…)', v.ok, v.error||'');
+  if(!v.ok) return out;
+
+  /* 3. Is secret set? */
+  add('Secret key configured', !!s.key, 'Enter the SECRET from your Apps Script.');
+  if(!s.key) return out;
+
+  /* 4. Is URL reachable? Try a POST — no-cors means we can only detect network errors */
+  add('Attempting POST to Apps Script…', true, '');
+  try{
+    const started=Date.now();
+    await fetch(s.url,{
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({key:s.key,sheet:'items',records:[{id:'__test__',art:'TEST',name:'Connection test',cat:'Raw Material'}]})
+    });
+    add('POST request was accepted by the browser ('+(Date.now()-started)+'ms)', true, '');
+    out.postSent=true;
+    out.note='With no-cors, the browser cannot tell us if the Apps Script accepted the request. Please check your Google Sheet — a TEST row should appear in the "items" tab within ~5 seconds. If it doesn\'t, the problem is inside the Apps Script (secret mismatch, permission, or not deployed as "Anyone").';
+  }catch(e){
+    add('POST request failed', false, 'Network error: '+String(e.message||e)+'. This means the URL is wrong or the Apps Script deployment is not public.');
+    out.postSent=false;
+  }
+
+  /* 5. Provide the manual test URL so user can see the JSON */
+  out.manualTestUrl = s.url + '?key=' + encodeURIComponent(s.key);
+  return out;
+};
+
+E.sheetsAll=async()=>{
+  let n=0,errors=0;
+  for(const c of SC){
+    const a=E.D[c]||[];
+    for(let i=0;i<a.length;i+=50){
+      try{await sheet(c,a.slice(i,i+50));n+=Math.min(50,a.length-i)}
+      catch(e){errors++}
+    }
+  }
+  return {total:n,errors:errors,sheetsAttempted:SC.length};
+};
+
 E.put=async(c,o)=>{const r=await raw.put(c,o);push(c,r);if(c!=='factories')sheet(c,[r]);return r};
 E.del=async(c,id)=>{await raw.del(c,id);if(c==='factories')return;if(E.sync.granted&&fs&&E.fid)dcol(E.fid).doc(did(c,id)).set(doc(c,{id,factoryId:E.fid},true)).catch(e=>st('Sync error: '+explain(e),'err'));else setPend(pend().concat([{c,id}]))};
-E.sheetsAll=async()=>{let n=0;for(const c of SC){const a=E.D[c]||[];for(let i=0;i<a.length;i+=50){await sheet(c,a.slice(i,i+50));n+=Math.min(50,a.length-i)}}return n};
 
 async function apply(d){if(!d||!E.D[d.col])return false;
  if(d.deleted){if(E.D[d.col].some(x=>x.id===d.rid)){await raw.del(d.col,d.rid);return true}return false}
@@ -129,10 +214,8 @@ async function uploadNewer(s){const rm=new Map(s.docs.map(d=>[d.id,d.data().upda
 E.sync.pushAll=async()=>{if(!fs||!E.sync.user)throw new Error('Sign in first');if(!canWrite())throw new Error('View-only access cannot upload');const items=[];
  for(const c of E.cfg.cols)if(c!=='factories')for(const o of E.D[c]||[])items.push([did(c,o.id),doc(c,o)]);return commitAll(E.fid,items)};
 
-/* ---------- open the app once the active factory's data has loaded ---------- */
 function openApp(){if(opened)return;opened=true;clearTimeout(tOpen);hideGate();chip();E.renderFSel();E.go();if(E.maybeSetup)E.maybeSetup()}
 
-/* ---------- live data of ONE factory (its own cloud collection) ---------- */
 function listenData(fid){if(unsubData){unsubData();unsubData=null}first=true;st('Cloud: loading '+((E.factory()||{}).name||'factory')+'…','warn');
  unsubData=dcol(fid).onSnapshot({includeMetadataChanges:true},async s=>{try{
   if(fid!==E.fid)return;
@@ -146,7 +229,6 @@ function listenData(fid){if(unsubData){unsubData();unsubData=null}first=true;st(
   catch(e){st('Cloud error: '+explain(e),'err')}},
   e=>{st('Cloud error: '+explain(e),'err');if(!opened)gate('error',explain(e))})}
 
-/* switch the active factory: close the old local database, open the new one, start its own cloud listener */
 E.sync.switchTo=async fid=>{
  if(!fid||!E.canSee(fid))return;
  if(unsubData){unsubData();unsubData=null}opened=false;
@@ -156,7 +238,6 @@ E.sync.switchTo=async fid=>{
  clearTimeout(tOpen);tOpen=setTimeout(openApp,12000);
  if(fs&&E.sync.granted&&!E.sync.offlineGrace)listenData(fid);else openApp()};
 
-/* ---------- list of factories this person may see ---------- */
 async function applyFactories(list){let ch=false;
  for(const f of list){const l=E.D.factories.find(x=>x.id===f.id);if(l&&(l.updatedAt||'')>=(f.updatedAt||''))continue;E.keepTs=true;try{await raw.put('factories',f)}finally{E.keepTs=false}ch=true}
  return ch}
@@ -173,8 +254,7 @@ function startFactories(){stopFactories();let done=false;const go=()=>{if(done)r
  if(E.isOwner()){
   unsubFacts.push(fcol().onSnapshot({includeMetadataChanges:true},async s=>{try{
    const remote=s.docs.map(d=>d.data());const ch=await applyFactories(remote);
-   if(!s.metadata.fromCache&&!done){ /* local factories the cloud has never seen (older versions of this system) are uploaded once */
-    const ids=new Set(s.docs.map(d=>d.id));for(const f of E.D.factories)if(!ids.has(f.id))await fcol().doc(f.id).set({id:f.id,name:f.name||'',code:f.code||'',createdBy:f.createdBy||'',createdAt:f.createdAt||iso(),updatedAt:f.updatedAt||iso()})}
+   if(!s.metadata.fromCache&&!done){const ids=new Set(s.docs.map(d=>d.id));for(const f of E.D.factories)if(!ids.has(f.id))await fcol().doc(f.id).set({id:f.id,name:f.name||'',code:f.code||'',createdBy:f.createdBy||'',createdAt:f.createdAt||iso(),updatedAt:f.updatedAt||iso()})}
    if(!s.metadata.fromCache)go();
    if(done&&ch){E.renderFSel();if(opened)E.go()}}catch(e){fail(e)}},fail))}
  else{
@@ -187,19 +267,16 @@ function startFactories(){stopFactories();let done=false;const go=()=>{if(done)r
    if(done){E.renderFSel();if(opened)E.go()}}catch(e){fail(e)}},fail)))}}
 function stopFactories(){unsubFacts.forEach(u=>u());unsubFacts=[];clearTimeout(tFact)}
 
-/* owners watch the whole user registry live (for the Users & Access page) */
 function startUsers(){if(unsubUsers)return;
  unsubUsers=fs.collection(USERS).onSnapshot(s=>{E.sync.users=s.docs.map(d=>Object.assign({id:d.id},d.data()));migrateUsers();
   const a=document.activeElement;if(location.hash==='#/access'&&!(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)&&E.$('v').contains(a)))E.go()},e=>{})}
 const stopUsers=()=>{if(unsubUsers){unsubUsers();unsubUsers=null}E.sync.users=[]};
-/* people created by the previous version had one global role: give them that role in every existing factory */
 let migrating=false;
 async function migrateUsers(){if(migrating||!E.isOwner()||!E.D.factories.length)return;
  const old=E.sync.users.filter(u=>(u.role==='accountant'||u.role==='viewer')&&!u.access);if(!old.length)return;migrating=true;
  try{for(const u of old){const access={};E.D.factories.forEach(f=>access[f.id]=u.role);await fs.collection(USERS).doc(u.id).update({role:'staff',access})}}catch(e){}migrating=false}
 function stopAll(){if(unsubData){unsubData();unsubData=null}if(unsubMe){unsubMe();unsubMe=null}stopUsers();stopFactories();clearTimeout(tWait);clearTimeout(tOpen);opened=false;E.sync.granted=false}
 
-/* ---------- access check: the signed-in email must be in the registry ---------- */
 function deny(u,why){stopUsers();stopFactories();if(unsubData){unsubData();unsubData=null}E.sync.granted=false;opened=false;E.role='viewer';E.profile=null;E.closeFactory();chip();st('No access','err');
  gate('denied',why==='suspended'?'Your access has been suspended by the owner.':'This email has not been added. Ask the owner ('+OWNER+') to add it, then sign in again.')}
 const remember=d=>localStorage.setItem('erp_last_user',JSON.stringify({email:d.email,name:d.name||'',role:d.role,access:d.access||{}}));
@@ -208,7 +285,7 @@ function onGranted(u,d,fromCache){const was=E.sync.granted;
  E.profile=d;E.user=d.name||u.displayName||u.email;E.sync.granted=true;remember(d);
  if(!was){gate('loading','Loading your factories…');setRole();chip();if(d.role==='owner')startUsers();startFactories();
   if(!fromCache)fs.collection(USERS).doc(d.email).update({lastLoginAt:iso(),name:d.name||u.displayName||'',photo:u.photoURL||''}).catch(()=>{})}
- else if(prevKey!==JSON.stringify([d.role,d.access])){            /* owner changed this person's access while they are signed in */
+ else if(prevKey!==JSON.stringify([d.role,d.access])){
   if(d.role==='owner')startUsers();else stopUsers();
   const vis=E.visibleFactories();
   if(!vis.length){deny(u,'none');gate('denied','Your factory access was removed by the owner.');return}
@@ -260,8 +337,6 @@ E.sync.signOut=()=>{localStorage.removeItem('erp_last_user');return auth?auth.si
 E.A.cloudIn=()=>E.sync.signIn();E.A.cloudOut=()=>E.sync.signOut();E.A.gateRetry=()=>location.reload();
 E.A.cloudSwitch=async()=>{try{await auth.signOut()}catch(e){}E.sync.signIn()};
 
-/* ---------- user registry API (owner only; Firestore rules enforce it too) ----------
-   role: 'owner' (all factories, manages people)  |  'staff' (only the factories in access, each 'accountant' or 'viewer') */
 const needOwner=()=>{if(!E.isOwner()||!fs)throw new Error('Only an Owner can manage users')};
 const cleanAccess=a=>{const o={};Object.keys(a||{}).forEach(k=>{if(a[k]==='accountant'||a[k]==='viewer')o[k]=a[k]});return o};
 E.sync.addUser=async(email,name,role,access)=>{needOwner();email=norm(email);
@@ -283,7 +358,6 @@ E.sync.removeUser=async email=>{needOwner();email=norm(email);
  if(email===E.profile.email)throw new Error('You cannot remove yourself');
  await fs.collection(USERS).doc(email).delete();E.audit&&E.audit('user-remove','erp_users',email,null,null)};
 
-/* ---------- plain-language connection check (Cloud & Backup → Test connection) ---------- */
 E.sync.test=async()=>{const out=[],add=(t,g,h)=>out.push({t,g:!!g,h:g?'':(h||'')});
  add('Opened from a web address (https / localhost)',location.protocol!=='file:','Open the GitHub Pages link instead of the downloaded index.html.');
  add('Internet connection',navigator.onLine,'You appear to be offline.');
