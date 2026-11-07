@@ -1,18 +1,13 @@
-/* Lanka Slipper ERP — Service Worker
+/* Lanka Slipper ERP — Service Worker (v32)
    ────────────────────────────────────────────────────────────────────────
-   Offline cache: network first, falls back to the saved copy when offline.
-   Every module is pre-cached on install. Fetches go to network first, and
-   the cache is updated whenever a successful network response comes back.
-   When offline, the last cached copy (or index.html) is served.
+   Offline cache: network first, falls back to saved copy when offline.
+   Every module is pre-cached on install.
 
    When you add or change files in index.html, also update CORE here and
    bump V so devices pick up the change.
-
-   Fetches for Firebase SDK files on gstatic.com are also cached so the
-   app can load its auth/Firestore code offline.
    ──────────────────────────────────────────────────────────────────────── */
 
-const V = 'lanka-erp-v31';
+const V = 'lanka-erp-v32';
 
 const CORE = [
   "./",
@@ -75,6 +70,7 @@ const CORE = [
   "js/modules/setup.js",
   "js/modules/closing.js",
   "js/modules/guide.js",
+  "js/modules/ai-coach.js",
   "js/modules/ai-agent.js"
 ];
 
@@ -100,7 +96,6 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
 
-  /* skip non-GET and unrelated origins */
   if (e.request.method !== 'GET') return;
   if (u.origin !== location.origin &&
       !(u.hostname === 'www.gstatic.com' && u.pathname.startsWith('/firebasejs/'))) return;
@@ -108,13 +103,11 @@ self.addEventListener('fetch', e => {
   e.respondWith(
     fetch(e.request)
       .then(r => {
-        /* cache a copy of every successful response (keeps app fresh) */
         const c = r.clone();
         caches.open(V).then(x => x.put(e.request, c));
         return r;
       })
       .catch(() =>
-        /* offline: serve cached copy, or fall back to index.html for navigation */
         caches.match(e.request)
           .then(r => r || caches.match('index.html'))
       )

@@ -99,10 +99,15 @@
   <script src="js/modules/guide.js"></script>
 
   <!-- ============================================================
-       AI ASSISTANT (NEW)
-       Loads AFTER all modules so E.nav / E.route are available.
-       Provides the 🤖 floating chat widget, Ctrl+K shortcut,
-       Settings page at #/ai, and 25+ intent handlers.
+       AI COACH — Guided setup steps + Today's Tasks widgets
+       Loads BEFORE ai-agent so it can hook the AI's ask() method
+       and take over coach queries like "what's next" / "guide me"
+       ============================================================ -->
+  <script src="js/modules/ai-coach.js"></script>
+
+  <!-- ============================================================
+       AI ASSISTANT — Floating chat + 25+ intents + LLM bridge
+       Loads AFTER ai-coach so the coach patch is applied first
        ============================================================ -->
   <script src="js/modules/ai-agent.js"></script>
 
