@@ -9,7 +9,33 @@
 const OWNER='asifabooasif@gmail.com';
 const CFG={apiKey:"AIzaSyCemkHwGDXgINLKSZAGebuXufJV1Vgc6NI",authDomain:"factory-manager-1b5fa.firebaseapp.com",projectId:"factory-manager-1b5fa",storageBucket:"factory-manager-1b5fa.firebasestorage.app",messagingSenderId:"869478675654",appId:"1:869478675654:web:a2ff3d1b2c1e215b5893c7"};
 const SDK=['app','auth','firestore'].map(n=>'https://www.gstatic.com/firebasejs/10.8.0/firebase-'+n+'-compat.js');
-const FACT='erp_factories',USERS='erp_users',SC=['items','variants','parties','journalEntries','invoices','deliveries','purchases','wageRuns','jobs'];
+const FACT='erp_factories',USERS='erp_users';
+/* ═══════════════════════════════════════════════════════════════════════
+   SHEETS SYNC COLLECTIONS (changed from 9 to 33)
+   Every collection listed here is sent to the factory's Google Sheet.
+   Removed: factories (handled separately), settings/sequences/auditLog
+   (internal config — no business value to expose).
+   ═══════════════════════════════════════════════════════════════════════ */
+const SC=[
+  // Masters
+  'items','variants','parties','employees','coa','operations','rateCards',
+  // Books
+  'journalEntries',
+  // Sales
+  'invoices','deliveries','receipts','quotes',
+  // Purchases
+  'purchases','payments','purchaseOrders',
+  // Production
+  'jobs','jobLines','prodLogs','issues',
+  // Inventory
+  'stockMoves','stockTakes',
+  // Payroll
+  'wageRuns','attendance',
+  // Accounting
+  'expenses','vouchers','loans','cheques','assets','cashCounts','costRuns','recon',
+  // Quality & budgets
+  'qc','budgets'
+];
 let fs=null,auth=null,unsubData=null,unsubMe=null,unsubUsers=null,unsubFacts=[],first=true,opened=false,tWait=null,tOpen=null,tFact=null;
 const fcol=()=>fs.collection(FACT),dcol=fid=>fcol().doc(fid).collection('data'),pdoc=fid=>fcol().doc(fid).collection('private').doc('sheet');
 const raw={put:E.put,del:E.del};E.raw=raw;
