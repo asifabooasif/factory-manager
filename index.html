@@ -1,13 +1,116 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="professional">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lanka Slipper ERP</title><link rel="stylesheet" href="css/theme.css"><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#2a1758"><link rel="icon" href="icons/icon.svg"></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Lanka Slipper ERP</title>
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2a1758">
+  <link rel="icon" href="icons/icon.svg">
+</head>
 <body>
-<div class="app"><aside class="sb"><div class="brand"><span>🏭</span><span>Lanka Slipper ERP</span></div><nav id="nav"></nav></aside>
-<div class="main"><header class="top"><b id="pt">Dashboard</b><div class="tr"><span id="syn" class="muted" style="font-size:11px;align-self:center"></span><select id="fsel" class="fs" title="Factory"></select><button class="btn" data-a="theme">🌓</button></div></header><div class="ct" id="v"></div></div></div>
-<div id="mw"></div><div id="ts"></div>
-<script src="js/core/config.js"></script><script src="js/core/money.js"></script><script src="js/core/utils.js"></script>
-<script src="js/core/db.js"></script><script src="js/core/audit.js"></script><script src="js/core/sequence.js"></script>
-<script src="js/core/factory.js"></script><script src="js/core/settings.js"></script><script src="js/core/ledger.js"></script><script src="js/core/stock.js"></script><script src="js/core/picker.js"></script><script src="js/core/sync.js"></script><script src="js/core/router.js"></script>
-<script src="js/modules/dashboard.js"></script><script src="js/modules/journal.js"></script><script src="js/modules/items.js"></script><script src="js/modules/parties.js"></script><script src="js/modules/employees.js"></script><script src="js/modules/inventory.js"></script><script src="js/modules/purchases.js"></script><script src="js/modules/jobs.js"></script><script src="js/modules/petty.js"></script><script src="js/modules/sales.js"></script><script src="js/modules/payroll.js"></script><script src="js/modules/banking.js"></script><script src="js/modules/reports.js"></script><script src="js/modules/cloud.js"></script><script src="js/modules/extras.js"></script><script src="js/modules/returns.js"></script><script src="js/modules/assets.js"></script><script src="js/modules/access.js"></script><script src="js/modules/attendance.js"></script><script src="js/modules/quality.js"></script><script src="js/modules/datatools.js"></script><script src="js/modules/datareset.js"></script><script src="js/modules/advreg.js"></script><script src="js/modules/txn.js"></script><script src="js/modules/summary.js"></script><script src="js/modules/po.js"></script><script src="js/modules/stocktake.js"></script><script src="js/modules/mrp.js"></script><script src="js/modules/cashflow.js"></script><script src="js/modules/profit.js"></script><script src="js/modules/quotes.js"></script><script src="js/modules/budget.js"></script><script src="js/modules/accounts.js"></script><script src="js/modules/loans.js"></script><script src="js/modules/settings.js"></script><script src="js/modules/production.js"></script><script src="js/modules/expenses.js"></script><script src="js/modules/matstock.js"></script><script src="js/modules/setup.js"></script><script src="js/modules/closing.js"></script><script src="js/modules/guide.js"></script>
-<script src="js/app.js"></script>
-</body></html>
+
+  <!-- ============================================================
+       APP SHELL
+       ============================================================ -->
+  <div class="app">
+    <aside class="sb">
+      <div class="brand"><span>🏭</span><span>Lanka Slipper ERP</span></div>
+      <nav id="nav"></nav>
+    </aside>
+    <div class="main">
+      <header class="top">
+        <b id="pt">Dashboard</b>
+        <div class="tr">
+          <span id="syn" class="muted" style="font-size:11px;align-self:center"></span>
+          <select id="fsel" class="fs" title="Factory"></select>
+          <button class="btn" data-a="theme">🌓</button>
+        </div>
+      </header>
+      <div class="ct" id="v"></div>
+    </div>
+  </div>
+
+  <!-- Modal container + toast container (used by every module) -->
+  <div id="mw"></div>
+  <div id="ts"></div>
+
+  <!-- ============================================================
+       CORE ENGINES  (order matters — each depends on the previous)
+       ============================================================ -->
+  <script src="js/core/config.js"></script>
+  <script src="js/core/money.js"></script>
+  <script src="js/core/utils.js"></script>
+  <script src="js/core/db.js"></script>
+  <script src="js/core/audit.js"></script>
+  <script src="js/core/sequence.js"></script>
+  <script src="js/core/factory.js"></script>
+  <script src="js/core/settings.js"></script>
+  <script src="js/core/ledger.js"></script>
+  <script src="js/core/stock.js"></script>
+  <script src="js/core/picker.js"></script>
+  <script src="js/core/sync.js"></script>
+  <script src="js/core/router.js"></script>
+
+  <!-- ============================================================
+       FEATURE MODULES  (each registers its routes, nav, actions)
+       ============================================================ -->
+  <script src="js/modules/dashboard.js"></script>
+  <script src="js/modules/journal.js"></script>
+  <script src="js/modules/items.js"></script>
+  <script src="js/modules/parties.js"></script>
+  <script src="js/modules/employees.js"></script>
+  <script src="js/modules/inventory.js"></script>
+  <script src="js/modules/purchases.js"></script>
+  <script src="js/modules/jobs.js"></script>
+  <script src="js/modules/petty.js"></script>
+  <script src="js/modules/sales.js"></script>
+  <script src="js/modules/payroll.js"></script>
+  <script src="js/modules/banking.js"></script>
+  <script src="js/modules/reports.js"></script>
+  <script src="js/modules/cloud.js"></script>
+  <script src="js/modules/extras.js"></script>
+  <script src="js/modules/returns.js"></script>
+  <script src="js/modules/assets.js"></script>
+  <script src="js/modules/access.js"></script>
+  <script src="js/modules/attendance.js"></script>
+  <script src="js/modules/quality.js"></script>
+  <script src="js/modules/datatools.js"></script>
+  <script src="js/modules/datareset.js"></script>
+  <script src="js/modules/advreg.js"></script>
+  <script src="js/modules/txn.js"></script>
+  <script src="js/modules/summary.js"></script>
+  <script src="js/modules/po.js"></script>
+  <script src="js/modules/stocktake.js"></script>
+  <script src="js/modules/mrp.js"></script>
+  <script src="js/modules/cashflow.js"></script>
+  <script src="js/modules/profit.js"></script>
+  <script src="js/modules/quotes.js"></script>
+  <script src="js/modules/budget.js"></script>
+  <script src="js/modules/accounts.js"></script>
+  <script src="js/modules/loans.js"></script>
+  <script src="js/modules/settings.js"></script>
+  <script src="js/modules/production.js"></script>
+  <script src="js/modules/expenses.js"></script>
+  <script src="js/modules/matstock.js"></script>
+  <script src="js/modules/setup.js"></script>
+  <script src="js/modules/closing.js"></script>
+  <script src="js/modules/guide.js"></script>
+
+  <!-- ============================================================
+       AI ASSISTANT (NEW)
+       Loads AFTER all modules so E.nav / E.route are available.
+       Provides the 🤖 floating chat widget, Ctrl+K shortcut,
+       Settings page at #/ai, and 25+ intent handlers.
+       ============================================================ -->
+  <script src="js/modules/ai-agent.js"></script>
+
+  <!-- ============================================================
+       BOOTSTRAP — must be last
+       Calls E.initDB() → E.reload() → E.syncInit() → registers SW
+       ============================================================ -->
+  <script src="js/app.js"></script>
+
+</body>
+</html>
