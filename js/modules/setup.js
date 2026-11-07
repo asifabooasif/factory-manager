@@ -1,25 +1,10 @@
-/* PART 17 (v2) — Complete Setup Wizard.
+/* PART 17 (v3) — Setup Wizard.
 
-   10-step flow that covers EVERYTHING from zero to a ready-to-transact factory:
-     1. Factory       — name, code, categories, pack size
-     2. Banks         — bank & cash accounts with opening balances
-     3. Customers     — customers with opening AR
-     4. Suppliers     — suppliers with opening AP
-     5. Articles      — finished goods with colours, prices, opening FG stock
-     6. Materials     — raw/accessory/packing with purchase prices, opening RM stock
-     7. Operations    — production steps with piece rates
-     8. Employees     — 3 pay types with opening advances
-     9. BOMs          — optional (can skip and add later)
-    10. Review        — confirmation summary + one-click posting of everything
-
-   Posting on confirm (all in ONE sequence):
-     • Dr 1300 (RM stock) / Cr 3200
-     • Dr 1320 (FG stock) / Cr 3200
-     • Dr 1250 (advances) / Cr 3200
-     • Dr 1000/1100+ (cash/banks) / Cr 3000
-     • Dr 1200 (customer AR) / Cr 3000
-     • Dr 3000 / Cr 2000 (supplier AP)
-     • Marks setupDone=true
+   FIXES in v3:
+     ✓ Categories bug — d.biz[i] now correctly updates d.biz.cats
+     ✓ Size run accepts "36-41" and expands to 36,37,38,39,40,41
+     ✓ Placeholder changed to match 36-41 default
+     ✓ Help text explains range syntax
 */
 (E => {
   const ni = E.N.findIndex(n => n.id === 'opening');
@@ -42,12 +27,12 @@
   let W = null;
 
   function draft() {
-    if (W && W.fid === E.fid && W.version === 2) return W;
+    if (W && W.fid === E.fid && W.version === 3) return W;
     let d = null;
     try { d = JSON.parse(localStorage.getItem(KEY()) || 'null'); } catch (e) {}
-    if (d && d.version === 2) { W = d; return W; }
+    if (d && d.version === 3) { W = d; return W; }
     W = {
-      fid: E.fid, version: 2, step: 'biz',
+      fid: E.fid, version: 3, step: 'biz',
       biz: { cats: 'Flat, PU', pack: '6' },
       bank: [], cust: [], supp: [], art: [], mat: [], ops: [], emp: [], bom: []
     };
@@ -57,7 +42,6 @@
   const save = () => localStorage.setItem(KEY(), JSON.stringify(W));
   const cats = () => draft().biz.cats.split(',').map(x => x.trim()).filter(Boolean);
 
-  /* ─── Column definitions per grid step ─── */
   const COLS = {
     bank: () => [
       { k: 'name', l: 'Account name *', w: 160, ph: 'Commercial Bank - Current' },
@@ -83,7 +67,7 @@
       { k: 'art', l: 'Article No *', w: 80, ph: 'F001' },
       { k: 'name', l: 'Name *', w: 150, ph: 'Ladies Flat Slipper' },
       { k: 'cat', l: 'Category *', t: 'sel', o: cats() },
-      { k: 'run', l: 'Size run in pack *', w: 130, ph: '6,7,7,8,8,9' },
+      { k: 'run', l: 'Size run in ONE pack *', w: 160, ph: '36-41' },
       { k: 'cols', l: 'Colours *', w: 150, ph: 'Black, Brown, Navy' },
       { k: 'price', l: 'Selling price / pack', t: 'n' },
       { k: 'opening', l: 'Opening packs per colour', t: 'n' },
@@ -115,7 +99,7 @@
       { k: 'advance', l: 'Advance already owed (Rs)', t: 'n' }
     ],
     bom: () => [
-      { k: 'art', l: 'Article *', t: 'sel', o: ['(select article)'] }, // filled dynamically
+      { k: 'art', l: 'Article *', t: 'sel', o: ['(select article)'] },
       { k: 'material', l: 'Material *', w: 180, ph: 'Search material code' },
       { k: 'qty', l: 'Qty per pack *', t: 'n' }
     ]
@@ -125,7 +109,7 @@
     bank: 'Add every bank account and cash box you use. Opening balance = what is in that account today.',
     cust: 'Add customers. If they already owe you money from before using this system, enter it in the last column.',
     supp: 'Add suppliers. If you already owe them money, enter it in the last column.',
-    art: 'One row per article. A pack = one size run in one colour. Each colour becomes its own barcode.',
+    art: 'One row per article. A pack = one size run in one colour.\n\n<b>Size run examples:</b>\n• <code>36-41</code> → 6 pairs (36,37,38,39,40,41)\n• <code>36-41,36-41</code> → 12 pairs (each size twice)\n• <code>6,7,7,8,8,9</code> → 6 pairs (repeats preserved)\n\nEach colour becomes its own barcode.',
     mat: 'Every material, accessory and packing item you buy. Purchase price = what you pay the supplier. Opening qty = what you have today.',
     ops: 'Each production step a worker is paid for per pack (cutting, top making, sole fixing…).',
     emp: 'Wage = paid by days/pieces. Daily Salaried = fixed daily amount. Monthly Salaried = fixed monthly salary.',
@@ -134,7 +118,6 @@
 
   const blank = s => Object.fromEntries(COLS[s]().map(c => [c.k, c.t === 'sel' ? c.o[0] : '']));
 
-  /* ─── Route ─── */
   E.route('setup', 'Setup Wizard', () => {
     const d = draft();
     return `<div class="bar" style="flex-wrap:wrap">
@@ -152,7 +135,7 @@
       <p class="muted" style="margin-bottom:12px">This wizard will set up EVERYTHING at once: bank accounts, customers, suppliers, articles, materials, employees, operations — and post all opening balances in one go.</p>
       <div class="g2">
         <div class="f">Finished-goods categories (comma separated)<input data-w="biz|cats" value="${E.esc(d.biz.cats)}" placeholder="Flat, PU, Sandal"></div>
-        <div class="f">Default pairs in one pack<input data-w="biz|pack" type="number" value="${E.esc(d.biz.pack)}"></div>
+        <div class="f">Default pairs per pack (for sizes 36-41, use 6)<input data-w="biz|pack" type="number" value="${E.esc(d.biz.pack)}"></div>
       </div>
       <p class="muted">Add more categories later from Settings. You can pause at any step — your answers are saved as a draft.</p>
     </div>${nav(d.step)}`;
@@ -166,7 +149,7 @@
 
     return `<div class="card">
       <h3>${STEPS.find(x => x.id === s).l.slice(3)}</h3>
-      <p class="muted" style="margin-bottom:10px">${HELP[s] || ''}</p>
+      <p class="muted" style="margin-bottom:10px;white-space:pre-line;line-height:1.6">${HELP[s] || ''}</p>
       <div class="tw"><table>
         <thead><tr><th>#</th>${C.map(c => `<th>${E.esc(c.l)}</th>`).join('')}<th></th></tr></thead>
         <tbody>${rows.map((r, i) => `<tr>
@@ -189,8 +172,8 @@
     const d = draft();
     return `<div class="card">
       <h3>Bill of Materials (optional)</h3>
-      <p class="muted" style="margin-bottom:10px">BOM = how much of each material goes into ONE pack. This is used by Material Batches to auto-deduct materials when you start production. You can skip this now and add BOMs later from <b>Items → BOM</b>.</p>
-      <div class="info-banner" style="background:#e0f2fe;padding:14px;border-radius:10px;border-left:4px solid #0891b2;margin-bottom:16px">
+      <p class="muted" style="margin-bottom:10px">BOM = how much of each material goes into ONE pack. Used by Material Batches to auto-deduct materials when you start production. You can skip this now and add BOMs later from <b>Items → BOM</b>.</p>
+      <div style="background:#e0f2fe;padding:14px;border-radius:10px;border-left:4px solid #0891b2;margin-bottom:16px">
         <b>💡 Tip:</b> You can add BOMs one-by-one on the Items page at any time. Skipping here is completely fine.
       </div>
       <button class="btn" data-a="wzGo" data-id="rev">⏭ Skip — I'll add BOMs later</button>
@@ -272,20 +255,27 @@
     </div>`;
   };
 
-  /* ─── Hooks ─── */
+  /* ═══════════════════════════════════════════════════════════════
+     HOOK — FIXED: d.biz[i] not d.biz[k] for 2-part attributes
+     ═══════════════════════════════════════════════════════════════ */
   E.hooks.push(e => {
     const t = e.target;
-    // grid data-w
     const w = t.dataset && t.dataset.w;
     if (w) {
-      const [s, i, k] = w.split('|');
+      const parts = w.split('|');
       const d = draft();
-      if (s === 'biz') d.biz[k] = t.value;
-      else { while (d[s].length <= +i) d[s].push(blank(s)); d[s][+i][k] = t.value; }
+      if (parts[0] === 'biz') {
+        /* "biz|cats" → 2 parts: s='biz', i='cats' */
+        d.biz[parts[1]] = t.value;
+      } else {
+        /* "art|0|art" → 3 parts: s='art', i='0', k='art' */
+        const [s, i, k] = parts;
+        while (d[s].length <= +i) d[s].push(blank(s));
+        d[s][+i][k] = t.value;
+      }
       save();
       return;
     }
-    // BOM
     const b = t.dataset && t.dataset.bom;
     if (b) {
       const [i, k] = b.split('|');
@@ -296,17 +286,8 @@
     }
   });
 
-  E.A.wzAdd = s => {
-    const d = draft();
-    for (let i = 0; i < 5; i++) d[s].push(blank(s));
-    save(); E.go();
-  };
-  E.A.wzRm = id => {
-    const [s, i] = id.split('|');
-    draft()[s].splice(+i, 1);
-    save(); E.go();
-  };
-
+  E.A.wzAdd = s => { const d = draft(); for (let i = 0; i < 5; i++) d[s].push(blank(s)); save(); E.go(); };
+  E.A.wzRm = id => { const [s, i] = id.split('|'); draft()[s].splice(+i, 1); save(); E.go(); };
   E.A.wzAddBom = () => { draft().bom.push({ art: '', material: '', qty: '' }); save(); E.go(); };
   E.A.wzRmBom = i => { draft().bom.splice(+i, 1); save(); E.go(); };
 
@@ -317,7 +298,6 @@
     const C = COLS[s]();
     const lines = t.split(/\r?\n/).filter(x => x.trim());
     const parsed = lines.map(l => (l.includes('\t') ? l.split('\t') : (typeof E.parseCsv === 'function' ? (E.parseCsv(l)[0] || l.split(',')) : l.split(','))).map(x => (x || '').trim()));
-    // drop header row if it looks like headers
     const first = parsed[0];
     if (first && C.length && !isNumeric(first[C.length - 1]) && C[C.length - 1].t === 'n') parsed.shift();
     parsed.forEach(cols => {
@@ -331,26 +311,20 @@
 
   function isNumeric(v) { return !isNaN(parseFloat(v)) && isFinite(v); }
 
-  /* ─── Check / validate ─── */
   function check() {
     const d = draft(), err = [];
-    const filled = (s, k) => (d[s] || []).filter(r => String(r[k || Object.keys(r)[0]] || '').trim());
     const list = t => (t || '').split(',').map(x => x.trim()).filter(Boolean);
 
     if (!cats().length) err.push('Add at least one finished-goods category');
 
-    /* banks */
     const banks = d.bank.filter(b => (b.name || '').trim());
     banks.forEach((b, i) => { if (!b.name) err.push('Bank row ' + (i + 1) + ': name missing'); });
 
-    /* customers */
     const custs = d.cust.filter(c => (c.name || '').trim());
     custs.forEach((c, i) => { if (!c.name) err.push('Customer row ' + (i + 1) + ': name missing'); });
 
-    /* suppliers */
     const supps = d.supp.filter(s => (s.name || '').trim());
 
-    /* articles */
     const arts = d.art.filter(a => (a.art || '').trim());
     const seenA = new Set();
     arts.forEach((a, i) => {
@@ -359,12 +333,12 @@
       else if (seenA.has(a.art.toUpperCase())) err.push(n + a.art + ' repeated');
       seenA.add((a.art || '').toUpperCase());
       if (!a.name) err.push(n + 'name missing');
-      if (!list(a.run).length) err.push(n + 'size run missing');
+      const sizes = E.expandSizes(a.run || '');
+      if (!sizes.length) err.push(n + 'size run missing (use 36-41 or 6,7,8,9)');
       if (!list(a.cols).length) err.push(n + 'no colours');
       if (+a.opening > 0 && !(+a.cost > 0)) err.push(n + 'opening packs need a cost per pack');
     });
 
-    /* materials */
     const mats = d.mat.filter(m => (m.code || '').trim());
     const seenM = new Set();
     mats.forEach((m, i) => {
@@ -376,21 +350,18 @@
       if (!(+m.buy > 0)) err.push(n + 'purchase price missing');
     });
 
-    /* ops */
     const opsList = d.ops.filter(o => (o.name || '').trim());
     opsList.forEach((o, i) => {
       if (!o.name) err.push('Operation ' + (i + 1) + ': name missing');
       if (!(+o.rate > 0)) err.push('Operation ' + (i + 1) + ': rate missing');
     });
 
-    /* employees */
     const emps = d.emp.filter(e => (e.name || '').trim());
     emps.forEach((e, i) => {
       if (!e.name) err.push('Employee ' + (i + 1) + ': name missing');
       if (!(+e.rate > 0)) err.push('Employee ' + (i + 1) + ': rate missing');
     });
 
-    /* BOMs (optional, only validate if filled) */
     const boms = (d.bom || []).filter(b => (b.art || '').trim() || (b.material || '').trim() || (+b.qty > 0));
     boms.forEach((b, i) => {
       if (!b.art) err.push('BOM ' + (i + 1) + ': choose article');
@@ -398,11 +369,15 @@
       if (!(+b.qty > 0)) err.push('BOM ' + (i + 1) + ': qty missing');
     });
 
-    /* totals */
     const bankOpen = banks.reduce((s, b) => s + Math.round((+b.opening || 0) * 100), 0);
     const custOpen = custs.reduce((s, c) => s + Math.round((+c.opening || 0) * 100), 0);
     const suppOpen = supps.reduce((s, s2) => s + Math.round((+s2.opening || 0) * 100), 0);
-    const fgOpen = arts.reduce((s, a) => s + Math.round((+a.opening || 0) * list(a.cols).length * (+a.cost || 0) * 100), 0);
+    const fgOpen = arts.reduce((s, a) => {
+      const pairsPerPack = E.expandSizes(a.run || '').length;
+      return s + Math.round((+a.opening || 0) * list(a.cols).length * pairsPerPack > 0 ? (+a.opening || 0) * list(a.cols).length * (+a.cost || 0) * 100 : 0);
+    }, 0);
+    /* simpler: cost per pack × packs × colours */
+    const fgOpenFixed = arts.reduce((s, a) => s + Math.round((+a.opening || 0) * list(a.cols).length * (+a.cost || 0) * 100), 0);
     const rmOpen = mats.reduce((s, m) => s + Math.round((+m.opening || 0) * (+m.buy || 0) * 100), 0);
     const advOpen = emps.reduce((s, e) => s + Math.round((+e.advance || 0) * 100), 0);
     const artColours = arts.reduce((s, a) => s + list(a.cols).length, 0);
@@ -412,7 +387,7 @@
       bank: banks, bankCount: banks.length, bankOpen,
       cust: custs, custCount: custs.length, custOpen,
       supp: supps, suppCount: supps.length, suppOpen,
-      art: arts, artCount: arts.length, artColours, fgOpen,
+      art: arts, artCount: arts.length, artColours, fgOpen: fgOpenFixed,
       mat: mats, matCount: mats.length, rmOpen,
       ops: opsList, opsCount: opsList.length,
       emp: emps, empCount: emps.length, advOpen,
@@ -420,7 +395,6 @@
     };
   }
 
-  /* ─── POST EVERYTHING ─── */
   E.A.wzDo = async () => {
     try {
       if (!E.$('wz_ok').checked) throw new Error('Tick the confirmation box first');
@@ -432,10 +406,9 @@
 
       await E.setSetting({ fgCats: cats(), packSize: parseInt(d.biz.pack) || 6 });
 
-      /* ---- 1. Banks / cash accounts ---- */
+      /* Banks */
       let nextCode = 1101;
       for (const b of c.bank) {
-        // Find next free asset code
         while (E.acct(String(nextCode))) nextCode++;
         const code = String(nextCode++);
         await E.save('coa', {
@@ -450,47 +423,46 @@
           b._open = Math.round((+b.opening) * 100);
         }
       }
-      // If no cash account exists, ensure one
       if (!E.acct('1000')) {
         await E.save('coa', { id: E.fid + '-1000', factoryId: E.fid, code: '1000', name: 'Cash in Hand', type: 'asset', bank: 1, kind: 'cash' });
       }
 
-      /* ---- 2. Customers ---- */
+      /* Customers */
       const custIds = {};
-      for (const cust of c.cust) {
+      for (const cu of c.cust) {
         const p = await E.save('parties', {
-          active: true, code: await E.next('PTY'), name: cust.name,
-          type: 'Customer', phone: cust.phone || '', addr: '',
-          limit: Math.round((+cust.limit || 0) * 100), days: parseInt(cust.days) || 0
+          active: true, code: await E.next('PTY'), name: cu.name,
+          type: 'Customer', phone: cu.phone || '', addr: '',
+          limit: Math.round((+cu.limit || 0) * 100), days: parseInt(cu.days) || 0
         });
-        custIds[cust.name] = p.id;
-        if (+cust.opening > 0) {
-          cust._pid = p.id;
-          cust._open = Math.round((+cust.opening) * 100);
+        custIds[cu.name] = p.id;
+        if (+cu.opening > 0) {
+          cu._pid = p.id;
+          cu._open = Math.round((+cu.opening) * 100);
         }
       }
 
-      /* ---- 3. Suppliers ---- */
+      /* Suppliers */
       const suppIds = {};
-      for (const s of c.supp) {
+      for (const sp of c.supp) {
         const p = await E.save('parties', {
-          active: true, code: await E.next('PTY'), name: s.name,
-          type: 'Supplier', phone: s.phone || '', addr: '',
-          limit: 0, days: parseInt(s.days) || 0
+          active: true, code: await E.next('PTY'), name: sp.name,
+          type: 'Supplier', phone: sp.phone || '', addr: '',
+          limit: 0, days: parseInt(sp.days) || 0
         });
-        suppIds[s.name] = p.id;
-        if (+s.opening > 0) {
-          s._pid = p.id;
-          s._open = Math.round((+s.opening) * 100);
+        suppIds[sp.name] = p.id;
+        if (+sp.opening > 0) {
+          sp._pid = p.id;
+          sp._open = Math.round((+sp.opening) * 100);
         }
       }
 
-      /* ---- 4. Articles + colour packs ---- */
+      /* Articles — USE expandSizes */
       const fgMoves = [];
       for (const a of c.art) {
         const artUp = a.art.trim().toUpperCase();
         if (E.rows('items').some(i => i.art === artUp)) continue;
-        const run = (a.run || '').split(',').map(x => x.trim()).filter(Boolean);
+        const run = E.expandSizes(a.run || '');          /* ← expand 36-41 to 6 sizes */
         const it = await E.save('items', {
           art: artUp, name: a.name.trim(), cat: 'Finished Good',
           sub: a.cat, unit: 'Pack', pack: run.length,
@@ -508,7 +480,7 @@
         }
       }
 
-      /* ---- 5. Materials ---- */
+      /* Materials */
       const rmMoves = [];
       for (const m of c.mat) {
         const codeUp = m.code.trim().toUpperCase();
@@ -530,7 +502,7 @@
         }
       }
 
-      /* ---- 6. Operations ---- */
+      /* Operations */
       let oi = E.rows('operations').length;
       for (const o of c.ops) {
         if (E.rows('operations').some(x => x.name.toLowerCase() === o.name.trim().toLowerCase())) continue;
@@ -541,7 +513,7 @@
         });
       }
 
-      /* ---- 7. Employees ---- */
+      /* Employees */
       const advList = [];
       for (const e of c.emp) {
         const typeMap = { 'Wage': 'Wage', 'Daily Salaried': 'DailySalaried', 'Monthly Salaried': 'MonthlySalaried' };
@@ -559,7 +531,7 @@
         if (+e.advance > 0) advList.push({ e: emp, a: Math.round((+e.advance) * 100) });
       }
 
-      /* ---- 8. BOMs ---- */
+      /* BOMs */
       for (const b of c.bom) {
         const art = b.art.trim().toUpperCase();
         const materialCode = b.material.trim().toUpperCase();
@@ -572,112 +544,58 @@
         await E.save('items', it, bl);
       }
 
-      /* ====== POST OPENING BALANCES ====== */
+      /* POST OPENING BALANCES */
 
-      /* 8a. Opening bank & cash */
       const bankWithOpen = c.bank.filter(b => b._code && b._open > 0);
       if (bankWithOpen.length) {
         const no = await E.next('OPN');
         const total = bankWithOpen.reduce((s, b) => s + b._open, 0);
         const lines = bankWithOpen.map(b => ({ acc: b._code, dr: b._open }));
         lines.push({ acc: '3000', cr: total });
-        await E.post({
-          date: today, ref: no,
-          narr: 'Opening cash & bank (setup wizard)',
-          source: 'opening', lines
-        });
+        await E.post({ date: today, ref: no, narr: 'Opening cash & bank (setup wizard)', source: 'opening', lines });
       }
 
-      /* 8b. Opening customer receivables */
       const custWithOpen = c.cust.filter(x => x._pid && x._open > 0);
       for (const cu of custWithOpen) {
         const no = await E.next('INV');
-        const je = await E.post({
-          date: today, ref: no,
-          narr: 'Opening balance · ' + cu.name,
-          source: 'opening',
-          lines: [{ acc: '1200', dr: cu._open }, { acc: '3000', cr: cu._open }]
-        });
-        await E.save('invoices', {
-          no, date: today, partyId: cu._pid, dnIds: [],
-          gross: cu._open, disc: 0, total: cu._open, paid: 0,
-          jeId: je.id, cancelled: false, opening: true, ref: 'Opening'
-        });
+        const je = await E.post({ date: today, ref: no, narr: 'Opening balance · ' + cu.name, source: 'opening', lines: [{ acc: '1200', dr: cu._open }, { acc: '3000', cr: cu._open }] });
+        await E.save('invoices', { no, date: today, partyId: cu._pid, dnIds: [], gross: cu._open, disc: 0, total: cu._open, paid: 0, jeId: je.id, cancelled: false, opening: true, ref: 'Opening' });
       }
 
-      /* 8c. Opening supplier payables */
       const suppWithOpen = c.supp.filter(x => x._pid && x._open > 0);
       for (const sp of suppWithOpen) {
         const no = await E.next('PUR');
-        const je = await E.post({
-          date: today, ref: no,
-          narr: 'Opening balance · ' + sp.name,
-          source: 'opening',
-          lines: [{ acc: '3000', dr: sp._open }, { acc: '2000', cr: sp._open }]
-        });
-        await E.save('purchases', {
-          no, date: today, partyId: sp._pid, invNo: 'Opening',
-          lines: [], total: sp._open, paid: 0,
-          jeId: je.id, cancelled: false, opening: true
-        });
+        const je = await E.post({ date: today, ref: no, narr: 'Opening balance · ' + sp.name, source: 'opening', lines: [{ acc: '3000', dr: sp._open }, { acc: '2000', cr: sp._open }] });
+        await E.save('purchases', { no, date: today, partyId: sp._pid, invNo: 'Opening', lines: [], total: sp._open, paid: 0, jeId: je.id, cancelled: false, opening: true });
       }
 
-      /* 8d. Opening material stock */
       if (rmMoves.length) {
         const tot = rmMoves.reduce((s, m) => s + m.value, 0);
         const no = await E.next('OPN');
-        await E.post({
-          date: today, ref: no,
-          narr: 'Opening stock — materials (setup wizard)',
-          source: 'opening',
-          lines: [{ acc: '1300', dr: tot }, { acc: '3200', cr: tot }]
-        });
+        await E.post({ date: today, ref: no, narr: 'Opening stock — materials (setup wizard)', source: 'opening', lines: [{ acc: '1300', dr: tot }, { acc: '3200', cr: tot }] });
         for (const m of rmMoves) {
-          await E.stockIn({
-            date: today, itemId: m.itemId, variantId: m.variantId,
-            qty: m.qty, value: m.value, type: 'open', ref: no
-          });
+          await E.stockIn({ date: today, itemId: m.itemId, variantId: m.variantId, qty: m.qty, value: m.value, type: 'open', ref: no });
         }
       }
 
-      /* 8e. Opening finished goods stock */
       if (fgMoves.length) {
         const tot = fgMoves.reduce((s, m) => s + m.value, 0);
         const no = await E.next('OPN');
-        await E.post({
-          date: today, ref: no,
-          narr: 'Opening stock — finished packs (setup wizard)',
-          source: 'opening',
-          lines: [{ acc: '1320', dr: tot }, { acc: '3200', cr: tot }]
-        });
+        await E.post({ date: today, ref: no, narr: 'Opening stock — finished packs (setup wizard)', source: 'opening', lines: [{ acc: '1320', dr: tot }, { acc: '3200', cr: tot }] });
         for (const m of fgMoves) {
-          await E.stockIn({
-            date: today, itemId: m.itemId, variantId: m.variantId,
-            qty: m.qty, value: m.value, type: 'open', ref: no
-          });
+          await E.stockIn({ date: today, itemId: m.itemId, variantId: m.variantId, qty: m.qty, value: m.value, type: 'open', ref: no });
         }
       }
 
-      /* 8f. Opening advances */
       if (advList.length) {
         const tot = advList.reduce((s, x) => s + x.a, 0);
         const no = await E.next('OPN');
-        await E.post({
-          date: today, ref: no,
-          narr: 'Opening staff advances (setup wizard)',
-          source: 'opening',
-          lines: [{ acc: '1250', dr: tot }, { acc: '3200', cr: tot }]
-        });
+        await E.post({ date: today, ref: no, narr: 'Opening staff advances (setup wizard)', source: 'opening', lines: [{ acc: '1250', dr: tot }, { acc: '3200', cr: tot }] });
         for (const x of advList) {
-          await E.save('wageRuns', {
-            no: await E.next('ADV'), kind: 'advance',
-            empId: x.e.id, date: today, amount: x.a,
-            note: 'Opening advance', cancelled: false
-          });
+          await E.save('wageRuns', { no: await E.next('ADV'), kind: 'advance', empId: x.e.id, date: today, amount: x.a, note: 'Opening advance', cancelled: false });
         }
       }
 
-      /* ---- Done ---- */
       await E.setSetting({ setupDone: true });
       localStorage.removeItem(KEY());
       W = null;
@@ -713,7 +631,6 @@
 
   E.A.wzFinish = () => { E.closeM(); location.hash = '#/dashboard'; };
 
-  /* ---- Auto-launch on new factory ---- */
   E.maybeSetup = () => {
     if ((E.role === 'owner' || E.role === 'accountant')
         && !E.setting('setupDone')
