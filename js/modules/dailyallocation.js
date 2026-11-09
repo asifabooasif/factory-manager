@@ -64,6 +64,7 @@
   }
 
   async function saveDay(date) {
+    if (date > E.today()) return computeDay(date); /* never write allocations for future days */
     const d = computeDay(date);
     const existing = E.rows('dailyAllocations').find(x => x.date === date);
     const b = existing ? JSON.parse(JSON.stringify(existing)) : null;
@@ -83,12 +84,28 @@
     return d;
   }
 
+  /* Remove shadow amounts / allocation records written for days that have not happened yet */
+  async function purgeFuture() {
+    const today = E.today();
+    for (const job of E.rows('jobs')) {
+      if (job.status === 'Completed' || job.shadowSnapshot || !job.shadowDaily) continue;
+      const bad = Object.keys(job.shadowDaily).filter(d => d > today);
+      if (!bad.length) continue;
+      const b = JSON.parse(JSON.stringify(job));
+      bad.forEach(d => delete job.shadowDaily[d]);
+      await E.save('jobs', job, b);
+    }
+    for (const r of E.rows('dailyAllocations').filter(x => x.date > today)) { try { await E.del('dailyAllocations', r.id); } catch (e) { /* ignore */ } }
+  }
+
   async function computeMonth(month) {
+    await purgeFuture();
     const [y, m] = month.split('-').map(Number);
     const dim = new Date(y, m, 0).getDate();
     let n = 0;
     for (let day = 1; day <= dim; day++) {
       const date = month + '-' + String(day).padStart(2, '0');
+      if (date > E.today()) break; /* only days up to today */
       await saveDay(date);
       n++;
     }
@@ -215,7 +232,7 @@
   const init = () => {
     if (!E.fid || !E.factory || !E.factory()) { setTimeout(init, 1000); return; }
     hookJobCreation();
-    setTimeout(catchUpToday, 2000);
+    setTimeout(async () => { try { await purgeFuture(); } catch (e) { console.warn(e); } await catchUpToday(); }, 2000);
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else setTimeout(init, 500);
