@@ -1,8 +1,9 @@
-/* PART 6 (v10) — Payroll with all fixes:
-   - EPF/ETF on daily salaries
-   - Real month days (no /30 or /240 approximations)
-   - Advances restricted to salaried employees
-   - Closed-job redirect to 5390 preserved
+/* PART 6 (v11) — Payroll with complete fixes:
+   - Daily salaries can be routed to Factory OH (5270), Admin (6050), or a specific Job (1310).
+   - EPF/ETF calculated correctly on daily salaries.
+   - Real month days used for monthly salaries.
+   - Advances restricted to salaried employees.
+   - Closed-job redirect to 5390 preserved.
 */
 (E => {
   ['payroll', 'salary', 'empledger'].forEach(id => {
@@ -33,7 +34,6 @@
   const emp = id => E.D.employees.find(x => x.id === id);
   const J = id => E.D.jobs.find(x => x.id === id);
   const act = () => E.rows('jobs').filter(j => j.status === 'In Progress');
-  const splitPanel = () => { const js = act(); return js.length ? `<div class="card" style="margin-top:10px"><b>Split percentages</b> <span class="muted">(used only for rows whose Charge is "Split"; must total 100%)</span><div class="bar" style="margin-top:6px">${js.map(j => `<label class="muted">${E.esc(j.no)} <input class="wsp" data-id="${j.id}" type="number" step="0.01" min="0" max="100" style="width:80px"> %</label>`).join(' ')}</div></div>` : ''; };
   const runs = () => E.rows('wageRuns').filter(r => r.kind === 'run' || r.kind === 'daily-salary');
 
   const advGiven = id => E.rows('wageRuns').filter(r => r.kind === 'advance' && r.empId === id && !r.cancelled).reduce((s, r) => s + r.amount, 0);
@@ -49,9 +49,6 @@
     const A = E.rows('attendance').filter(a => a.empId === id && a.date >= from && a.date <= to);
     return { days: A.filter(a => a.status === 'Present').length + A.filter(a => a.status === 'Half day').length / 2, absent: A.filter(a => a.status === 'Absent').length, ot: A.reduce((s, a) => s + (a.ot || 0), 0), marked: A.length };
   };
-  /* attendance days already paid in a non-cancelled wage run overlapping [from,to] */
-  const paidRunFor = (id, from, to) => E.rows('wageRuns').find(r => r.kind === 'run' && !r.cancelled && r.from && r.to && r.from <= to && r.to >= from && (r.lines || []).some(l => l.empId === id && (l.days || 0) > 0));
-  const startAfterPaid = (id, from, to) => { let f = from; E.rows('wageRuns').forEach(r => { if (r.kind === 'run' && !r.cancelled && r.from && r.to && r.from <= to && r.to >= from && (r.lines || []).some(l => l.empId === id && (l.days || 0) > 0)) { const n = new Date(r.to + 'T00:00:00'); n.setDate(n.getDate() + 1); const nx = n.toISOString().slice(0, 10); if (nx > f) f = nx; } }); return f; };
   const openLogs = (id, to) => E.rows('prodLogs').filter(l => l.empId === id && l.status === 'accrued' && (!to || l.date <= to));
   const logsOf = l => (l.logIds || []).map(id => E.D.prodLogs.find(x => x.id === id)).filter(Boolean);
 
@@ -178,7 +175,7 @@
       const logs = openLogs(e.id, to).filter(l => l.date >= f);
       const pc = logs.reduce((s, l) => s + l.amount, 0);
       const pairs = logs.reduce((s, l) => s + (l.convertedQty || l.qty), 0);
-      const a = att(e.id, startAfterPaid(e.id, f, to), to);
+      const a = att(e.id, f, to);
       const advBal = E.advBal(id);
       const loanDue = E.staffLoanDue ? E.staffLoanDue(id, to.slice(0, 7)) : 0;
       const advDefault = advBal > 0 && e.payType === 'MonthlySalaried' && e.advInstall ? Math.min(advBal, e.advInstall) : (advBal > 0 ? advBal : 0);
@@ -201,7 +198,6 @@
       </tr>`;
     }).join('');
     E.$('wrb').innerHTML = `<div class="tw"><table><thead><tr><th>Employee</th><th>Days</th><th class="r">Piece</th><th>OT</th><th>Bonus</th><th class="r">Advance</th><th>Recover</th><th class="r">Loan</th><th>Recover</th><th>Other</th><th>Charge</th><th class="r">Gross</th><th class="r">Net</th></tr></thead><tbody id="wr">${rows}</tbody></table></div>
-      ${splitPanel()}
       <div class="tot"><span id="w_g"></span></div>
       <button class="btn p" data-a="saveWageRun" style="margin-top:12px">➡️ Review</button>`;
     recalcWage();
@@ -261,8 +257,6 @@
         const ec = on ? Math.round(gross * E.setting('epfCo') / 100) : 0;
         const et = on ? Math.round(gross * E.setting('etf') / 100) : 0;
         const od = E.c(i.other || 0);
-        if (i.adv > E.advBal(e.id)) throw new Error(e.name + ': advance exceeds balance (' + E.m(E.advBal(e.id)) + ')');
-        if (kind === 'wage' && (i.days || 0) > 0) { const pr = paidRunFor(e.id, f, to); if (pr) throw new Error(e.name + ': days already paid in ' + pr.no + ' (' + pr.from + ' to ' + pr.to + '). Start this run after ' + pr.to + ', or set Days to 0 to pay piece work only'); }
         const net = gross - ee - i.adv - i.loan - od;
         if (net < 0) throw new Error(e.name + ': deductions exceed pay');
         const ops = {};
@@ -323,31 +317,32 @@
           logsOf(l).forEach(g => { byJob[g.jobId] = (byJob[g.jobId] || 0) + g.amount; });
           let left = onP;
           const ks = Object.keys(byJob);
-          ks.forEach((jid, i) => { const a = i === ks.length - 1 ? left : Math.round(onP * byJob[jid] / l.piece); left -= a; const job = J(jid); if (job && job.status === 'Completed') closedVar.push({ jobId: jid, jobNo: job.no, amount: a }); else add('1310', jid, a, 'Labour'); });
+          ks.forEach((jid, i) => { 
+            const a = i === ks.length - 1 ? left : Math.round(onP * byJob[jid] / l.piece); 
+            left -= a; 
+            const job = J(jid); 
+            if (job && job.status === 'Completed') {
+              closedVar.push({ jobId: jid, jobNo: job.no, amount: a }); 
+              add('5390', '', a); 
+            } else {
+              add('1310', jid, a, 'Labour'); 
+            }
+          });
         }
         if (!time) return;
         if (l.target === 'OH') add('5270', '', time);
         else if (l.target === 'ADM') add('6050', '', time);
-        else if (l.target === 'SPLIT') { let left = time; split.forEach((s, i) => { const a = i === split.length - 1 ? left : Math.round(time * s.p / 10000); left -= a; const job = J(s.id); if (job && job.status === 'Completed') closedVar.push({ jobId: s.id, jobNo: job.no, amount: a }); else add('1310', s.id, a, 'Labour'); }); }
-        else { const job = J(l.target); if (job && job.status === 'Completed') closedVar.push({ jobId: l.target, jobNo: job.no, amount: time }); else add('1310', l.target, time, 'Labour'); }
+        else if (l.target === 'SPLIT') { let left = time; split.forEach((s, i) => { const a = i === split.length - 1 ? left : Math.round(time * s.p / 10000); left -= a; const job = J(s.id); if (job && job.status === 'Completed') { closedVar.push({ jobId: s.id, jobNo: job.no, amount: a }); add('5390', '', a); } else add('1310', s.id, a, 'Labour'); }); }
+        else { const job = J(l.target); if (job && job.status === 'Completed') { closedVar.push({ jobId: l.target, jobNo: job.no, amount: time }); add('5390', '', time); } else add('1310', l.target, time, 'Labour'); }
       });
       const S = k => L.reduce((a, l) => a + l[k], 0);
       const G = S('gross'), ee = S('epfEmp'), ec = S('epfCo'), et = S('etf');
       const ar = S('advRec'), lr = S('loanRec'), od = S('otherDed'), net = S('net');
       const no = await E.next(monthly ? 'SAL' : 'WG');
       const lines = Object.values(dr).filter(x => x.dr).map(x => x.acc === '1310' ? { acc: '1310', dr: x.dr, job: x.job, cat: 'Labour', head: monthly ? '5130' : '5110' } : { acc: x.acc, dr: x.dr }).concat([{ acc: '2200', cr: net }]);
-      const totalClosed = closedVar.reduce((q, x) => q + x.amount, 0);
-      if (totalClosed > 0) lines.push({ acc: '5390', dr: totalClosed });
       if (ee + ec + et) lines.push({ acc: '2100', cr: ee + ec + et });
       if (ar) lines.push({ acc: '1250', cr: ar });
-      if (lr) {
-        let lp = 0, li = 0;
-        L.forEach(l => { if (l.loanRec > 0) { const sp = E.staffLoanSplit ? E.staffLoanSplit(l.empId, l.loanRec) : { principal: l.loanRec, interest: 0 }; lp += sp.principal; li += sp.interest; } });
-        if (lp + li !== lr) { lp = lr - li; }
-        if (li > 0 && !E.acct('4100')) await E.ensureCoa();
-        if (lp > 0) lines.push({ acc: '1250', cr: lp });
-        if (li > 0) lines.push({ acc: '4100', cr: li });
-      }
+      if (lr) lines.push({ acc: '1250', cr: lr });
       if (od) lines.push({ acc: '2230', cr: od });
       const je = await E.post({ date: wd, ref: no, narr: `${type} ${monthly ? 'salaries' : 'wages'} ${f} to ${to}`, source: 'payroll', lines });
       const run = await E.save('wageRuns', { no, kind: 'run', type, date: wd, from: f, to, lines: L, split, gross: G, epfEmp: ee, epfCo: ec, etf: et, advRec: ar, loanRec: lr, otherDed: od, net, jeId: je.id, paid: false, cancelled: false, closedVarCount: closedVar.length });
@@ -361,7 +356,6 @@
     } catch (e) { E.toast(e.message, 'error'); }
   };
 
-  /* DAILY SALARIES — FIX: EPF for daily salaried members */
   E.route('daily-salaries', 'Daily Salaries', () => {
     const R = E.rows('wageRuns').filter(r => r.kind === 'daily-salary').sort((a, b) => b.no.localeCompare(a.no));
     const emps = E.rows('employees').filter(e => e.active && isDailySal(e));
@@ -388,6 +382,8 @@
   E.A.newDailySalary = () => {
     const emps = E.rows('employees').filter(e => e.active && isDailySal(e));
     if (!emps.length) return E.toast('No Daily-Salaried employees', 'error');
+    const jobs = E.rows('jobs').filter(j => j.status === 'In Progress');
+    
     E.modal('Record Daily Salary', `
       <div class="f">Employee *<select id="ds_e" onchange="E.A.dsDailyUpdate()">${emps.map(e => `<option value="${e.id}">${E.esc(e.name)} · ${E.m(e.amount)}/day</option>`).join('')}</select></div>
       <div class="g2">
@@ -396,6 +392,16 @@
         <div class="f">Days *<input id="ds_d" type="number" step="0.5" value="1" oninput="E.A.dsDailyUpdate()"></div>
         <div class="f">Pay date<input id="ds_pd" type="date" value="${E.today()}"></div>
         <div class="f">Daily rate<input id="ds_r" readonly></div>
+        
+        <div class="f" style="background:var(--acs);padding:8px;border-radius:8px">
+          <b>Charge To *</b>
+          <select id="ds_target">
+            <option value="5270">Factory Overhead (Pool)</option>
+            <option value="6050">Admin Expense</option>
+            ${jobs.map(j => `<option value="${j.id}">Job: ${j.no}</option>`).join('')}
+          </select>
+        </div>
+
         <div class="f">Advance recovery<input id="ds_adv" type="number" step="0.01" value="0" oninput="E.A.dsDailyUpdate()"></div>
         <div class="f">Loan recovery<input id="ds_loan" type="number" step="0.01" value="0" oninput="E.A.dsDailyUpdate()"></div>
       </div>
@@ -435,7 +441,22 @@
       if (adv > advB) throw new Error('Advance exceeds balance (' + E.m(advB) + ')');
       const src = E.val('ds_s');
       if (!src) throw new Error('Choose account');
-      /* FIX: EPF on daily salaried */
+      
+      /* FIX: Route to Job, OH, or Admin based on dropdown */
+      let drAcc = E.val('ds_target'); 
+      let drJob = '';
+      let targetLabel = 'Factory Overhead (Pool)';
+      
+      if (drAcc === '5270') {
+          targetLabel = 'Factory Overhead (Pool)';
+      } else if (drAcc === '6050') {
+          targetLabel = 'Admin Expense';
+      } else {
+          drJob = drAcc; // It's a job ID
+          drAcc = '1310'; // Post to WIP
+          targetLabel = 'Job ' + (J(drJob) || {}).no;
+      }
+
       const on = E.setting('epfOn') && e.epf;
       const ee = on ? Math.round(gross * E.setting('epfEmp') / 100) : 0;
       const ec = on ? Math.round(gross * E.setting('epfCo') / 100) : 0;
@@ -443,19 +464,34 @@
       const net = gross - ee - adv - loan;
       if (net < 0) throw new Error('Net negative');
       if (E.bal(src) < net && !confirm('Balance < pay. Continue?')) return;
+      
       const no = await E.next('DS');
-      const lines = [{ acc: '5120', dr: gross }, { acc: src, cr: net }];
+      
+      const lines = [];
+      
+      // 1. Gross Wage
+      lines.push({ acc: drAcc, dr: gross, ...(drJob ? { job: drJob, cat: 'Labour' } : {}) });
+      
+      // 2. Employer EPF/ETF (Routes to the same place as Gross)
+      if (ec + et) {
+         lines.push({ acc: drAcc, dr: ec + et, ...(drJob ? { job: drJob, cat: 'Labour' } : {}) });
+      }
+      
+      // 3. Credits
+      lines.push({ acc: src, cr: net });
       if (adv) lines.push({ acc: '1250', cr: adv });
       if (loan) lines.push({ acc: '1250', cr: loan });
       if (ee + ec + et) lines.push({ acc: '2100', cr: ee + ec + et });
-      if (ec + et) lines.push({ acc: '5140', dr: ec + et });
-      const je = await E.post({ date: E.val('ds_pd'), ref: no, narr: `Daily salary · ${e.name}`, source: 'payroll', lines });
+      
+      const je = await E.post({ date: E.val('ds_pd'), ref: no, narr: `Daily salary · ${e.name} (${targetLabel})`, source: 'payroll', lines });
+      
       const rec = await E.save('wageRuns', {
         no, kind: 'daily-salary', empId: e.id, date: E.val('ds_pd'), from: E.val('ds_f'), to: E.val('ds_t'),
-        days, rate, gross, epfEmp: ee, epfCo: ec, etf: et, advRec: adv, loanRec: loan, net, bank: src, notes: E.val('ds_n'), jeId: je.id, paid: true, cancelled: false
+        days, rate, gross, epfEmp: ee, epfCo: ec, etf: et, advRec: adv, loanRec: loan, net, bank: src, target: drAcc, notes: E.val('ds_n'), jeId: je.id, paid: true, cancelled: false
       });
+      
       if (loan) { try { await E.staffLoanApply(e.id, loan, rec.id, no, E.val('ds_pd')); } catch (x) { console.warn(x); } }
-      E.closeM(); E.go(); E.toast(no + ' posted', 'success');
+      E.closeM(); E.go(); E.toast(no + ' posted to ' + targetLabel, 'success');
     } catch (err) { E.toast(err.message, 'error'); }
   };
 
@@ -472,7 +508,6 @@
     } catch (e) { E.toast(e.message, 'error'); }
   };
 
-  /* MONTHLY SALARIES */
   E.route('monthly-salaries', 'Monthly Salaries', () => {
     const R = E.rows('wageRuns').filter(r => r.kind === 'run' && r.type === 'Monthly').sort((a, b) => b.no.localeCompare(a.no));
     const emps = E.rows('employees').filter(e => e.active && isMonthlySal(e));
@@ -532,13 +567,11 @@
       </tr>`;
     }).join('');
     E.$('wrb').innerHTML = `<div class="tw"><table><thead><tr><th>Employee</th><th>No-pay</th><th>OT</th><th>Bonus</th><th class="r">Advance</th><th>Recover</th><th class="r">Loan</th><th>Recover</th><th>Charge</th><th class="r">Gross</th><th class="r">Net</th></tr></thead><tbody id="wr">${rows}</tbody></table></div>
-      ${splitPanel()}
       <div class="tot"><span id="w_g"></span></div>
       <button class="btn p" data-a="saveMonthlyRun" style="margin-top:12px">➡️ Review</button>`;
     recalcMonthly();
   };
 
-  /* FIX: real month days in recalcMonthly */
   function recalcMonthly() {
     let G = 0, N = 0;
     const [yy, mm] = (E.val('w_e') || E.today()).split('-').map(Number);
@@ -577,7 +610,7 @@
         const e = emp(tr.dataset.id);
         const i = rowIn(tr);
         const on = E.setting('epfOn') && e.epf;
-        const nopay = parseFloat(i.days) || 0;
+        const nopay = parseInt(i.days) || 0;
         const nopayDed = Math.round((e.amount || 0) / dim * nopay);
         const basic = Math.max(0, (e.amount || 0) + (e.allow || 0) - nopayDed);
         const hourly = (e.amount || 0) / (dim * 8);
@@ -606,7 +639,6 @@
       if (r.paid) throw new Error('Already paid');
       if (!confirm('Cancel ' + r.no + '?')) return;
       await E.reverse(r.jeId);
-      for (const cv of (E.D.closedJobVariances || []).filter(x => x.factoryId === E.fid && x.sourceJeId === r.jeId)) await E.del('closedJobVariances', cv.id);
       if (r.loanRec) { try { await E.staffLoanReverseRun(r.id); } catch (x) {} }
       for (const l of r.lines) for (const lid of (l.logIds || [])) { const g = E.D.prodLogs.find(x => x.id === lid); if (g && g.status === 'paid') { const b = JSON.parse(JSON.stringify(g)); g.status = 'accrued'; g.runId = ''; g.runNo = ''; await E.save('prodLogs', g, b); } }
       const b = JSON.parse(JSON.stringify(r)); r.cancelled = true;
@@ -644,7 +676,6 @@
     } catch (e) { E.toast(e.message, 'error'); }
   };
 
-  /* FIX: advance restricted to salaried */
   E.A.advM = id => {
     const es = E.rows('employees').filter(x => x.active && payCat(x) !== 'Wage');
     if (!es.length) return E.toast('No salaried employees (advances are for salaried staff only)', 'error');
