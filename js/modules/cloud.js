@@ -1,0 +1,137 @@
+/* PART 9 (v2) — Cloud & Backup page: Firebase sync, Google Sheets, backup /
+   restore, AND a new "Purge tombstones from Firebase" tool that physically
+   removes `deleted: true` records from Firestore. */
+(E => {
+  const at = E.N.findIndex(n => n.id === 'settings');
+  E.N.splice(at, 0, { g: 'System', id: 'cloud', ico: '☁️', label: 'Cloud & Backup' });
+
+  E.route('cloud', 'Cloud & Backup', () => {
+    const s = E.sync, u = s.user;
+    return `<div class="card">
+      <h3>Cloud sync (Firebase)</h3>
+      <p class="muted">Every save is stored in Firebase and appears on every signed-in device. The system still works offline and catches up when you are back online. Use one device for data entry at a time to keep document numbers in order.</p>
+      <p>Status: <b style="color:${({ ok: '#16a34a', warn: '#d97706', err: '#dc2626', off: '#6b7280' })[s.level] || 'inherit'}">${E.esc(s.state)}</b>${u ? ' · signed in as <b>' + E.esc(u.email) + '</b>' : ''}${E.profile ? ' · ' + E.esc(E.ROLE[E.profile.role] || '') : ''}</p>
+      <button class="btn" data-a="cloudTest">🔎 Test connection</button>
+      ${(E.role === 'owner' || E.role === 'accountant') ? '<button class="btn" data-a="cloudPush">⬆ Upload all local data now</button> ' : ''}
+      <button class="btn" data-a="cloudOut">Sign out</button>
+      <div id="cl_diag" style="margin-top:12px"></div>
+    </div>
+    ${(E.role === 'owner' || E.role === 'accountant') ? `<div class="card">
+      <h3>🗑 Purge tombstones from Firebase</h3>
+      <p class="muted">When you delete an item (worker, invoice, journal entry…) the system keeps a small "tombstone" in Firestore so other devices can sync the deletion. Over time these accumulate.</p>
+      <p class="muted"><b>When to purge:</b> Only after all your devices have synced the latest deletes. If you have only one device, "purge all" is safe.</p>
+      <button class="btn d" data-a="purgeTombstones">🗑 Purge tombstones from Firebase</button>
+    </div>
+    <div class="card">
+      <h3>Google Sheet for ${E.esc(E.factory().name)}</h3>
+      <p class="muted">Each factory has its own separate Google Sheet. Everything saved in <b>${E.esc(E.factory().name)}</b> is also copied into the sheet you connect here. Set up the sheet with the steps in the README, then paste its Web App URL and secret.</p>
+      <div class="g2"><div class="f">Web App URL<input id="sh_u" value="${E.esc(E.sheetCfg().url || '')}" placeholder="https://script.google.com/macros/s/…/exec"></div><div class="f">Secret key<input id="sh_k" value="${E.esc(E.sheetCfg().key || '')}"></div></div>
+      <button class="btn p" data-a="shSave">Save</button> <button class="btn" data-a="shAll">Send all existing data now</button>
+    </div>` : ''}
+    <div class="card">
+      <h3>Backup & restore — ${E.esc(E.factory().name)}</h3>
+      <p class="muted">Backs up this factory only. Use it to move data to another computer or keep a safe copy.</p>
+      <button class="btn" data-a="backup">⬇ Download backup</button>
+      <div class="f" style="margin-top:14px">Restore from a backup file<input id="rs_f" type="file" accept=".json"></div>
+      <button class="btn d" data-a="restore">Restore</button>
+    </div>`;
+  });
+
+  E.A.cloudTest = async () => {
+    const d = E.$('cl_diag');
+    d.innerHTML = '<p class="muted">Testing…</p>';
+    try {
+      const r = await E.sync.test();
+      d.innerHTML = r.checks.map(c => `<div style="margin:4px 0">${c.g ? '✅' : '❌'} ${E.esc(c.t)}${c.h ? `<div class="muted" style="margin-left:26px">${E.esc(c.h)}</div>` : ''}</div>`).join('') + `<div class="muted" style="margin-top:8px">Records on this device: <b>${r.local}</b>${r.cloud !== null ? ` · Records in Firebase: <b>${r.cloud}</b>` : ''}</div>`;
+    } catch (e) { d.innerHTML = '<p class="bad">' + E.esc(E.sync.explain(e)) + '</p>'; }
+  };
+
+  E.A.cloudPush = async () => {
+    try { E.toast('Uploading…'); const n = await E.sync.pushAll(); E.toast(n + ' records uploaded to Firebase', 'success'); }
+    catch (e) { E.toast(E.sync.explain(e), 'error'); }
+  };
+
+  /* ── purge tombstones ── */
+  E.A.purgeTombstones = () => {
+    if (!E.isOwner() && E.role !== 'owner') return E.toast('Owner only', 'error');
+    if (!E.sync.granted) return E.toast('Sign in first', 'error');
+    E.modal('Purge Tombstones from Firebase', `
+      <p>Firebase keeps tombstone records (<code>deleted: true</code>) so other devices can sync deletions. Purge them when safe.</p>
+      <div class="f">Purge tombstones older than
+        <select id="pt_age">
+          <option value="7">7 days</option>
+          <option value="30" selected>30 days</option>
+          <option value="90">90 days</option>
+          <option value="0">ALL — safe only if this is your only device</option>
+        </select>
+      </div>
+      <p class="muted" style="margin-top:10px;padding:10px;background:var(--s2);border-radius:6px">
+        <b>When safe to purge:</b> after all devices have synced the latest deletes.<br>
+        <b>When NOT to purge:</b> if any device has been offline for a long time and hasn't synced yet.
+      </p>
+      <div id="pt_status" style="margin-top:10px;font-weight:600"></div>
+    `, `<button class="btn" data-a="close">Cancel</button><button class="btn d" data-a="doPurge">🗑 Purge Now</button>`);
+  };
+
+  E.A.doPurge = async () => {
+    const age = parseInt(E.val('pt_age'));
+    if (age === 0 && !confirm('Purge ALL tombstones? Only safe if this is your only device.')) return;
+    const status = E.$('pt_status');
+    status.textContent = 'Querying Firestore...';
+    try {
+      const firestore = firebase.firestore();
+      const path = `erp_factories/${E.fid}/data`;
+      const cutoff = age > 0 ? new Date(Date.now() - age * 864e5).toISOString() : null;
+
+      const snap = await firestore.collection(path).where('deleted', '==', true).get();
+      const refs = snap.docs.filter(d => !cutoff || (d.data().updatedAt || '') < cutoff).map(d => d.ref);
+
+      if (!refs.length) {
+        status.innerHTML = '<span class="ok">✓ No tombstones to purge.</span>';
+        return;
+      }
+
+      status.textContent = `Purging ${refs.length} tombstones...`;
+
+      /* Firestore batch limit = 500 */
+      for (let i = 0; i < refs.length; i += 500) {
+        const batch = firestore.batch();
+        refs.slice(i, i + 500).forEach(r => batch.delete(r));
+        await batch.commit();
+      }
+
+      status.innerHTML = `<span class="ok">✓ Purged ${refs.length} tombstones from Firebase.</span>`;
+      E.toast(refs.length + ' tombstones purged from Firebase', 'success');
+    } catch (e) {
+      status.innerHTML = '<span class="bad">Error: ' + E.esc(e.message) + '</span>';
+    }
+  };
+
+  E.A.shSave = async () => {
+    try { await E.sheetSave(E.val('sh_u'), E.val('sh_k')); E.toast('Saved for ' + E.factory().name, 'success'); }
+    catch (e) { E.toast(E.sync.explain(e), 'error'); }
+  };
+  E.A.shAll = async () => { await E.A.shSave(); E.toast('Sending…'); const n = await E.sheetsAll(); E.toast(n + ' records sent', 'success'); };
+
+  E.A.restore = () => {
+    const f = E.$('rs_f').files[0];
+    if (!f) return E.toast('Choose a backup file first', 'error');
+    const r = new FileReader();
+    r.onload = async () => {
+      try {
+        const d = JSON.parse(r.result), cols = E.cfg.cols.filter(c => c !== 'factories');
+        for (const c of cols) if (Array.isArray(d[c])) for (const o of d[c]) if (o.factoryId && o.factoryId !== E.fid) throw new Error('This backup belongs to another factory. Switch to that factory first.');
+        if (!confirm('Restore this backup into ' + E.factory().name + '? Records with the same ID are replaced; nothing else is deleted.')) return;
+        let n = 0; E.keepTs = true;
+        for (const c of cols) if (Array.isArray(d[c])) for (const o of d[c]) { await E.put(c, o); n++; }
+        E.keepTs = false;
+        E.go();
+        E.toast(n + ' records restored', 'success');
+      } catch (e) {
+        E.keepTs = false;
+        E.toast(e.message && /factory/.test(e.message) ? e.message : 'Invalid backup file', 'error');
+      }
+    };
+    r.readAsText(f);
+  };
+})(window.ERP);
