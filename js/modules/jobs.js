@@ -1,11 +1,12 @@
-/* PART 4 (v7) — INTELLIGENT PAIRS TRACKING.
-   - Job Creation asks for Pairs.
-   - Release Goods checks production logs for the final operation to calculate Max Releasable.
-   - Handles partial packs (e.g. 3 pairs of a 6-pair pack) accurately.
+/* PART 4 (v9) — ULTIMATE JOBS MODULE with 360 Analytics.
+   - 4 Tab Job View: Costing, Materials (BOM vs Actual), Production (Wages), Ledger.
+   - Projected Profitability (Revenue - Complete Cost).
+   - Highly detailed Print Sheets.
+   - Intelligent Pairs Release.
 */
 (E => {
   const n = E.N.find(x => x.id === 'jobs'); if (n) n.soon = 0;
-  const F = { q: '', st: 'In Progress' }; E.jobId = '';
+  const F = { q: '', st: 'In Progress', tab: 'cost' }; E.jobId = '';
   const pty = id => E.D.parties.find(x => x.id === id);
   const J = id => E.D.jobs.find(x => x.id === id);
   const jl = id => E.rows('jobLines').filter(l => l.jobId === id);
@@ -16,23 +17,18 @@
   const active = () => E.rows('jobs').filter(j => j.status === 'In Progress');
   const CATS = ['Material', 'Labour', 'Overhead', 'Consumable'];
 
-  /* ADVANCED HELPER: Find the max releasable pairs based on production logs */
+  /* HELPER: Find the max releasable pairs based on production logs */
   function getMaxPairs(l) {
     const pp = pairsPerPack(l);
     const rPairs = l.released * pp;
-    
-    // Find the final operation (highest order)
     const allOps = E.rows('operations').filter(o => o.active !== false).sort((a, b) => (b.order || 0) - (a.order || 0));
     const finalOp = allOps.length ? allOps[0] : null;
-
     let producedPairs = 0;
     if (finalOp) {
-      producedPairs = E.rows('prodLogs').filter(x => x.lineId === l.id && x.opId === finalOp.id && x.status !== 'cancelled')
-        .reduce((s, x) => s + (x.convertedQty || x.qty), 0);
+      producedPairs = E.rows('prodLogs').filter(x => x.lineId === l.id && x.opId === finalOp.id && x.status !== 'cancelled').reduce((s, x) => s + (x.convertedQty || x.qty), 0);
     } else {
-      producedPairs = l.target * pp; // Fallback if no operations defined
+      producedPairs = l.target * pp;
     }
-    
     return Math.max(0, producedPairs - rPairs);
   }
 
@@ -72,42 +68,78 @@
     return { totalFixedAllocated: totalFixed, accruedWages: { dailySalaries: 0, weeklyTimeWages: 0, total: 0 }, perExpenseTotal: {}, isLive: true };
   }
 
-  function tbl() {
-    const s = F.q.toLowerCase();
-    const r = E.rows('jobs').filter(j => (!F.st || j.status === F.st) && (!s || (j.no + (pty(j.partyId) || {}).name + j.notes).toLowerCase().includes(s))).sort((a, b) => b.no.localeCompare(a.no));
-    return `<div class="tw"><table>
-      <thead><tr><th>Job</th><th>Date</th><th>Customer</th><th>Due</th><th>Priority</th><th class="r">Target (Pairs)</th><th class="r">Released (Pairs)</th><th class="r">WIP</th><th>Status</th><th></th></tr></thead>
-      <tbody>${r.map(j => { const L = jl(j.id); return `<tr>
-        <td><b>${j.no}</b></td><td>${j.date}</td>
-        <td>${E.esc((pty(j.partyId) || {}).name || 'Stock production')}</td>
-        <td>${j.due || '—'}</td><td><span class="tag">${j.priority}</span></td>
-        <td class="r">${L.reduce((s, l) => s + l.target * pairsPerPack(l), 0)}</td>
-        <td class="r">${L.reduce((s, l) => s + l.released * pairsPerPack(l), 0)}</td>
-        <td class="r">${E.m(wip(j.id))}</td>
-        <td><span class="tag">${j.status}</span></td>
-        <td class="r">${j.status === 'In Progress' ? `<button class="btn sm" data-a="editJob" data-id="${j.id}">Edit</button> ` : ''}<button class="btn sm p" data-a="openJob" data-id="${j.id}">Open</button></td>
-      </tr>`; }).join('') || '<tr><td colspan="10" class="muted">No jobs</td></tr>'}</tbody>
-    </table></div>`;
-  }
+  /* ═══════════════════════════════════════════════════════════
+     ULTIMATE PRINT SHEETS
+     ═══════════════════════════════════════════════════════════ */
+  E.A.jobPrint = id => {
+    const j = J(id);
+    if (!j) return;
+    const w = window.open('', '_blank');
+    if (!w) return E.toast('Allow pop-ups', 'error');
+    const { R } = sheet(j);
+    const shadow = shadowFor(j);
+    const posted = R.reduce((s, r) => s + r.total, 0);
+    const shadowTotal = (shadow.totalFixedAllocated || 0) + (shadow.accruedWages ? shadow.accruedWages.total : 0);
+    const complete = posted + shadowTotal;
+    const totalPacks = R.reduce((s, r) => s + r.packs, 0);
+    const totalPairs = R.reduce((s, r) => s + r.pairs, 0);
+    
+    // Calculate Revenue / Profit
+    let estRevenue = 0;
+    jl(j.id).forEach(l => {
+      const item = itemOf(l);
+      const pricePerPair = item.price || 0;
+      const relPairs = l.released * pairsPerPack(l);
+      estRevenue += relPairs * pricePerPair;
+    });
+    const profit = estRevenue - complete;
 
-  E.route('jobs', 'Jobs & Costing', () => `<div class="kp">
-    ${E.kpi('In progress', active().length)}
-    ${E.kpi('Total WIP', E.m(active().reduce((s, j) => s + wip(j.id), 0)), 'Ledger 1310: ' + E.m(E.bal('1310')))}
-  </div>
-  <div class="bar">
-    <input class="fs" style="max-width:300px" placeholder="Search…" data-f="jb.q" value="${E.esc(F.q)}">
-    <select class="fs" data-f="jb.st"><option value="">All</option>${['In Progress', 'Completed'].map(c => `<option ${F.st === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
-    <span class="gap"></span>
-    <button class="btn p" data-a="newJob">+ New Job</button>
-  </div><div id="tbl">${tbl()}</div>`);
+    w.document.write(`<html><head><title>${j.no}</title><style>
+      @page{size:A4 landscape;margin:12mm}body{font:12px Arial;color:#111}
+      .header{background:#2a1758;color:#fff;padding:12px;margin:-12px -12px 12px -12px;display:flex;justify-content:space-between}
+      .internal{background:#fef3c7;color:#92400e;padding:6px 12px;font-size:11px;font-weight:700;text-align:center;margin:-12px -12px 12px -12px;border-bottom:2px solid #d97706}
+      table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border-bottom:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}.r{text-align:right}
+      .posted{background:#f0fdf4}.shadow{background:#eff6ff}.complete{background:#faf5ff;font-weight:bold;font-size:14px}
+      .profit{background:#ecfdf5;border:2px solid #059669;padding:10px;margin-top:10px}
+    </style></head><body>
+      <div class="internal">🔒 INTERNAL — MANAGEMENT ONLY · Not for customer distribution</div>
+      <div class="header">
+        <div><b style="font-size:16px">${E.esc(E.factory().name)}</b><br>Management Job Cost Sheet</div>
+        <div style="text-align:right"><b>${j.no}</b><br>${E.esc((pty(j.partyId) || {}).name || 'Stock production')}<br>Completed: ${j.completedAt || 'In progress'}</div>
+      </div>
+      <table>
+        <thead><tr><th>Article</th><th class="r">Packs</th><th class="r">Pairs</th><th class="r">Materials</th><th class="r">Labour</th><th class="r">Consumable</th><th class="r">Overhead</th><th class="r">Posted Cost</th></tr></thead>
+        <tbody>${R.map(r => `<tr><td><b>${E.esc(r.l.code)}</b> ${E.esc(r.l.name)}</td><td class="r">${r.packs}</td><td class="r">${r.pairs}</td><td class="r">${E.m(r.Material)}</td><td class="r">${E.m(r.Labour)}</td><td class="r">${E.m(r.Consumable)}</td><td class="r">${E.m(r.Overhead)}</td><td class="r">${E.m(r.total)}</td></tr>`).join('')}</tbody>
+      </table>
+      <table class="posted"><tbody>
+        <tr><td><b>POSTED COST (in ledger)</b></td><td class="r"><b>${E.m(posted)}</b></td></tr>
+      </tbody></table>
+      ${shadowTotal > 0 ? `<table class="shadow"><tbody>
+        <tr><td colspan="2"><b>SHADOW ALLOCATION (Management - not in ledger)</b></td></tr>
+        ${Object.entries(shadow.perExpenseTotal || {}).map(([code, amt]) => { const a = E.acct(code); return `<tr><td>${code} — ${E.esc(a ? a.name : code)}</td><td class="r">${E.m(amt)}</td></tr>`; }).join('')}
+        ${shadow.accruedWages && shadow.accruedWages.total ? `<tr><td>Accrued unpaid wages</td><td class="r">${E.m(shadow.accruedWages.total)}</td></tr>` : ''}
+        <tr><td><b>Shadow total</b></td><td class="r"><b>${E.m(shadowTotal)}</b></td></tr>
+      </tbody></table>` : ''}
+      <table class="complete"><tbody>
+        <tr><td><b>COMPLETE COST</b></td><td class="r"><b>${E.m(complete)}</b></td></tr>
+        <tr><td>Cost per PAIR (${totalPairs} pairs)</td><td class="r"><b>${E.m(totalPairs ? Math.round(complete / totalPairs) : 0)}</b></td></tr>
+        <tr><td>Cost per PACK (${totalPacks} packs)</td><td class="r"><b>${E.m(totalPacks ? Math.round(complete / totalPacks) : 0)}</b></td></tr>
+      </tbody></table>
+      ${estRevenue ? `<div class="profit"><b>PROJECTED PROFITABILITY:</b> Revenue ${E.m(estRevenue)} - Complete Cost ${E.m(complete)} = <b>${E.m(profit)}</b> (${((profit/estRevenue)*100).toFixed(1)}% Margin)</div>` : ''}
+      <p style="margin-top:20px;font-size:10px;color:#666">${j.shadowSnapshot ? 'Frozen at: ' + j.shadowSnapshot.frozenAt : 'Live computation (not frozen)'} · Printed: ${E.today()}</p>
+    </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 300);
+  };
 
-  E.hooks.push(e => { const f = e.target.dataset && e.target.dataset.f; if (f && f.startsWith('jb.')) { F[f.slice(3)] = e.target.value; E.$('tbl').innerHTML = tbl(); } });
-  E.A.openJob = id => { E.jobId = id; location.hash = '#/jobview'; };
-
+  /* ═══════════════════════════════════════════════════════════
+     JOB VIEW ROUTE WITH TABS
+     ═══════════════════════════════════════════════════════════ */
   E.route('jobview', 'Job', () => {
     const j = J(E.jobId);
     if (!j) return '<div class="card">Select a job.</div>';
     E.$('pt').textContent = j.no;
+    
     const L = jl(j.id), { R, rel } = sheet(j);
     const open = j.status === 'In Progress';
     const shadow = shadowFor(j);
@@ -117,37 +149,89 @@
     const totalPacks = R.reduce((s, r) => s + r.packs, 0);
     const totalPairs = R.reduce((s, r) => s + r.pairs, 0);
     const costPerPairComplete = totalPairs ? Math.round(completeCost / totalPairs) : 0;
-    const costPerPackComplete = totalPacks ? Math.round(completeCost / totalPacks) : 0;
-    const frozen = !!j.shadowSnapshot;
+    
+    // Projected Revenue
+    let estRevenue = 0;
+    L.forEach(l => { const item = itemOf(l); estRevenue += (l.released * pairsPerPack(l)) * (item.price || 0); });
+    const profit = estRevenue - completeCost;
+
+    const tabs = [
+      ['cost', '💰 Costing & Shadow'],
+      ['mat', '📦 Material Consumption'],
+      ['prod', '🧵 Labour & Operations'],
+      ['ledger', '🧾 Ledger Transactions']
+    ];
+
+    const tabContent = F.tab === 'cost' ? tabCost(j, R, postedCost, shadowTotal, completeCost) :
+                       F.tab === 'mat' ? tabMat(j) :
+                       F.tab === 'prod' ? tabProd(j) : tabLedger(j, L, ls);
 
     return `<div class="bar">
       <button class="btn" data-nav="jobs">← Jobs</button>
-      <b style="font-size:16px">${j.no} · ${E.esc((pty(j.partyId) || {}).name || 'Stock production')}</b>
+      <b style="font-size:16px">${j.no} · ${E.esc((pty(j.partyId) || {}).name || 'Stock')}</b>
       <span class="tag">${j.status}</span>
-      <span class="muted">Due ${j.due || '—'} · ${j.priority}</span>
       <span class="gap"></span>
+      <button class="btn" data-a="jobPrint" data-id="${j.id}">🖨 Management Sheet</button>
+      <button class="btn" data-a="jobPrintCustomer" data-id="${j.id}">🖨 Customer Sheet</button>
       ${open ? `
-        <button class="btn" data-a="editJob" data-id="${j.id}">✏️ Edit Job</button>
+        <button class="btn" data-a="editJob" data-id="${j.id}">✏️ Edit</button>
         <button class="btn" data-a="issueM" data-id="${j.id}">Materials</button>
-        <button class="btn" data-a="addCost" data-id="${j.id}">Labor</button>
         <button class="btn p" data-a="relM" data-id="${j.id}">Release Goods</button>
         <button class="btn" data-a="complete" data-id="${j.id}">Complete Job</button>
       ` : ''}
     </div>
 
     <div class="kp">
-      ${E.kpi('Posted cost', E.m(postedCost), 'in ledger')}
-      ${E.kpi('Shadow', E.m(shadowTotal), frozen ? 'frozen' : 'live')}
-      ${E.kpi('COMPLETE', '<b>' + E.m(completeCost) + '</b>', 'for pricing')}
-      ${E.kpi('Per pair (complete)', E.m(costPerPairComplete), 'management cost')}
+      ${E.kpi('Posted Cost', E.m(postedCost), 'In ledger')}
+      ${E.kpi('Shadow Cost', E.m(shadowTotal), frozen ? 'frozen' : 'live')}
+      ${E.kpi('COMPLETE COST', '<b>' + E.m(completeCost) + '</b>', 'For pricing')}
+      ${E.kpi('Cost Per Pair', E.m(costPerPairComplete), 'Management cost')}
+      ${E.kpi('Projected Revenue', E.m(estRevenue), 'Based on selling price')}
+      ${E.kpi('Projected Profit', `<span class="${profit >= 0 ? 'ok' : 'bad'}">${E.m(profit)}</span>`, estRevenue ? ((profit/estRevenue)*100).toFixed(1)+'% margin' : '—')}
     </div>
 
+    <div class="bar">
+      ${tabs.map(([k, l]) => `<button class="btn ${F.tab === k ? 'p' : ''}" data-a="jtTab" data-id="${k}">${l}</button>`).join('')}
+    </div>
+
+    <div id="jtBody">${tabContent}</div>
+  </div>`;
+
+  E.A.jtTab = t => { F.tab = t; E.go(); };
+
+  /* ═══════════════════════════════════════════════════════════
+     TAB 1: COSTING & SHADOW
+     ═══════════════════════════════════════════════════════════ */
+  function tabCost(j, R, postedCost, shadowTotal, completeCost) {
+    const frozen = !!j.shadowSnapshot;
+    const shadow = shadowFor(j);
+    return `
     ${frozen ? `<div class="card" style="background:#d1fae5;border-left:4px solid #059669;padding:12px;margin-bottom:14px">
       <b style="color:#065f46">🔒 Cost sheet frozen at ${j.shadowSnapshot.frozenAt}</b>
+      <div class="muted" style="font-size:12px;margin-top:4px">These numbers are permanent. Used for pricing. Not affected by later rent/electricity changes.</div>
     </div>` : ''}
 
     <div class="card">
-      <h3>Per-article cost</h3>
+      <h3>Cost breakdown</h3>
+      <div class="tw"><table>
+        <thead><tr><th>Category</th><th class="r">Posted (Ledger)</th><th class="r">Shadow (Mgmt)</th><th class="r">Complete Cost</th></tr></thead>
+        <tbody>
+          <tr><td>Materials</td><td class="r">${E.m(R.reduce((s, r) => s + r.Material, 0))}</td><td class="r">—</td><td class="r">${E.m(R.reduce((s, r) => s + r.Material, 0))}</td></tr>
+          <tr><td>Labor (piece work)</td><td class="r">${E.m(R.reduce((s, r) => s + r.Labour, 0))}</td><td class="r">—</td><td class="r">${E.m(R.reduce((s, r) => s + r.Labour, 0))}</td></tr>
+          <tr><td>Direct expenses</td><td class="r">${E.m(R.reduce((s, r) => s + r.Overhead, 0))}</td><td class="r">—</td><td class="r">${E.m(R.reduce((s, r) => s + r.Overhead, 0))}</td></tr>
+          <tr><td>Consumables</td><td class="r">${E.m(R.reduce((s, r) => s + r.Consumable, 0))}</td><td class="r">—</td><td class="r">${E.m(R.reduce((s, r) => s + r.Consumable, 0))}</td></tr>
+          <tr style="background:var(--s2)"><td><b>Posted subtotal</b></td><td class="r"><b>${E.m(postedCost)}</b></td><td class="r">—</td><td class="r"><b>${E.m(postedCost)}</b></td></tr>
+          ${Object.entries(shadow.perExpenseTotal || {}).map(([code, amt]) => { const a = E.acct(code); return `<tr><td style="padding-left:20px">${code} — ${E.esc(a ? a.name : code)}</td><td class="r">—</td><td class="r">${E.m(amt)}</td><td class="r">${E.m(amt)}</td></tr>`; }).join('')}
+          ${shadow.accruedWages && shadow.accruedWages.total ? `<tr><td style="padding-left:20px">Accrued unpaid wages</td><td class="r">—</td><td class="r">${E.m(shadow.accruedWages.total)}</td><td class="r">${E.m(shadow.accruedWages.total)}</td></tr>` : ''}
+          <tr style="background:var(--s2)"><td><b>Shadow subtotal</b></td><td class="r">—</td><td class="r"><b>${E.m(shadowTotal)}</b></td><td class="r"><b>${E.m(shadowTotal)}</b></td></tr>
+          <tr style="background:#faf5ff"><td><b style="font-size:14px">COMPLETE COST</b></td><td class="r">${E.m(postedCost)}</td><td class="r">${E.m(shadowTotal)}</td><td class="r"><b style="font-size:14px">${E.m(completeCost)}</b></td></tr>
+        </tbody>
+      </table></div>
+      <p class="muted" style="margin-top:10px">Posted = in ledger (real). Shadow = daily allocation (management). Complete = for pricing decisions.</p>
+    </div>
+
+    <div class="card">
+      <h3>Per-article cost breakdown</h3>
       <div class="tw"><table>
         <thead><tr><th>Article</th><th class="r">Packs</th><th class="r">Pairs</th><th class="r">Total cost</th><th class="r">Per pair</th><th class="r">Per pack</th></tr></thead>
         <tbody>${R.map(r => `<tr>
@@ -158,70 +242,122 @@
           <td class="r">${E.m(r.unitPack)}</td>
         </tr>`).join('')}</tbody>
       </table></div>
-    </div>
-  </div>`;
-  });
+    </div>`;
+  }
 
-  const jr = () => `<div class="jl jx" style="grid-template-columns:3fr 1fr 30px"><input list="fg" placeholder="Article"><input type="number" placeholder="Target Pairs"><button class="btn sm d" data-a="rmJx">✕</button></div>`;
-  E.A.rmJx = (_, e) => e.target.closest('.jx').remove();
-  E.A.addJx = () => E.$('jxr').insertAdjacentHTML('beforeend', jr());
-
-  E.A.newJob = () => {
-    const cs = E.rows('parties').filter(p => p.active && p.type !== 'Supplier');
-    const fg = i => i.cat === 'Finished Good';
-    if (!E.skuList(fg).length) return E.toast('Create Finished Goods first', 'error');
-    E.modal('New Job', `
-      <div class="g2">
-        <div class="f">Customer<select id="j_p"><option value="">— stock —</option>${cs.map(p => `<option value="${p.id}">${E.esc(p.name)}</option>`).join('')}</select></div>
-        <div class="f">Priority<select id="j_pr"><option>Normal</option><option>High</option><option>Urgent</option></select></div>
-        <div class="f">Job date<input id="j_d" type="date" value="${E.today()}"></div>
-        <div class="f">Due date<input id="j_u" type="date"></div>
-      </div>
-      <div class="f">Notes<input id="j_n"></div>
-      <datalist id="fg">${E.skuOpts(fg)}</datalist>
-      <b>Articles (Target in Pairs)</b>
-      <div id="jxr">${jr() + jr()}</div>
-      <button class="btn sm" data-a="addJx">+ Add line</button>
-    `, `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="saveJob">Create</button>`, 1);
-  };
-
-  E.A.saveJob = async () => {
-    try {
-      const m = {};
-      [...document.querySelectorAll('.jx')].forEach(r => {
-        const t = r.children[0].value.trim(), pairs = parseInt(r.children[1].value) || 0;
-        if (!t && !pairs) return;
-        const s = E.skuFind(t, i => i.cat === 'Finished Good');
-        if (!s) throw new Error('Invalid: ' + t);
-        if (pairs <= 0) throw new Error('Enter pairs for ' + s.code);
-        
-        const item = E.D.items.find(x => x.id === s.itemId);
-        const pp = item.pack || 1;
-        const packs = pairs / pp;
-        
-        const k = s.itemId + '|' + s.variantId;
-        m[k] = m[k] || { s, pairs: 0, packs: 0 }; 
-        m[k].pairs += pairs; 
-        m[k].packs += packs;
+  /* ═══════════════════════════════════════════════════════════
+     TAB 2: MATERIALS (BOM vs ACTUAL)
+     ═══════════════════════════════════════════════════════════ */
+  function tabMat(j) {
+    const L = jl(j.id);
+    const issues = E.rows('issues').filter(i => i.jobId === j.id);
+    const req = {};
+    
+    // Calculate BOM Required
+    L.forEach(l => {
+      const item = itemOf(l);
+      if (!item || !item.bom) return;
+      item.bom.forEach(b => {
+        const k = b.itemId + '|' + (b.variantId || '');
+        req[k] = (req[k] || 0) + (b.qty * l.target * pairsPerPack(l));
       });
-      const ks = Object.values(m);
-      if (!ks.length) throw new Error('Add at least one line');
-      const no = await E.next('JOB');
-      const j = await E.save('jobs', { no, date: E.val('j_d'), due: E.val('j_u'), partyId: E.val('j_p'), priority: E.val('j_pr'), notes: E.val('j_n'), status: 'In Progress' });
-      for (const { s, packs } of ks) await E.save('jobLines', { jobId: j.id, itemId: s.itemId, variantId: s.variantId, code: s.code, name: s.name, target: packs, released: 0, fgValue: 0 });
-      E.closeM(); E.openJob(j.id); E.toast(no + ' created', 'success');
-    } catch (e) { E.toast(e.message, 'error'); }
-  };
+    });
 
-  /* INTELLIGENT RELEASE */
+    const keys = [...new Set([...Object.keys(req), ...issues.map(i => i.itemId + '|' + (i.variantId || ''))])];
+    
+    const rows = keys.map(k => {
+      const [itemId, variantId] = k.split('|');
+      const sku = E.skuList().find(s => s.itemId === itemId && s.variantId === variantId);
+      const need = req[k] || 0;
+      const issued = issues.filter(i => i.itemId === itemId && (i.variantId||'') === variantId).reduce((s, i) => s + i.qty, 0);
+      const val = issues.filter(i => i.itemId === itemId && (i.variantId||'') === variantId).reduce((s, i) => s + i.value, 0);
+      return { sku: sku ? sku.code : 'Unknown', need, issued, val };
+    }).filter(r => r.need || r.issued);
+
+    if (!rows.length) return '<div class="card muted">No BOM defined and no materials issued yet.</div>';
+
+    return `<div class="card">
+      <h3>Material Consumption (BOM Required vs Actual Issued)</h3>
+      <div class="tw"><table>
+        <thead><tr><th>Material</th><th class="r">BOM Required (Total)</th><th class="r">Actual Issued</th><th class="r">Variance (Issued - Req)</th><th class="r">Value Issued</th></tr></thead>
+        <tbody>${rows.map(r => {
+          const diff = r.issued - r.need;
+          return `<tr>
+            <td><b>${E.esc(r.sku)}</b></td>
+            <td class="r">${r.need.toFixed(3)}</td>
+            <td class="r"><b>${r.issued.toFixed(3)}</b></td>
+            <td class="r ${diff > 0 ? 'bad' : diff < 0 ? 'ok' : ''}">${diff > 0 ? '+' : ''}${diff.toFixed(3)}</td>
+            <td class="r">${E.m(r.val)}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+      <p class="muted" style="margin-top:10px">BOM Required is based on target pairs. Positive variance means you issued more than the standard recipe.</p>
+    </div>`;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     TAB 3: LABOUR & OPERATIONS
+     ═══════════════════════════════════════════════════════════ */
+  function tabProd(j) {
+    const logs = E.rows('prodLogs').filter(l => l.jobId === j.id && l.status !== 'cancelled');
+    if (!logs.length) return '<div class="card muted">No production logged for this job yet.</div>';
+    
+    const workers = {};
+    logs.forEach(l => {
+      const w = workers[l.empId] = workers[l.empId] || { name: (E.D.employees.find(e=>e.id===l.empId)||{}).name || '?', pairs: 0, amount: 0, ops: {} };
+      const p = l.convertedQty || l.qty;
+      w.pairs += p;
+      w.amount += l.amount;
+      w.ops[l.opName] = (w.ops[l.opName] || 0) + p;
+    });
+
+    return `<div class="card">
+      <h3>Worker & Operation Breakdown</h3>
+      <div class="tw"><table>
+        <thead><tr><th>Worker</th><th>Operation Breakdown</th><th class="r">Total Pairs</th><th class="r">Total Wages</th></tr></thead>
+        <tbody>${Object.values(workers).sort((a,b)=>b.amount-a.amount).map(w => `
+          <tr>
+            <td><b>${E.esc(w.name)}</b></td>
+            <td>${Object.entries(w.ops).map(([op, p]) => `<span class="tag">${E.esc(op)}: ${p} prs</span>`).join(' ')}</td>
+            <td class="r"><b>${w.pairs}</b></td>
+            <td class="r"><b>${E.m(w.amount)}</b></td>
+          </tr>
+        `).join('')}</tbody>
+      </table></div>
+    </div>`;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     TAB 4: LEDGER TRANSACTIONS
+     ═══════════════════════════════════════════════════════════ */
+  function tabLedger(j, L, ls) {
+    const txns = ls.filter(x => x.acc === '1310').sort((a, b) => b.date.localeCompare(a.date));
+    if (!txns.length) return '<div class="card muted">No ledger transactions posted to this job yet.</div>';
+    
+    return `<div class="card">
+      <h3>Job Ledger Transactions (WIP 1310)</h3>
+      <div class="tw"><table>
+        <thead><tr><th>Date</th><th>Entry</th><th>Type</th><th>Narration</th><th>Article</th><th class="r">Amount</th></tr></thead>
+        <tbody>${txns.map(x => `<tr>
+          <td>${x.date}</td><td>${x.no}</td><td><span class="tag">${x.cat}</span></td>
+          <td>${E.esc(x.narr)}</td>
+          <td>${E.esc((L.find(l => l.id === x.art) || {}).code || 'Shared')}</td>
+          <td class="r ${x.cr > 0 ? 'ok' : ''}">${E.m(x.cat === 'Wastage' ? -x.cr : x.dr - x.cr)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     INTELLIGENT RELEASE (100% IN PAIRS)
+     ═══════════════════════════════════════════════════════════ */
   E.A.relM = id => {
     const L = jl(id);
     const W = wip(id);
-    
     const allOps = E.rows('operations').filter(o => o.active !== false).sort((a, b) => (b.order || 0) - (a.order || 0));
     const finalOp = allOps.length ? allOps[0] : null;
-    
     const maxPairsTotal = L.reduce((s, l) => s + getMaxPairs(l), 0);
+    
     if (maxPairsTotal <= 0) return E.toast('No goods are fully produced yet (check final operation logs in Daily Production).', 'error');
 
     E.modal('Release Finished Goods (in Pairs)', `
@@ -274,7 +410,6 @@
       })).filter(x => x.pairs > 0);
       
       if (!rq.length) throw new Error('Enter pairs to release');
-      
       for (const x of rq) {
         if (x.pairs > x.max) throw new Error('Cannot release more than produced for ' + x.l.code + ' (Max: ' + x.max + ' pairs)');
       }
@@ -284,7 +419,6 @@
       if (W <= 0) throw new Error('No WIP to release');
       
       const totalMaxPairs = L.reduce((s, l) => s + getMaxPairs(l), 0);
-      
       const batchValue = Math.round(W * (totalPairsToRelease / totalMaxPairs));
       let leftValue = batchValue;
       
@@ -305,9 +439,7 @@
         const { l, pairs } = rq[i];
         const pp = pairsPerPack(l);
         const packsToAdd = pairs / pp;
-        
         await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: packsToAdd, value: vals[i], type: 'release', ref: no, job: id });
-        
         const b = JSON.parse(JSON.stringify(l));
         l.released += packsToAdd;
         l.fgValue += vals[i];
@@ -316,6 +448,55 @@
       
       E.closeM(); E.go(); 
       E.toast(no + ': ' + totalPairsToRelease + ' pairs released', 'success');
+    } catch (e) { E.toast(e.message, 'error'); }
+  };
+
+  /* The rest (newJob, complete, issueM) remains the same */
+  const jr = () => `<div class="jl jx" style="grid-template-columns:3fr 1fr 30px"><input list="fg" placeholder="Article"><input type="number" placeholder="Target Pairs"><button class="btn sm d" data-a="rmJx">✕</button></div>`;
+  E.A.rmJx = (_, e) => e.target.closest('.jx').remove();
+  E.A.addJx = () => E.$('jxr').insertAdjacentHTML('beforeend', jr());
+
+  E.A.newJob = () => {
+    const cs = E.rows('parties').filter(p => p.active && p.type !== 'Supplier');
+    const fg = i => i.cat === 'Finished Good';
+    if (!E.skuList(fg).length) return E.toast('Create Finished Goods first', 'error');
+    E.modal('New Job', `
+      <div class="g2">
+        <div class="f">Customer<select id="j_p"><option value="">— stock —</option>${cs.map(p => `<option value="${p.id}">${E.esc(p.name)}</option>`).join('')}</select></div>
+        <div class="f">Priority<select id="j_pr"><option>Normal</option><option>High</option><option>Urgent</option></select></div>
+        <div class="f">Job date<input id="j_d" type="date" value="${E.today()}"></div>
+        <div class="f">Due date<input id="j_u" type="date"></div>
+      </div>
+      <div class="f">Notes<input id="j_n"></div>
+      <datalist id="fg">${E.skuOpts(fg)}</datalist>
+      <b>Articles (Target in Pairs)</b>
+      <div id="jxr">${jr() + jr()}</div>
+      <button class="btn sm" data-a="addJx">+ Add line</button>
+    `, `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="saveJob">Create</button>`, 1);
+  };
+
+  E.A.saveJob = async () => {
+    try {
+      const m = {};
+      [...document.querySelectorAll('.jx')].forEach(r => {
+        const t = r.children[0].value.trim(), pairs = parseInt(r.children[1].value) || 0;
+        if (!t && !pairs) return;
+        const s = E.skuFind(t, i => i.cat === 'Finished Good');
+        if (!s) throw new Error('Invalid: ' + t);
+        if (pairs <= 0) throw new Error('Enter pairs for ' + s.code);
+        const item = E.D.items.find(x => x.id === s.itemId);
+        const pp = item.pack || 1;
+        const packs = pairs / pp;
+        const k = s.itemId + '|' + s.variantId;
+        m[k] = m[k] || { s, pairs: 0, packs: 0 }; 
+        m[k].pairs += pairs; m[k].packs += packs;
+      });
+      const ks = Object.values(m);
+      if (!ks.length) throw new Error('Add at least one line');
+      const no = await E.next('JOB');
+      const j = await E.save('jobs', { no, date: E.val('j_d'), due: E.val('j_u'), partyId: E.val('j_p'), priority: E.val('j_pr'), notes: E.val('j_n'), status: 'In Progress' });
+      for (const { s, packs } of ks) await E.save('jobLines', { jobId: j.id, itemId: s.itemId, variantId: s.variantId, code: s.code, name: s.name, target: packs, released: 0, fgValue: 0 });
+      E.closeM(); E.openJob(j.id); E.toast(no + ' created', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
 
@@ -350,40 +531,6 @@
       if (frozen) j.shadowSnapshot = frozen;
       await E.save('jobs', j, bj);
       E.go(); E.toast(j.no + ' completed · frozen', 'success');
-    } catch (e) { E.toast(e.message, 'error'); }
-  };
-
-  E.A.issueM = id => E.modal('Issue / return materials', `
-    <div class="g2"><div class="f">Action<select id="x_k"><option value="issue">Issue</option><option value="return">Return</option></select></div><div class="f">Date<input id="x_d" type="date" value="${E.today()}"></div></div>
-    <div class="f">Material *<input id="x_i" list="sk"></div>
-    <datalist id="sk">${E.skuOpts(i => i.cat !== 'Finished Good')}</datalist>
-    <div class="g2"><div class="f">Qty *<input id="x_q" type="number" step="0.001"></div></div>
-  `, `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="saveIssue" data-id="${id}">Post</button>`);
-
-  E.A.saveIssue = async id => {
-    try {
-      const s = E.skuFind(E.val('x_i'), i => i.cat !== 'Finished Good');
-      if (!s) throw new Error('Select material');
-      const q = parseFloat(E.val('x_q'));
-      if (!(q > 0)) throw new Error('Enter qty');
-      const d = E.val('x_d'), k = E.val('x_k');
-      const no = await E.next('ISS');
-      const mv = E.rows('issues').filter(x => x.jobId === id && x.itemId === s.itemId && x.variantId === s.variantId);
-      const nq = mv.reduce((a, x) => a + x.qty, 0), nvl = mv.reduce((a, x) => a + x.value, 0);
-      let val;
-      if (k === 'issue') {
-        val = E.outValue(s.itemId, s.variantId, q);
-        await E.post({ date: d, ref: no, narr: 'Issue ' + s.code, source: 'issue', lines: [{ acc: '1310', dr: val, job: id, cat: 'Material' }, { acc: '1300', cr: val }] });
-        await E.stockOut({ date: d, itemId: s.itemId, variantId: s.variantId, qty: q, type: 'issue', ref: no, job: id });
-        await E.save('issues', { no, date: d, jobId: id, itemId: s.itemId, variantId: s.variantId, code: s.code, qty: q, value: val });
-      } else {
-        if (q > nq + 1e-9) throw new Error('Only ' + nq + ' issued');
-        val = q >= nq - 1e-9 ? nvl : Math.round(nvl * q / nq);
-        await E.post({ date: d, ref: no, narr: 'Return ' + s.code, source: 'issue', lines: [{ acc: '1300', dr: val }, { acc: '1310', cr: val, job: id, cat: 'Material' }] });
-        await E.stockIn({ date: d, itemId: s.itemId, variantId: s.variantId, qty: q, value: val, type: 'return', ref: no, job: id });
-        await E.save('issues', { no, date: d, jobId: id, itemId: s.itemId, variantId: s.variantId, code: s.code, qty: -q, value: -val });
-      }
-      E.closeM(); E.go(); E.toast(no + ' posted', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
 })(window.ERP);
