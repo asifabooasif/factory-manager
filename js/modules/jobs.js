@@ -1,5 +1,3 @@
-console.log("✅✅✅ JOBS.JS LOADED SUCCESSFULLY ✅✅✅");
-
 (E => {
   // Unlock the menu immediately
   const navItem = E.N.find(x => x.id === 'jobs');
@@ -151,6 +149,38 @@ console.log("✅✅✅ JOBS.JS LOADED SUCCESSFULLY ✅✅✅");
     setTimeout(() => w.print(), 300);
   };
 
+  function tbl() {
+    const s = F.q.toLowerCase();
+    const r = E.rows('jobs').filter(j => (!F.st || j.status === F.st) && (!s || (j.no + (pty(j.partyId) || {}).name + j.notes).toLowerCase().includes(s))).sort((a, b) => b.no.localeCompare(a.no));
+    return `<div class="tw"><table>
+      <thead><tr><th>Job</th><th>Date</th><th>Customer</th><th>Due</th><th>Priority</th><th class="r">Target</th><th class="r">Produced</th><th class="r">WIP</th><th>Status</th><th></th></tr></thead>
+      <tbody>${r.map(j => { const L = jl(j.id); return `<tr>
+        <td><b>${j.no}</b></td><td>${j.date}</td>
+        <td>${E.esc((pty(j.partyId) || {}).name || 'Stock production')}</td>
+        <td>${j.due || '—'}</td><td><span class="tag">${j.priority}</span></td>
+        <td class="r">${L.reduce((s, l) => s + l.target, 0)} packs<div class="muted">${L.reduce((s, l) => s + l.target * pairsPerPack(l), 0)} pairs</div></td>
+        <td class="r">${L.reduce((s, l) => s + l.released, 0)}</td>
+        <td class="r">${E.m(wip(j.id))}</td>
+        <td><span class="tag">${j.status}</span></td>
+        <td class="r">${j.status === 'In Progress' ? `<button class="btn sm" data-a="editJob" data-id="${j.id}">Edit</button> ` : ''}<button class="btn sm p" data-a="openJob" data-id="${j.id}">Open</button></td>
+      </tr>`; }).join('') || '<tr><td colspan="10" class="muted">No jobs</td></tr>'}</tbody>
+    </table></div>`;
+  }
+
+  E.route('jobs', 'Jobs & Costing', () => `<div class="kp">
+    ${E.kpi('In progress', active().length)}
+    ${E.kpi('Total WIP', E.m(active().reduce((s, j) => s + wip(j.id), 0)), 'Ledger 1310: ' + E.m(E.bal('1310')))}
+  </div>
+  <div class="bar">
+    <input class="fs" style="max-width:300px" placeholder="Search…" data-f="jb.q" value="${E.esc(F.q)}">
+    <select class="fs" data-f="jb.st"><option value="">All</option>${['In Progress', 'Completed'].map(c => `<option ${F.st === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
+    <span class="gap"></span>
+    <button class="btn p" data-a="newJob">+ New Job</button>
+  </div><div id="tbl">${tbl()}</div>`);
+
+  E.hooks.push(e => { const f = e.target.dataset && e.target.dataset.f; if (f && f.startsWith('jb.')) { F[f.slice(3)] = e.target.value; E.$('tbl').innerHTML = tbl(); } });
+  E.A.openJob = id => { E.jobId = id; location.hash = '#/jobview'; };
+
   E.route('jobview', 'Job', () => {
     const j = J(E.jobId);
     if (!j) return '<div class="card">Select a job.</div>';
@@ -212,8 +242,8 @@ console.log("✅✅✅ JOBS.JS LOADED SUCCESSFULLY ✅✅✅");
       ${tabs.map(([k, l]) => `<button class="btn ${F.tab === k ? 'p' : ''}" data-a="jtTab" data-id="${k}">${l}</button>`).join('')}
     </div>
 
-    <div id="jtBody">${tabContent}</div>
-  </div>`;
+    <div id="jtBody">${tabContent}</div>`;
+  });
 
   E.A.jtTab = t => { F.tab = t; E.go(); };
 
@@ -351,6 +381,77 @@ console.log("✅✅✅ JOBS.JS LOADED SUCCESSFULLY ✅✅✅");
       </table></div>
     </div>`;
   }
+
+  const artSel = id => `<div class="f">Article<select id="x_a"><option value="">Shared</option>${jl(id).map(l => `<option value="${l.id}">${E.esc(l.code)}</option>`).join('')}</select></div>`;
+
+  E.A.issueM = id => E.modal('Issue / return materials', `
+    <div class="g2"><div class="f">Action<select id="x_k"><option value="issue">Issue</option><option value="return">Return</option></select></div><div class="f">Date<input id="x_d" type="date" value="${E.today()}"></div></div>
+    <div class="f">Material *<input id="x_i" list="sk"></div>
+    <datalist id="sk">${E.skuOpts(i => i.cat !== 'Finished Good')}</datalist>
+    <div class="g2"><div class="f">Qty *<input id="x_q" type="number" step="0.001"></div>${artSel(id)}</div>
+  `, `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="saveIssue" data-id="${id}">Post</button>`);
+
+  E.A.saveIssue = async id => {
+    try {
+      const s = E.skuFind(E.val('x_i'), i => i.cat !== 'Finished Good');
+      if (!s) throw new Error('Select material');
+      const q = parseFloat(E.val('x_q'));
+      if (!(q > 0)) throw new Error('Enter qty');
+      const d = E.val('x_d'), art = E.val('x_a'), k = E.val('x_k');
+      const no = await E.next('ISS'), j = J(id);
+      const mv = E.rows('issues').filter(x => x.jobId === id && x.itemId === s.itemId && x.variantId === s.variantId);
+      const nq = mv.reduce((a, x) => a + x.qty, 0), nvl = mv.reduce((a, x) => a + x.value, 0);
+      let val;
+      if (k === 'issue') {
+        val = E.outValue(s.itemId, s.variantId, q);
+        await E.post({ date: d, ref: no, narr: 'Issue ' + s.code, source: 'issue', lines: [{ acc: '1310', dr: val, job: id, cat: 'Material', art }, { acc: '1300', cr: val }] });
+        await E.stockOut({ date: d, itemId: s.itemId, variantId: s.variantId, qty: q, type: 'issue', ref: no, job: id });
+        await E.save('issues', { no, date: d, jobId: id, itemId: s.itemId, variantId: s.variantId, code: s.code, qty: q, value: val, art });
+      } else {
+        if (q > nq + 1e-9) throw new Error('Only ' + nq + ' issued');
+        val = q >= nq - 1e-9 ? nvl : Math.round(nvl * q / nq);
+        await E.post({ date: d, ref: no, narr: 'Return ' + s.code, source: 'issue', lines: [{ acc: '1300', dr: val }, { acc: '1310', cr: val, job: id, cat: 'Material', art }] });
+        await E.stockIn({ date: d, itemId: s.itemId, variantId: s.variantId, qty: q, value: val, type: 'return', ref: no, job: id });
+        await E.save('issues', { no, date: d, jobId: id, itemId: s.itemId, variantId: s.variantId, code: s.code, qty: -q, value: -val, art });
+      }
+      E.closeM(); E.go(); E.toast(no + ' posted', 'success');
+    } catch (e) { E.toast(e.message, 'error'); }
+  };
+
+  E.A.addCost = id => {
+    const js = active();
+    if (!js.length) return E.toast('No jobs in progress', 'error');
+    E.modal('Add labor / expense', `
+      <div class="g2">
+        <div class="f">Type<select id="c_t"><option>Labour</option><option>Overhead</option></select></div>
+        <div class="f">Date<input id="c_d" type="date" value="${E.today()}"></div>
+        <div class="f">Amount<input id="c_a" type="number" step="0.01"></div>
+        <div class="f">From/owed<select id="c_s"><option value="">—</option>${E.opts(a => a.bank || ['1010', '2300'].includes(a.code))}</select></div>
+      </div>
+      <div class="f">Details<input id="c_n"></div>
+      <b>Allocate (% must = 100)</b>
+      <div class="tw"><table><thead><tr><th>Job</th><th>Customer</th><th class="r">%</th></tr></thead><tbody>${js.map(j => `<tr><td>${j.no}</td><td>${E.esc((pty(j.partyId) || {}).name || 'Stock')}</td><td><input class="sp" data-id="${j.id}" type="number" step="0.01" value="${j.id === id ? 100 : ''}" style="width:90px"></td></tr>`).join('')}</tbody></table></div>
+      <button class="btn sm" data-a="eqSplit">Split equally</button>
+      ${id ? artSel(id) : ''}
+    `, `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="saveCost">Post</button>`, 1);
+  };
+  E.A.eqSplit = () => { const a = [...document.querySelectorAll('.sp')]; a.forEach((i, k) => i.value = k === a.length - 1 ? (100 - Math.floor(10000 / a.length) / 100 * (a.length - 1)).toFixed(2) : (Math.floor(10000 / a.length) / 100).toFixed(2)); };
+  E.A.saveCost = async () => {
+    try {
+      const amt = E.c(E.val('c_a')), s = E.val('c_s'), t = E.val('c_t'), d = E.val('c_d');
+      if (amt <= 0) throw new Error('Enter amount');
+      if (!s) throw new Error('Select account');
+      const sp = [...document.querySelectorAll('.sp')].map(i => ({ id: i.dataset.id, p: Math.round((parseFloat(i.value) || 0) * 100) })).filter(x => x.p > 0);
+      if (sp.reduce((a, x) => a + x.p, 0) !== 10000) throw new Error('Must total 100%');
+      let left = amt;
+      const art = sp.length === 1 && E.$('x_a') ? E.val('x_a') : '';
+      const ls = sp.map((x, i) => { const a = i === sp.length - 1 ? left : Math.round(amt * x.p / 10000); left -= a; return { acc: '1310', dr: a, job: x.id, cat: t, art }; });
+      const no = await E.next('EXP');
+      await E.post({ date: d, ref: no, narr: (E.val('c_n') || t) + ' · ' + sp.map(x => J(x.id).no).join(','), source: 'jobcost', lines: ls.concat([{ acc: s, cr: amt }]) });
+      E.closeM(); E.go(); E.toast(no + ' posted', 'success');
+    } catch (e) { E.toast(e.message, 'error'); }
+  };
+
 
   E.A.relM = id => {
     const L = jl(id);
