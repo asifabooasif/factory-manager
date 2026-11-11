@@ -1,6 +1,10 @@
-/* PART 4 (v10) — ULTIMATE JOBS MODULE (Fixed 'ls' bug & fully restored analytics) */
+console.log("✅✅✅ JOBS.JS LOADED SUCCESSFULLY ✅✅✅");
+
 (E => {
-  const n = E.N.find(x => x.id === 'jobs'); if (n) n.soon = 0;
+  // Unlock the menu immediately
+  const navItem = E.N.find(x => x.id === 'jobs');
+  if (navItem) navItem.soon = 0;
+
   const F = { q: '', st: 'In Progress', tab: 'cost' }; E.jobId = '';
   const pty = id => E.D.parties.find(x => x.id === id);
   const J = id => E.D.jobs.find(x => x.id === id);
@@ -122,13 +126,38 @@
     setTimeout(() => w.print(), 300);
   };
 
+  E.A.jobPrintCustomer = id => {
+    const j = J(id);
+    if (!j) return;
+    const w = window.open('', '_blank');
+    if (!w) return E.toast('Allow pop-ups', 'error');
+    const { R } = sheet(j);
+    const totalPacks = R.reduce((s, r) => s + r.packs, 0);
+    const totalPairs = R.reduce((s, r) => s + r.pairs, 0);
+    w.document.write(`<html><head><title>${j.no}</title><style>
+      @page{size:A4;margin:14mm}body{font:12px Arial;color:#111}
+      .header{background:#2a1758;color:#fff;padding:12px;margin-bottom:12px}
+      table{width:100%;border-collapse:collapse;margin:10px 0}th,td{border-bottom:1px solid #bbb;padding:6px;text-align:left}th{background:#eee}.r{text-align:right}
+    </style></head><body>
+      <div class="header"><b style="font-size:16px">${E.esc(E.factory().name)}</b> — Production Summary</div>
+      <p><b>Job:</b> ${j.no}<br><b>Customer:</b> ${E.esc((pty(j.partyId) || {}).name || 'Stock')}</p>
+      <table>
+        <thead><tr><th>Article</th><th class="r">Packs</th><th class="r">Pairs</th></tr></thead>
+        <tbody>${R.map(r => `<tr><td>${E.esc(r.l.code)} ${E.esc(r.l.name)}</td><td class="r">${r.packs}</td><td class="r">${r.pairs}</td></tr>`).join('')}</tbody>
+      </table>
+      <p><b>Total delivered: ${totalPacks} packs (${totalPairs} pairs)</b></p>
+    </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 300);
+  };
+
   E.route('jobview', 'Job', () => {
     const j = J(E.jobId);
     if (!j) return '<div class="card">Select a job.</div>';
     E.$('pt').textContent = j.no;
     
     const L = jl(j.id), { R, rel } = sheet(j);
-    const ls = lines(j.id); /* <--- THIS WAS MISSING, NOW ADDED */
+    const ls = lines(j.id);
     
     const open = j.status === 'In Progress';
     const shadow = shadowFor(j);
@@ -138,6 +167,7 @@
     const totalPacks = R.reduce((s, r) => s + r.packs, 0);
     const totalPairs = R.reduce((s, r) => s + r.pairs, 0);
     const costPerPairComplete = totalPairs ? Math.round(completeCost / totalPairs) : 0;
+    const isFrozen = !!j.shadowSnapshot;
     
     let estRevenue = 0;
     L.forEach(l => { const item = itemOf(l); estRevenue += (l.released * pairsPerPack(l)) * (item.price || 0); });
@@ -171,7 +201,7 @@
 
     <div class="kp">
       ${E.kpi('Posted Cost', E.m(postedCost), 'In ledger')}
-      ${E.kpi('Shadow Cost', E.m(shadowTotal), frozen ? 'frozen' : 'live')}
+      ${E.kpi('Shadow Cost', E.m(shadowTotal), isFrozen ? 'frozen' : 'live')}
       ${E.kpi('COMPLETE COST', '<b>' + E.m(completeCost) + '</b>', 'For pricing')}
       ${E.kpi('Cost Per Pair', E.m(costPerPairComplete), 'Management cost')}
       ${E.kpi('Projected Revenue', E.m(estRevenue), 'Based on selling price')}
@@ -193,7 +223,6 @@
     return `
     ${frozen ? `<div class="card" style="background:#d1fae5;border-left:4px solid #059669;padding:12px;margin-bottom:14px">
       <b style="color:#065f46">🔒 Cost sheet frozen at ${j.shadowSnapshot.frozenAt}</b>
-      <div class="muted" style="font-size:12px;margin-top:4px">These numbers are permanent. Used for pricing. Not affected by later rent/electricity changes.</div>
     </div>` : ''}
 
     <div class="card">
