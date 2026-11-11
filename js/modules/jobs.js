@@ -1,9 +1,4 @@
-/* PART 4 (v9) — ULTIMATE JOBS MODULE with 360 Analytics.
-   - 4 Tab Job View: Costing, Materials (BOM vs Actual), Production (Wages), Ledger.
-   - Projected Profitability (Revenue - Complete Cost).
-   - Highly detailed Print Sheets.
-   - Intelligent Pairs Release.
-*/
+/* PART 4 (v10) — ULTIMATE JOBS MODULE (Fixed 'ls' bug & fully restored analytics) */
 (E => {
   const n = E.N.find(x => x.id === 'jobs'); if (n) n.soon = 0;
   const F = { q: '', st: 'In Progress', tab: 'cost' }; E.jobId = '';
@@ -17,7 +12,6 @@
   const active = () => E.rows('jobs').filter(j => j.status === 'In Progress');
   const CATS = ['Material', 'Labour', 'Overhead', 'Consumable'];
 
-  /* HELPER: Find the max releasable pairs based on production logs */
   function getMaxPairs(l) {
     const pp = pairsPerPack(l);
     const rPairs = l.released * pp;
@@ -68,9 +62,6 @@
     return { totalFixedAllocated: totalFixed, accruedWages: { dailySalaries: 0, weeklyTimeWages: 0, total: 0 }, perExpenseTotal: {}, isLive: true };
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     ULTIMATE PRINT SHEETS
-     ═══════════════════════════════════════════════════════════ */
   E.A.jobPrint = id => {
     const j = J(id);
     if (!j) return;
@@ -84,7 +75,6 @@
     const totalPacks = R.reduce((s, r) => s + r.packs, 0);
     const totalPairs = R.reduce((s, r) => s + r.pairs, 0);
     
-    // Calculate Revenue / Profit
     let estRevenue = 0;
     jl(j.id).forEach(l => {
       const item = itemOf(l);
@@ -132,15 +122,14 @@
     setTimeout(() => w.print(), 300);
   };
 
-  /* ═══════════════════════════════════════════════════════════
-     JOB VIEW ROUTE WITH TABS
-     ═══════════════════════════════════════════════════════════ */
   E.route('jobview', 'Job', () => {
     const j = J(E.jobId);
     if (!j) return '<div class="card">Select a job.</div>';
     E.$('pt').textContent = j.no;
     
     const L = jl(j.id), { R, rel } = sheet(j);
+    const ls = lines(j.id); /* <--- THIS WAS MISSING, NOW ADDED */
+    
     const open = j.status === 'In Progress';
     const shadow = shadowFor(j);
     const postedCost = R.reduce((s, r) => s + r.total, 0);
@@ -150,7 +139,6 @@
     const totalPairs = R.reduce((s, r) => s + r.pairs, 0);
     const costPerPairComplete = totalPairs ? Math.round(completeCost / totalPairs) : 0;
     
-    // Projected Revenue
     let estRevenue = 0;
     L.forEach(l => { const item = itemOf(l); estRevenue += (l.released * pairsPerPack(l)) * (item.price || 0); });
     const profit = estRevenue - completeCost;
@@ -199,9 +187,6 @@
 
   E.A.jtTab = t => { F.tab = t; E.go(); };
 
-  /* ═══════════════════════════════════════════════════════════
-     TAB 1: COSTING & SHADOW
-     ═══════════════════════════════════════════════════════════ */
   function tabCost(j, R, postedCost, shadowTotal, completeCost) {
     const frozen = !!j.shadowSnapshot;
     const shadow = shadowFor(j);
@@ -245,15 +230,11 @@
     </div>`;
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     TAB 2: MATERIALS (BOM vs ACTUAL)
-     ═══════════════════════════════════════════════════════════ */
   function tabMat(j) {
     const L = jl(j.id);
     const issues = E.rows('issues').filter(i => i.jobId === j.id);
     const req = {};
     
-    // Calculate BOM Required
     L.forEach(l => {
       const item = itemOf(l);
       if (!item || !item.bom) return;
@@ -295,9 +276,6 @@
     </div>`;
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     TAB 3: LABOUR & OPERATIONS
-     ═══════════════════════════════════════════════════════════ */
   function tabProd(j) {
     const logs = E.rows('prodLogs').filter(l => l.jobId === j.id && l.status !== 'cancelled');
     if (!logs.length) return '<div class="card muted">No production logged for this job yet.</div>';
@@ -327,9 +305,6 @@
     </div>`;
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     TAB 4: LEDGER TRANSACTIONS
-     ═══════════════════════════════════════════════════════════ */
   function tabLedger(j, L, ls) {
     const txns = ls.filter(x => x.acc === '1310').sort((a, b) => b.date.localeCompare(a.date));
     if (!txns.length) return '<div class="card muted">No ledger transactions posted to this job yet.</div>';
@@ -348,9 +323,6 @@
     </div>`;
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     INTELLIGENT RELEASE (100% IN PAIRS)
-     ═══════════════════════════════════════════════════════════ */
   E.A.relM = id => {
     const L = jl(id);
     const W = wip(id);
@@ -451,7 +423,6 @@
     } catch (e) { E.toast(e.message, 'error'); }
   };
 
-  /* The rest (newJob, complete, issueM) remains the same */
   const jr = () => `<div class="jl jx" style="grid-template-columns:3fr 1fr 30px"><input list="fg" placeholder="Article"><input type="number" placeholder="Target Pairs"><button class="btn sm d" data-a="rmJx">✕</button></div>`;
   E.A.rmJx = (_, e) => e.target.closest('.jx').remove();
   E.A.addJx = () => E.$('jxr').insertAdjacentHTML('beforeend', jr());
