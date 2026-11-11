@@ -1,7 +1,4 @@
-/* PART 14 (v9) — Production STRICTLY IN PAIRS.
-   Daily log and Material Batches now ask for Pairs. 
-   The system converts to packs silently in the background for stock tracking.
-*/
+/* PART 14 (v11) — Production strictly in Pairs with Size tracking. */
 (E => {
   const ni = E.N.findIndex(n => n.id === 'jobs');
   E.N.splice(ni + 1, 0, { g: 'Factory', id: 'production', ico: '🧵', label: 'Daily Production' });
@@ -16,7 +13,6 @@
   const active = () => E.rows('jobs').filter(j => j.status === 'In Progress');
   const ops = () => E.rows('operations').filter(o => o.active !== false).sort((a, b) => (a.order || 0) - (b.order || 0));
   const elabel = e => e.code + ' — ' + e.name;
-  const r3 = n => Math.round(n * 1000) / 1000;
 
   E.opRateInfo = (opId, itemId, date) => {
     const i = it(itemId);
@@ -28,7 +24,6 @@
     const rCard = a || c;
     return { rate: (a && a.rate) || (c && c.rate) || (o && o.rate) || 0, rateUnit: (rCard && rCard.rateUnit) || (o && o.rateUnit) || 'pair', piecesPerPair: (rCard && rCard.piecesPerPair) || (o && o.piecesPerPair) || 1 };
   };
-  E.opRate = (opId, itemId, date) => E.opRateInfo(opId, itemId, date).rate;
 
   E.empOpts = () => E.rows('employees').filter(e => e.active).sort((a, b) => a.code.localeCompare(b.code)).map(e => `<option value="${E.esc(elabel(e))}" data-k="${E.esc(e.name + ' ' + e.code + ' ' + (e.nic || ''))}">`).join('');
   const empFind = t => { t = (t || '').trim().toLowerCase(); return E.rows('employees').find(e => elabel(e).toLowerCase() === t || e.code.toLowerCase() === t); };
@@ -52,36 +47,64 @@
     if (f && f.startsWith('pr.')) { F[f.slice(3)] = t.value; E.$('prb').innerHTML = body(); return; }
     const r = t.closest && t.closest('.pr');
     if (!r) return;
-    const c = r.children;
-    if (t === c[1]) { const j = t.value; c[2].innerHTML = '<option value="">— article —</option>' + (j ? jl(j).map(l => `<option value="${l.id}">${E.esc(l.code)} · target ${l.target} packs</option>`).join('') : ''); }
+    const c = r.children; // 0:Worker, 1:Job, 2:Article, 3:Op, 4:Size, 5:Pairs, 6:Rate, 7:Amount
     
-    const pairs = parseFloat(c[4].value) || 0; 
-    const rt = E.c(c[5].value);
+    if (t === c[1]) { 
+        const j = t.value; 
+        c[2].innerHTML = '<option value="">— article —</option>' + (j ? jl(j).map(l => `<option value="${l.id}">${E.esc(l.code)} · target ${l.target} packs</option>`).join('') : ''); 
+        c[4].innerHTML = '<option value="">Any</option>';
+    }
     
+    if (t === c[2]) {
+        const l = E.D.jobLines.find(x => x.id === t.value);
+        const item = l ? E.D.items.find(x => x.id === l.itemId) : null;
+        c[4].innerHTML = '<option value="">Any</option>';
+        if (item && item.sizeRun) {
+            const sizes = [...new Set(item.sizeRun.split(',').map(x=>x.trim()))];
+            sizes.forEach(sz => c[4].innerHTML += `<option value="${sz}">Size ${sz}</option>`);
+        }
+    }
+
     if (t === c[1] || t === c[2] || t === c[3]) {
       const l = E.D.jobLines.find(x => x.id === c[2].value);
-      if (l && c[3].value && !c[5].dataset.man) {
+      if (l && c[3].value && !c[6].dataset.man) {
         const info = E.opRateInfo(c[3].value, l.itemId, E.val('pr_d'));
-        c[5].value = (info.rate / 100) || '';
+        c[6].value = (info.rate / 100) || '';
       }
     }
-    if (t === c[5]) c[5].dataset.man = '1';
+    if (t === c[6]) c[6].dataset.man = '1';
     
+    const pairs = parseFloat(c[5].value) || 0; 
+    const rt = E.c(c[6].value);
     const line = E.D.jobLines.find(x => x.id === c[2].value);
+    
     if (line && c[3].value) {
       const info = E.opRateInfo(c[3].value, line.itemId, E.val('pr_d'));
       const conv = info.rateUnit === 'pair' ? pairs : pairs * info.piecesPerPair;
-      c[6].value = pairs && rt ? E.m(Math.round(conv * rt)) : '';
-    } else c[6].value = '';
+      c[7].value = pairs && rt ? E.m(Math.round(conv * rt)) : '';
+    } else c[7].value = '';
+    
     tot();
   });
 
-  const row = () => `<div class="jl pr" style="grid-template-columns:1.5fr 1.2fr 1.6fr 1.2fr .7fr .8fr .9fr 28px"><input list="pe" placeholder="Worker"><select><option value="">— job —</option>${active().map(j => `<option value="${j.id}">${j.no}</option>`).join('')}</select><select><option value="">— article —</option></select><select><option value="">— operation —</option>${ops().map(o => `<option value="${o.id}">${E.esc(o.name)}</option>`).join('')}</select><input type="number" step="0.5" min="0" placeholder="Pairs"><input type="number" step="0.01" placeholder="Rate"><input readonly placeholder="Amount"><button class="btn sm d" data-a="rmPr">✕</button></div>`;
+  const row = () => `<div class="jl pr" style="grid-template-columns:1.2fr 1fr 1.5fr 1.2fr 0.8fr 0.8fr 0.8fr 0.9fr 28px">
+    <input list="pe" placeholder="Worker">
+    <select><option value="">— job —</option>${active().map(j => `<option value="${j.id}">${j.no}</option>`).join('')}</select>
+    <select><option value="">— article —</option></select>
+    <select><option value="">— operation —</option>${ops().map(o => `<option value="${o.id}">${E.esc(o.name)}</option>`).join('')}</select>
+    <select><option value="">Any</option></select>
+    <input type="number" step="0.5" min="0" placeholder="Pairs">
+    <input type="number" step="0.01" placeholder="Rate">
+    <input readonly placeholder="Amount">
+    <button class="btn sm d" data-a="rmPr">✕</button>
+  </div>`;
+  
   E.A.rmPr = (_, e) => { e.target.closest('.pr').remove(); tot(); };
   E.A.addPr = () => E.$('prr').insertAdjacentHTML('beforeend', row());
+  
   function tot() {
     let p = 0, a = 0;
-    document.querySelectorAll('#prr .pr').forEach(r => { const c = r.children, n = parseFloat(c[4].value) || 0; p += n; a += E.c((c[6].value || '').replace(/[^0-9.]/g, '')); });
+    document.querySelectorAll('#prr .pr').forEach(r => { const c = r.children, n = parseFloat(c[5].value) || 0; p += n; a += E.c((c[7].value || '').replace(/[^0-9.]/g, '')); });
     if (E.$('pr_t')) E.$('pr_t').textContent = p + ' pairs · ' + E.m(a);
   }
 
@@ -112,15 +135,15 @@
       <select class="fs" data-f="pr.emp"><option value="">All workers</option>${E.rows('employees').map(e => `<option value="${e.id}" ${F.emp === e.id ? 'selected' : ''}>${E.esc(e.name)}</option>`).join('')}</select>
     </div>
     <div class="tw"><table>
-      <thead><tr><th>No</th><th>Worker</th><th>Job</th><th>Article</th><th>Operation</th><th class="r">Pairs</th><th class="r">Packs</th><th class="r">Rate</th><th class="r">Earned</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>No</th><th>Worker</th><th>Job</th><th>Article</th><th>Operation</th><th>Size</th><th class="r">Pairs</th><th class="r">Rate</th><th class="r">Earned</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.map(l => {
         const pairs = l.convertedQty != null ? l.convertedQty : (l.qty * (l.pairsPerPack || 1));
         return `<tr style="${l.status === 'cancelled' ? 'opacity:.45' : ''}">
           <td>${l.no}</td><td>${E.esc((emp(l.empId) || {}).name)}</td>
           <td>${E.esc((J(l.jobId) || {}).no)}</td><td><b>${E.esc(l.code)}</b></td>
           <td>${E.esc(l.opName)}</td>
+          <td><span class="tag">${l.size || 'Any'}</span></td>
           <td class="r"><b>${pairs}</b></td>
-          <td class="r muted">${l.qty}</td>
           <td class="r">${E.m(l.rate)}<div class="muted" style="font-size:10px">/${l.rateUnit || 'pair'}</div></td>
           <td class="r"><b>${E.m(l.amount)}</b></td>
           <td><span class="tag">${l.status === 'paid' ? 'Paid ' + (l.runNo || '') : l.status}</span></td>
@@ -135,9 +158,10 @@
       const L = [];
       document.querySelectorAll('#prr .pr').forEach((r, i) => {
         const c = r.children;
-        if (!c[0].value && !c[4].value && !c[1].value) return;
+        if (!c[0].value && !c[5].value && !c[1].value) return;
         const e = empFind(c[0].value), j = J(c[1].value), l = E.D.jobLines.find(x => x.id === c[2].value), o = op(c[3].value);
-        const pairs = parseFloat(c[4].value) || 0, rt = E.c(c[5].value);
+        const size = c[4].value;
+        const pairs = parseFloat(c[5].value) || 0, rt = E.c(c[6].value);
         const n = 'Row ' + (i + 1) + ': ';
         if (!e) throw new Error(n + 'worker missing');
         if (!j || j.status !== 'In Progress') throw new Error(n + 'invalid job');
@@ -149,11 +173,11 @@
         const info = E.opRateInfo(o.id, l.itemId, E.val('pr_d'));
         const item = it(l.itemId);
         const pp = (item && item.pack) || 1;
-        const packs = pairs / pp; // Calculate packs for stock/job tracking
+        const packs = pairs / pp;
         const conv = info.rateUnit === 'pair' ? pairs : pairs * info.piecesPerPair;
         const amount = Math.round(conv * rt);
         
-        L.push({ e, j, l, o, pairs, packs, rt, amount, pairsPerPack: pp, info, convertedQty: pairs });
+        L.push({ e, j, l, o, size, pairs, packs, rt, amount, pairsPerPack: pp, info, convertedQty: pairs });
       });
       if (!L.length) throw new Error('Nothing to save');
       const d = E.val('pr_d');
@@ -169,10 +193,9 @@
         await E.save('prodLogs', {
           no: no + '-' + (++k), batch: no, date: d,
           empId: x.e.id, jobId: x.j.id, lineId: x.l.id, itemId: x.l.itemId, variantId: x.l.variantId,
-          code: x.l.code, opId: x.o.id, opName: x.o.name,
-          qty: x.packs, // Saved as packs for internal stock
-          pairs: x.pairs, // Saved as pairs for display
-          pairsPerPack: x.pairsPerPack, rateUnit: x.info.rateUnit, piecesPerPair: x.info.piecesPerPair,
+          code: x.l.code, opId: x.o.id, opName: x.o.name, size: x.size,
+          qty: x.packs, pairs: x.pairs, pairsPerPack: x.pairsPerPack, 
+          rateUnit: x.info.rateUnit, piecesPerPair: x.info.piecesPerPair,
           convertedQty: x.convertedQty, rate: x.rt, amount: x.amount,
           status: 'accrued', jeId: je.id, jeNo: je.no, runId: '', runNo: ''
         });
@@ -234,7 +257,7 @@
     if (!item || !(item.bom || []).length) { box.innerHTML = '<p class="bad">No BOM on this article. Add it on the Items page first.</p>'; if (btn) btn.disabled = true; return; }
     
     const rows = item.bom.map(b => {
-      const need = r3(b.qty * pairs); /* STRICTLY PER PAIR CALCULATION */
+      const need = Math.round((b.qty * pairs) * 1000) / 1000;
       const sku = E.skuList().find(s => s.itemId === b.itemId && s.variantId === (b.variantId || ''));
       const st = E.stock(b.itemId, b.variantId);
       const avgCost = st.qty > 0 ? Math.round(st.value / st.qty) : 0;
@@ -253,7 +276,7 @@
       const no = await E.next('BAT');
       let total = 0;
       for (const b of item.bom) {
-        const need = r3(b.qty * pairs);
+        const need = Math.round((b.qty * pairs) * 1000) / 1000;
         const st = E.stock(b.itemId, b.variantId);
         if (st.qty + 1e-9 < need) throw new Error('Insufficient stock');
         const val = E.outValue(b.itemId, b.variantId, need);
@@ -294,10 +317,10 @@
   E.A.prSumCsv = () => {
     const d = F.date;
     const L = live().filter(l => l.date === d);
-    const rows = [['No', 'Worker', 'Job', 'Article', 'Operation', 'Pairs', 'Rate', 'Amount'].join(',')];
+    const rows = [['No', 'Worker', 'Job', 'Article', 'Operation', 'Size', 'Pairs', 'Rate', 'Amount'].join(',')];
     L.forEach(l => {
       rows.push([
-        l.no, (emp(l.empId) || {}).name || '', (J(l.jobId) || {}).no || '', l.code, l.opName,
+        l.no, (emp(l.empId) || {}).name || '', (J(l.jobId) || {}).no || '', l.code, l.opName, l.size || '',
         l.convertedQty || l.qty, (l.rate / 100).toFixed(2), (l.amount / 100).toFixed(2)
       ].map(E.csvCell).join(','));
     });
@@ -315,7 +338,6 @@
         const targetPacks = l.target;
         const targetPairs = targetPacks * ((it(l.itemId) || {}).pack || 1);
         const cells = allOps.map(o => {
-          const dnPacks = live().filter(x => x.lineId === l.id && x.opId === o.id).reduce((s, x) => s + x.qty, 0);
           const dnPairs = live().filter(x => x.lineId === l.id && x.opId === o.id).reduce((s, x) => s + (x.convertedQty || x.qty), 0);
           const pct = targetPairs ? Math.round(dnPairs / targetPairs * 100) : 0;
           return `<td class="r"><div style="background:#eee;border-radius:4px;height:16px;position:relative"><div style="background:${pct >= 100 ? '#059669' : pct > 0 ? '#d97706' : '#e5e7eb'};height:100%;width:${Math.min(pct, 100)}%;border-radius:4px"></div><span style="position:absolute;left:50%;top:0;transform:translateX(-50%);font-size:10px;line-height:16px;font-weight:600">${dnPairs}/${targetPairs}</span></div></td>`;
@@ -329,9 +351,8 @@
   /* Operations & Rates Tab */
   function opsTab() {
     const O = E.rows('operations').sort((a, b) => (a.order || 0) - (b.order || 0));
-    const rc = E.rows('rateCards');
     const can = E.role === 'owner' || E.role === 'accountant';
-    return `<div class="card"><div class="bar"><span class="gap"></span>${can ? '<button class="btn sm" data-a="opStd">+ Add standard operations</button><button class="btn p" data-a="opNew">+ Operation</button><button class="btn" data-a="rcNew">+ Rate override</button>' : ''}</div>
+    return `<div class="card"><div class="bar"><span class="gap"></span>${can ? '<button class="btn sm" data-a="opStd">+ Add standard operations</button><button class="btn p" data-a="opNew">+ Operation</button>' : ''}</div>
       <div class="tw"><table><thead><tr><th>Order</th><th>Operation</th><th class="r">Rate/pair</th><th>Active</th>${can ? '<th></th>' : ''}</tr></thead><tbody>${O.map(o => `<tr><td>${o.order || 0}</td><td><b>${E.esc(o.name)}</b></td><td class="r">${E.m(o.rate || 0)}</td><td>${o.active === false ? 'No' : 'Yes'}</td>${can ? `<td class="r"><button class="btn sm" data-a="opEdit" data-id="${o.id}">Edit</button> <button class="btn sm d" data-a="opDel" data-id="${o.id}">${o.active === false ? 'Activate' : 'Deactivate'}</button></td>` : ''}</tr>`).join('') || '<tr><td colspan="5" class="muted">No operations yet. Click "Add standard operations".</td></tr>'}</tbody></table></div>
     </div>`;
   }
