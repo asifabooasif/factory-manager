@@ -15,17 +15,8 @@
   const CATS = ['Material', 'Labour', 'Overhead', 'Consumable'];
 
   function getMaxPairs(l) {
-    const pp = pairsPerPack(l);
-    const rPairs = l.released * pp;
-    const allOps = E.rows('operations').filter(o => o.active !== false).sort((a, b) => (b.order || 0) - (a.order || 0));
-    const finalOp = allOps.length ? allOps[0] : null;
-    let producedPairs = 0;
-    if (finalOp) {
-      producedPairs = E.rows('prodLogs').filter(x => x.lineId === l.id && x.opId === finalOp.id && x.status !== 'cancelled').reduce((s, x) => s + (x.convertedQty || x.qty), 0);
-    } else {
-      producedPairs = l.target * pp;
-    }
-    return Math.max(0, producedPairs - rPairs);
+    /* releasable = pairs completed through EVERY routing stage minus pairs already released (see Daily Production flow) */
+    return E.jobFlow ? E.jobFlow(l).ready : 0;
   }
 
   function sheet(j) {
@@ -337,7 +328,7 @@
 
   function tabProd(j) {
     const logs = E.rows('prodLogs').filter(l => l.jobId === j.id && l.status !== 'cancelled');
-    if (!logs.length) return '<div class="card muted">No production logged for this job yet.</div>';
+    if (!logs.length) return (E.jobFlowHtml ? E.jobFlowHtml(j.id) : '') + '<div class="card muted">No production logged for this job yet.</div>';
     
     const workers = {};
     logs.forEach(l => {
@@ -348,7 +339,7 @@
       w.ops[l.opName] = (w.ops[l.opName] || 0) + p;
     });
 
-    return `<div class="card">
+    return `${E.jobFlowHtml ? E.jobFlowHtml(j.id) : ''}<div class="card">
       <h3>Worker & Operation Breakdown</h3>
       <div class="tw"><table>
         <thead><tr><th>Worker</th><th>Operation Breakdown</th><th class="r">Total Pairs</th><th class="r">Total Wages</th></tr></thead>
@@ -460,7 +451,10 @@
     const finalOp = allOps.length ? allOps[0] : null;
     const maxPairsTotal = L.reduce((s, l) => s + getMaxPairs(l), 0);
     
-    if (maxPairsTotal <= 0) return E.toast('No goods are fully produced yet (check final operation logs in Daily Production).', 'error');
+    if (maxPairsTotal <= 0) {
+      const why = L.map(l => { const f = E.jobFlow(l); return l.code + ': ' + (f.stages.length ? (f.limiting ? f.completed + ' of ' + f.target + ' pairs completed, waiting on ' + f.limiting.name : 'nothing completed') : 'no production logged') + (f.legacy ? ' (set the article routing in Daily Production > Operations & rates)' : ''); }).join(' | ');
+      return E.toast('No goods are fully completed yet. ' + why, 'error');
+    }
 
     E.modal('Release Finished Goods (in Pairs)', `
       <div class="g2">
@@ -468,19 +462,19 @@
         <div class="f">Total WIP Value to Release: <b style="color:var(--ac)">${E.m(W)}</b></div>
       </div>
       <div class="tw"><table>
-        <thead><tr><th>Article</th><th class="r">Target (Pairs)</th><th class="r">Produced at ${finalOp ? E.esc(finalOp.name) : 'Final Op'}</th><th class="r">Already Released</th><th class="r">Max Releasable</th><th class="r">Release Now (Pairs)</th></tr></thead>
+        <thead><tr><th>Article</th><th class="r">Target (Pairs)</th><th class="r">Completed (all stages)</th><th class="r">Already Released</th><th class="r">Max Releasable</th><th class="r">Release Now (Pairs)</th></tr></thead>
         <tbody>
           ${L.map(l => {
             const pp = pairsPerPack(l);
             const tPairs = l.target * pp;
             const rPairs = l.released * pp;
-            const produced = finalOp ? E.rows('prodLogs').filter(x => x.lineId === l.id && x.opId === finalOp.id && x.status !== 'cancelled').reduce((s, x) => s + (x.convertedQty || x.qty), 0) : tPairs;
+            const fl = E.jobFlow(l), produced = fl.completed;
             const maxToRelease = Math.max(0, produced - rPairs);
             
             return `<tr>
               <td><b>${E.esc(l.code)}</b></td>
               <td class="r">${tPairs}</td>
-              <td class="r muted">${produced}</td>
+              <td class="r muted">${produced}${fl.limiting && fl.completed < fl.target ? `<div style="font-size:11px">waiting on ${E.esc(fl.limiting.name)}</div>` : ''}</td>
               <td class="r muted">${rPairs}</td>
               <td class="r"><b style="color:${maxToRelease>0?'var(--g)':'var(--r2)'}">${maxToRelease}</b></td>
               <td>
@@ -513,15 +507,17 @@
       
       if (!rq.length) throw new Error('Enter pairs to release');
       for (const x of rq) {
-        if (x.pairs > x.max) throw new Error('Cannot release more than produced for ' + x.l.code + ' (Max: ' + x.max + ' pairs)');
+        const nowMax = getMaxPairs(x.l);
+        if (x.pairs > x.max + 0.001 || x.pairs > nowMax + 0.001) throw new Error('Cannot release more than completed for ' + x.l.code + ' (Max now: ' + nowMax + ' pairs)');
       }
       
       const totalPairsToRelease = rq.reduce((s, x) => s + x.pairs, 0);
       const W = wip(id);
       if (W <= 0) throw new Error('No WIP to release');
       
-      const totalMaxPairs = L.reduce((s, l) => s + getMaxPairs(l), 0);
-      const batchValue = Math.round(W * (totalPairsToRelease / totalMaxPairs));
+      /* value moved to finished goods = share of WIP for the pairs released out of ALL pairs still to be released (final costing trues it up) */
+      const remPairs = Math.max(totalPairsToRelease, L.reduce((s, l) => s + Math.max(0, (l.target - (l.released || 0)) * pairsPerPack(l)), 0));
+      const batchValue = Math.min(W, Math.round(W * (totalPairsToRelease / remPairs)));
       let leftValue = batchValue;
       
       const vals = rq.map((x, i) => {
