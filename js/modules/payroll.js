@@ -1,10 +1,4 @@
-/* PART 6 (v11) — Payroll with complete fixes:
-   - Daily salaries can be routed to Factory OH (5270), Admin (6050), or a specific Job (1310).
-   - EPF/ETF calculated correctly on daily salaries.
-   - Real month days used for monthly salaries.
-   - Advances restricted to salaried employees.
-   - Closed-job redirect to 5390 preserved.
-*/
+/* PART 6 (v12) — Payroll with article-wise tracking */
 (E => {
   ['payroll', 'salary', 'empledger'].forEach(id => {
     let i = E.N.findIndex(n => n.id === id);
@@ -303,7 +297,10 @@
       delete E._pendWage;
       const dr = {};
       const closedVar = [];
-      const add = (acc, job, v, cat) => { if (!v) return; const k = acc + '|' + job; dr[k] = dr[k] || { acc, job, dr: 0, cat }; dr[k].dr += v; };
+      
+      // FIX: Added 'art' parameter so piece wages go directly to the specific article
+      const add = (acc, job, v, cat, art) => { if (!v) return; const k = acc + '|' + job + '|' + (art||''); dr[k] = dr[k] || { acc, job, art, dr: 0, cat }; dr[k].dr += v; };
+      
       L.forEach(l => {
         const oncost = l.epfCo + l.etf;
         const timeBase = l.basic + l.ot + l.bonus;
@@ -311,21 +308,23 @@
         const onP = Math.round(oncost * l.piece / tot);
         const onT = oncost - onP;
         const time = timeBase + onT;
+        
         if (l.piece) {
           add('2210', '', l.piece);
-          const byJob = {};
-          logsOf(l).forEach(g => { byJob[g.jobId] = (byJob[g.jobId] || 0) + g.amount; });
+          const byArt = {};
+          logsOf(l).forEach(g => { const k = g.jobId + '|' + (g.lineId || ''); byArt[k] = (byArt[k] || 0) + g.amount; });
           let left = onP;
-          const ks = Object.keys(byJob);
-          ks.forEach((jid, i) => { 
-            const a = i === ks.length - 1 ? left : Math.round(onP * byJob[jid] / l.piece); 
+          const ks = Object.keys(byArt);
+          ks.forEach((k, i) => { 
+            const a = i === ks.length - 1 ? left : Math.round(onP * byArt[k] / l.piece); 
             left -= a; 
+            const [jid, lid] = k.split('|');
             const job = J(jid); 
             if (job && job.status === 'Completed') {
               closedVar.push({ jobId: jid, jobNo: job.no, amount: a }); 
               add('5390', '', a); 
             } else {
-              add('1310', jid, a, 'Labour'); 
+              add('1310', jid, a, 'Labour', lid); 
             }
           });
         }
@@ -335,11 +334,14 @@
         else if (l.target === 'SPLIT') { let left = time; split.forEach((s, i) => { const a = i === split.length - 1 ? left : Math.round(time * s.p / 10000); left -= a; const job = J(s.id); if (job && job.status === 'Completed') { closedVar.push({ jobId: s.id, jobNo: job.no, amount: a }); add('5390', '', a); } else add('1310', s.id, a, 'Labour'); }); }
         else { const job = J(l.target); if (job && job.status === 'Completed') { closedVar.push({ jobId: l.target, jobNo: job.no, amount: time }); add('5390', '', time); } else add('1310', l.target, time, 'Labour'); }
       });
+      
       const S = k => L.reduce((a, l) => a + l[k], 0);
       const G = S('gross'), ee = S('epfEmp'), ec = S('epfCo'), et = S('etf');
       const ar = S('advRec'), lr = S('loanRec'), od = S('otherDed'), net = S('net');
       const no = await E.next(monthly ? 'SAL' : 'WG');
-      const lines = Object.values(dr).filter(x => x.dr).map(x => x.acc === '1310' ? { acc: '1310', dr: x.dr, job: x.job, cat: 'Labour', head: monthly ? '5130' : '5110' } : { acc: x.acc, dr: x.dr }).concat([{ acc: '2200', cr: net }]);
+      
+      const lines = Object.values(dr).filter(x => x.dr).map(x => x.acc === '1310' ? { acc: '1310', dr: x.dr, job: x.job, art: x.art, cat: 'Labour', head: monthly ? '5130' : '5110' } : { acc: x.acc, dr: x.dr }).concat([{ acc: '2200', cr: net }]);
+      
       if (ee + ec + et) lines.push({ acc: '2100', cr: ee + ec + et });
       if (ar) lines.push({ acc: '1250', cr: ar });
       if (lr) lines.push({ acc: '1250', cr: lr });
@@ -442,7 +444,6 @@
       const src = E.val('ds_s');
       if (!src) throw new Error('Choose account');
       
-      /* FIX: Route to Job, OH, or Admin based on dropdown */
       let drAcc = E.val('ds_target'); 
       let drJob = '';
       let targetLabel = 'Factory Overhead (Pool)';
@@ -452,8 +453,8 @@
       } else if (drAcc === '6050') {
           targetLabel = 'Admin Expense';
       } else {
-          drJob = drAcc; // It's a job ID
-          drAcc = '1310'; // Post to WIP
+          drJob = drAcc; 
+          drAcc = '1310'; 
           targetLabel = 'Job ' + (J(drJob) || {}).no;
       }
 
@@ -468,16 +469,8 @@
       const no = await E.next('DS');
       
       const lines = [];
-      
-      // 1. Gross Wage
       lines.push({ acc: drAcc, dr: gross, ...(drJob ? { job: drJob, cat: 'Labour' } : {}) });
-      
-      // 2. Employer EPF/ETF (Routes to the same place as Gross)
-      if (ec + et) {
-         lines.push({ acc: drAcc, dr: ec + et, ...(drJob ? { job: drJob, cat: 'Labour' } : {}) });
-      }
-      
-      // 3. Credits
+      if (ec + et) { lines.push({ acc: drAcc, dr: ec + et, ...(drJob ? { job: drJob, cat: 'Labour' } : {}) }); }
       lines.push({ acc: src, cr: net });
       if (adv) lines.push({ acc: '1250', cr: adv });
       if (loan) lines.push({ acc: '1250', cr: loan });
