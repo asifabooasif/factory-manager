@@ -8,18 +8,23 @@
   const getExpense = (m, code) => monthRec(m).find(f => f.code === code);
   const EXCLUDE = ['5290', '5295', '5390'];
 
-  E.salaryAggregate = function(month) {
-    const emps = E.rows('employees').filter(e => e.active && e.payType === 'MonthlySalaried');
-    let total = 0;
-    emps.forEach(e => {
+  /* Monthly-salaried staff for a month with the salary in force and the employer EPF/ETF cost.
+     Admin staff (charged to Admin) are listed but excluded from the aggregate that is spread over jobs. */
+  E.salaryDetail = function(month) {
+    return E.rows('employees').filter(e => e.active && e.payType === 'MonthlySalaried').map(e => {
       const hist = E.rows('salaryHistory')
         .filter(h => h.empId === e.id && h.effectiveDate <= month + '-31')
         .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
-      const amt = hist.length ? hist[0].amount : (e.amount || 0);
-      const allow = hist.length ? (hist[0].allow || 0) : (e.allow || 0);
-      total += amt + allow;
+      const h = hist[0];
+      const amt = h ? h.amount : (e.amount || 0);
+      const allow = h ? (h.allow || 0) : (e.allow || 0);
+      const on = E.setting('epfOn') && e.epf;
+      const empCo = on ? Math.round((amt + allow) * ((E.setting('epfCo') || 0) + (E.setting('etf') || 0)) / 100) : 0;
+      return { e, amt, allow, empCo, admin: e.target === 'ADM', effective: h ? h.effectiveDate : 'current' };
     });
-    return total;
+  };
+  E.salaryAggregate = function(month) {
+    return E.salaryDetail(month).filter(x => !x.admin).reduce((t, x) => t + x.amt + x.allow + x.empCo, 0);
   };
   E.fixedDaysExpenses = function(month) {
     const recs = monthRec(month).filter(f => f.allocMethod === 'days' && f.amount > 0);
@@ -66,7 +71,7 @@
       </div>
       <div class="kp">
         ${E.kpi('Days-method total', E.m(totalDaysMethod), daysMethodExp.length + ' expense(s)')}
-        ${E.kpi('Salary aggregate', E.m(salaryAgg), 'auto from employees')}
+        ${E.kpi('Salary aggregate', E.m(salaryAgg), 'factory staff + employer EPF/ETF')}
         ${E.kpi('Working days', wdCount, 'this month')}
         ${E.kpi('Daily rate', dailyRate > 0 ? E.m(dailyRate) + '/day' : '—', dailyRate > 0 ? 'split across active jobs' : 'set working days first')}
       </div>
@@ -103,19 +108,11 @@
       </div>
       <div class="card" style="margin-top:16px;background:var(--acs)">
         <h3>📊 Salary aggregate detail</h3>
-        <p class="muted" style="margin-bottom:8px">Sum of all active Monthly-Salaried employees. Salary changes are tracked per effective date.</p>
+        <p class="muted" style="margin-bottom:8px">Active Monthly-Salaried employees plus the employer EPF/ETF cost. Staff charged to Admin are not included, because admin cost is not part of job cost. Salary changes are tracked per effective date.</p>
         <div class="tw"><table>
-          <thead><tr><th>Employee</th><th class="r">Base</th><th class="r">Allowance</th><th class="r">Total</th><th>Effective</th></tr></thead>
-          <tbody>${E.rows('employees').filter(e => e.active && e.payType === 'MonthlySalaried').map(e => {
-            const hist = E.rows('salaryHistory')
-              .filter(h => h.empId === e.id && h.effectiveDate <= month + '-31')
-              .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
-            const h = hist[0];
-            const amt = h ? h.amount : (e.amount || 0);
-            const allow = h ? (h.allow || 0) : (e.allow || 0);
-            return `<tr><td>${E.esc(e.name)}</td><td class="r">${E.m(amt)}</td><td class="r">${allow ? E.m(allow) : '—'}</td><td class="r"><b>${E.m(amt + allow)}</b></td><td>${h ? h.effectiveDate : 'current'}</td></tr>`;
-          }).join('') || '<tr><td colspan="5" class="muted">No monthly-salaried employees</td></tr>'}
-          <tr style="background:var(--s2)"><td colspan="3"><b>Total salary aggregate</b></td><td class="r"><b>${E.m(salaryAgg)}</b></td><td></td></tr>
+          <thead><tr><th>Employee</th><th class="r">Base</th><th class="r">Allowance</th><th class="r">Employer EPF/ETF</th><th class="r">In aggregate</th><th>Effective</th></tr></thead>
+          <tbody>${E.salaryDetail(month).map(x => `<tr style="${x.admin ? 'opacity:.55' : ''}"><td>${E.esc(x.e.name)}${x.admin ? ' <span class="tag">Admin · excluded</span>' : ''}</td><td class="r">${E.m(x.amt)}</td><td class="r">${x.allow ? E.m(x.allow) : '—'}</td><td class="r">${x.empCo ? E.m(x.empCo) : '—'}</td><td class="r"><b>${x.admin ? '—' : E.m(x.amt + x.allow + x.empCo)}</b></td><td>${x.effective}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No monthly-salaried employees</td></tr>'}
+          <tr style="background:var(--s2)"><td colspan="4"><b>Total salary aggregate</b></td><td class="r"><b>${E.m(salaryAgg)}</b></td><td></td></tr>
           </tbody>
         </table></div>
       </div>

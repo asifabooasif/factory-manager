@@ -104,7 +104,7 @@
   function sales() {
     const inv = E.rows('invoices').filter(i => !i.cancelled && inp(i.date));
     const cn = E.rows('receipts').filter(r => r.kind === 'credit' && inp(r.date));
-    const rc = E.rows('receipts').filter(r => r.kind !== 'credit' && inp(r.date));
+    const rc = E.rows('receipts').filter(r => r.kind !== 'credit' && !r.reversed && inp(r.date));
     const dl = E.rows('deliveries').filter(d => d.status === 'Delivered' && inp(d.date));
     const by = {};
     inv.forEach(i => { const a = by[i.partyId] || (by[i.partyId] = { n: 0, t: 0, c: 0, r: 0 }); a.n++; a.t += i.total; });

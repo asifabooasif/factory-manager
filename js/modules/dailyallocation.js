@@ -2,7 +2,7 @@
    For each working day:
      dailyRate = (totalFixedForMonth + salaryAgg) / workingDaysInMonth
      activeJobs = all jobs where job.date <= day AND (job.completedAt || today) >= day
-     perJobShare = dailyRate / activeJobs.length
+     perJobShare = dailyRate x (job size / total size of active jobs)
    Accumulate per job. Never posts to journal.
 */
 (E => {
@@ -14,6 +14,26 @@
       if (j.completedAt && j.completedAt < date) return false;
       return true;
     });
+  }
+  /* Job size = pairs ordered (packs ordered x pairs per pack) */
+  function jobSize(j) {
+    return E.rows('jobLines').filter(l => l.jobId === j.id).reduce((t, l) => {
+      const it = E.D.items.find(i => i.id === l.itemId);
+      return t + (l.target || 0) * ((it && it.pack) || E.setting('packSize') || 1);
+    }, 0);
+  }
+  /* Split one day's total between the active jobs in proportion to size. Whole cents; any rounding goes to the biggest job. */
+  function shareOut(total, jobs) {
+    const sizes = jobs.map(jobSize);
+    const known = sizes.filter(x => x > 0);
+    const fill = known.length ? known.reduce((a, b) => a + b, 0) / known.length : 1;
+    const w = sizes.map(x => x > 0 ? x : fill);
+    const sum = w.reduce((a, b) => a + b, 0);
+    const shares = {}, amounts = {};
+    let given = 0, big = 0;
+    jobs.forEach((j, i) => { shares[j.id] = w[i] / sum; amounts[j.id] = Math.round(total * w[i] / sum); given += amounts[j.id]; if (w[i] > w[big]) big = i; });
+    if (jobs.length) amounts[jobs[big].id] += total - given;
+    return { shares, amounts };
   }
   function addDays(d, n) {
     return new Date(Date.parse(d + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
@@ -47,6 +67,7 @@
     }
     const totalDaily = E.dailyFixedRate ? E.dailyFixedRate(month) : 0;
     const perJobShare = Math.round(totalDaily / activeJobs.length);
+    const sh = shareOut(totalDaily, activeJobs);
     const breakdown = {};
     const expList = E.fixedDaysExpenses ? E.fixedDaysExpenses(month) : [];
     const wd = E.workingDaysIn ? E.workingDaysIn(month) : 1;
@@ -59,7 +80,7 @@
       id: 'DA-' + E.fid + '-' + date, factoryId: E.fid, date,
       isWorkingDay: true, dailyFixedTotal: totalDaily,
       breakdown, activeJobs: activeJobs.map(j => j.id),
-      perJobShare, computedAt: new Date().toISOString()
+      perJobShare, shares: sh.shares, amounts: sh.amounts, basis: 'size', computedAt: new Date().toISOString()
     };
   }
 
@@ -75,7 +96,7 @@
         if (job.status === 'Completed') continue;
         const jb = JSON.parse(JSON.stringify(job));
         job.shadowDaily = job.shadowDaily || {};
-        job.shadowDaily[date] = d.perJobShare;
+        job.shadowDaily[date] = (d.amounts && d.amounts[jobId] != null) ? d.amounts[jobId] : d.perJobShare;
         await E.save('jobs', job, jb);
       }
     }
@@ -154,7 +175,7 @@
       totalFixed += daily[date];
       const daRec = E.rows('dailyAllocations').find(x => x.date === date);
       if (daRec && daRec.activeJobs.length > 0) {
-        const jobFraction = 1 / daRec.activeJobs.length;
+        const jobFraction = (daRec.shares && daRec.shares[jobId] != null) ? daRec.shares[jobId] : 1 / daRec.activeJobs.length;
         for (const code in (daRec.breakdown || {})) {
           perExpense[code] = (perExpense[code] || 0) + Math.round(daRec.breakdown[code] * jobFraction);
         }
@@ -188,7 +209,7 @@
 
   E.dailyAllocation = {
     computeDay, saveDay, computeMonth, recomputeFrom,
-    recomputeMonth, freezeJobShadow, activeJobsOn
+    recomputeMonth, freezeJobShadow, activeJobsOn, jobSize
   };
 
   function hookJobCreation() {

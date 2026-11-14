@@ -43,6 +43,18 @@
     const A = E.rows('attendance').filter(a => a.empId === id && a.date >= from && a.date <= to);
     return { days: A.filter(a => a.status === 'Present').length + A.filter(a => a.status === 'Half day').length / 2, absent: A.filter(a => a.status === 'Absent').length, ot: A.reduce((s, a) => s + (a.ot || 0), 0), marked: A.length };
   };
+  /* Dates already paid by an earlier (non-cancelled) wage run that had days > 0 for this worker */
+  const paidDateRanges = id => E.rows('wageRuns').filter(r => r.kind === 'run' && r.type !== 'Monthly' && !r.cancelled)
+    .filter(r => (r.lines || []).some(l => l.empId === id && (l.days || 0) > 0)).map(r => ({ from: r.from, to: r.to, no: r.no }));
+  const attUnpaid = (id, from, to) => {
+    const rg = paidDateRanges(id);
+    const A = E.rows('attendance').filter(a => a.empId === id && a.date >= from && a.date <= to);
+    const free = A.filter(a => !rg.some(r => a.date >= r.from && a.date <= r.to));
+    const paidRows = A.length - free.length;
+    return { days: free.filter(a => a.status === 'Present').length + free.filter(a => a.status === 'Half day').length / 2, absent: free.filter(a => a.status === 'Absent').length, ot: free.reduce((s, a) => s + (a.ot || 0), 0), marked: free.length, paidRows, paidRuns: [...new Set(rg.filter(r => r.from <= to && r.to >= from).map(r => r.no))] };
+  };
+  /* EPF/ETF base: overtime and bonus are excluded unless the setting says to include them */
+  const epfBase = (gross, ot, bonus) => E.setting('epfOtBonus') ? gross : Math.max(0, gross - (ot || 0) - (bonus || 0));
   const openLogs = (id, to) => E.rows('prodLogs').filter(l => l.empId === id && l.status === 'accrued' && (!to || l.date <= to));
   const logsOf = l => (l.logIds || []).map(id => E.D.prodLogs.find(x => x.id === id)).filter(Boolean);
 
@@ -82,8 +94,8 @@
   function wageDaily() {
     const from = WF.from, to = WF.to;
     const workers = E.rows('employees').filter(e => e.active && isWage(e)).sort((a, b) => (a.code || '').localeCompare(b.code || ''));
-    const rows = workers.map(e => { const a = att(e.id, from, to); const base = Math.round(a.days * (e.amount || 0)); const hourly = (e.amount || 0) / 8; const ot = Math.round(a.ot * hourly * 1.5); return { e, a, base, ot, total: base + ot }; }).filter(x => x.a.marked > 0);
-    return `<div class="card"><h3>Attendance wages</h3><div class="bar"><div class="f" style="margin:0">From <input class="fs" type="date" data-wf="from" value="${from}"></div><div class="f" style="margin:0">To <input class="fs" type="date" data-wf="to" value="${to}"></div></div>
+    const rows = workers.map(e => { const a = attUnpaid(e.id, from, to); const base = Math.round(a.days * (e.amount || 0)); const hourly = (e.amount || 0) / 8; const ot = Math.round(a.ot * hourly * 1.5); return { e, a, base, ot, total: base + ot }; }).filter(x => x.a.marked > 0);
+    return `<div class="card"><h3>Attendance wages (days not yet paid)</h3><div class="bar"><div class="f" style="margin:0">From <input class="fs" type="date" data-wf="from" value="${from}"></div><div class="f" style="margin:0">To <input class="fs" type="date" data-wf="to" value="${to}"></div></div>
       <div class="tw"><table><thead><tr><th>Worker</th><th class="r">Days</th><th class="r">Rate</th><th class="r">Base</th><th class="r">OT</th><th class="r">Total</th></tr></thead>
         <tbody>${rows.map(x => `<tr><td><b>${E.esc(x.e.name)}</b> ${payBadge(x.e)}</td><td class="r">${x.a.days}</td><td class="r">${E.m(x.e.amount)}</td><td class="r">${E.m(x.base)}</td><td class="r">${E.m(x.ot)}</td><td class="r"><b>${E.m(x.total)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="muted">No attendance</td></tr>'}</tbody>
       </table></div>
@@ -103,6 +115,16 @@
 
   const W = { date: E.today() };
   const inp = (k, w, v) => `<input class="pw" data-k="${k}" type="number" step="0.01" value="${v || ''}" style="width:${w || 64}px;padding:6px;border:1px solid var(--bd);border-radius:8px">`;
+
+  /* Split % boxes: shown only while some row is set to "Split" */
+  const splitBox = () => {
+    const js = act();
+    if (!js.length) return '';
+    return `<div id="splitBox" class="card" style="display:none;margin-top:10px"><b>Split charge across jobs (must total 100%)</b>
+      <div class="bar" style="margin-top:8px;flex-wrap:wrap">${js.map(j => `<label class="f" style="margin:0">${j.no}<input class="wsp" data-id="${j.id}" type="number" step="0.01" min="0" placeholder="%" style="width:80px"></label>`).join('')}</div></div>`;
+  };
+  const toggleSplit = () => { const b = E.$('splitBox'); if (!b) return; b.style.display = [...document.querySelectorAll('#wr select[data-k=to]')].some(s => s.value === 'SPLIT') ? '' : 'none'; };
+  E.hooks.push(e => { if (e.target && e.target.closest && e.target.closest('#wr') && e.target.dataset && e.target.dataset.k === 'to') toggleSplit(); });
 
   E.A.newWageRun = () => {
     if (!E.rows('employees').some(x => x.active)) return E.toast('Add employees first', 'error');
@@ -125,7 +147,7 @@
     const rows = allEmps.map(e => {
       const logs = openLogs(e.id, to).filter(l => l.date >= f);
       const pc = logs.reduce((s, l) => s + l.amount, 0);
-      const a = att(e.id, f, to);
+      const a = attUnpaid(e.id, f, to);
       const isW = isWage(e);
       const hasActivity = pc > 0 || (isW && a.days > 0);
       return `<tr data-id="${e.id}" class="emp-row" data-default="${hasActivity ? '1' : '0'}">
@@ -169,7 +191,7 @@
       const logs = openLogs(e.id, to).filter(l => l.date >= f);
       const pc = logs.reduce((s, l) => s + l.amount, 0);
       const pairs = logs.reduce((s, l) => s + (l.convertedQty || l.qty), 0);
-      const a = att(e.id, f, to);
+      const a = attUnpaid(e.id, f, to);
       const advBal = E.advBal(id);
       const loanDue = E.staffLoanDue ? E.staffLoanDue(id, to.slice(0, 7)) : 0;
       const advDefault = advBal > 0 && e.payType === 'MonthlySalaried' && e.advInstall ? Math.min(advBal, e.advInstall) : (advBal > 0 ? advBal : 0);
@@ -192,6 +214,7 @@
       </tr>`;
     }).join('');
     E.$('wrb').innerHTML = `<div class="tw"><table><thead><tr><th>Employee</th><th>Days</th><th class="r">Piece</th><th>OT</th><th>Bonus</th><th class="r">Advance</th><th>Recover</th><th class="r">Loan</th><th>Recover</th><th>Other</th><th>Charge</th><th class="r">Gross</th><th class="r">Net</th></tr></thead><tbody id="wr">${rows}</tbody></table></div>
+      ${splitBox()}
       <div class="tot"><span id="w_g"></span></div>
       <button class="btn p" data-a="saveWageRun" style="margin-top:12px">➡️ Review</button>`;
     recalcWage();
@@ -209,7 +232,7 @@
       const bonus = E.c(i.bonus || 0);
       const gross = basic + pc + ot + bonus;
       const on = E.setting('epfOn') && e.epf;
-      const ee = on ? Math.round(gross * E.setting('epfEmp') / 100) : 0;
+      const ee = on ? Math.round(epfBase(gross, ot, bonus) * E.setting('epfEmp') / 100) : 0;
       const od = E.c(i.other || 0);
       const net = gross - ee - i.adv - i.loan - od;
       tr.querySelector('.gv').textContent = gross ? E.m(gross) : '';
@@ -247,9 +270,14 @@
         const bonus = E.c(i.bonus || 0);
         const gross = basic + pc + ot + bonus;
         if (!gross) return;
-        const ee = on ? Math.round(gross * E.setting('epfEmp') / 100) : 0;
-        const ec = on ? Math.round(gross * E.setting('epfCo') / 100) : 0;
-        const et = on ? Math.round(gross * E.setting('etf') / 100) : 0;
+        if (kind === 'wage' && (i.days || 0) > 0) {
+          const u = attUnpaid(e.id, f, to);
+          if (u.paidRows > 0 && i.days > u.days + 1e-9) throw new Error(e.name + ': ' + (i.days - u.days) + ' of these days were already paid in ' + u.paidRuns.join(', ') + '. Unpaid days in this period: ' + u.days);
+        }
+        const eb = epfBase(gross, ot, bonus);
+        const ee = on ? Math.round(eb * E.setting('epfEmp') / 100) : 0;
+        const ec = on ? Math.round(eb * E.setting('epfCo') / 100) : 0;
+        const et = on ? Math.round(eb * E.setting('etf') / 100) : 0;
         const od = E.c(i.other || 0);
         const net = gross - ee - i.adv - i.loan - od;
         if (net < 0) throw new Error(e.name + ': deductions exceed pay');
@@ -339,12 +367,22 @@
       const G = S('gross'), ee = S('epfEmp'), ec = S('epfCo'), et = S('etf');
       const ar = S('advRec'), lr = S('loanRec'), od = S('otherDed'), net = S('net');
       const no = await E.next(monthly ? 'SAL' : 'WG');
+      /* Loan recovery: principal back to 1250, interest to 4100 (split worked out before the instalments are marked paid) */
+      let lrP = 0, lrI = 0;
+      for (const l of L) if (l.loanRec > 0) {
+        const sp = E.staffLoanSplit ? E.staffLoanSplit(l.empId, l.loanRec) : { principal: l.loanRec, interest: 0 };
+        const rest = l.loanRec - sp.principal - sp.interest;
+        l.loanPrin = sp.principal + rest; l.loanInt = sp.interest;
+        lrP += l.loanPrin; lrI += l.loanInt;
+      }
+      if (lrI && !E.acct('4100')) await E.ensureCoa();
       
       const lines = Object.values(dr).filter(x => x.dr).map(x => x.acc === '1310' ? { acc: '1310', dr: x.dr, job: x.job, art: x.art, cat: 'Labour', head: monthly ? '5130' : '5110' } : { acc: x.acc, dr: x.dr }).concat([{ acc: '2200', cr: net }]);
       
       if (ee + ec + et) lines.push({ acc: '2100', cr: ee + ec + et });
       if (ar) lines.push({ acc: '1250', cr: ar });
-      if (lr) lines.push({ acc: '1250', cr: lr });
+      if (lrP) lines.push({ acc: '1250', cr: lrP });
+      if (lrI) lines.push({ acc: '4100', cr: lrI });
       if (od) lines.push({ acc: '2230', cr: od });
       const je = await E.post({ date: wd, ref: no, narr: `${type} ${monthly ? 'salaries' : 'wages'} ${f} to ${to}`, source: 'payroll', lines });
       const run = await E.save('wageRuns', { no, kind: 'run', type, date: wd, from: f, to, lines: L, split, gross: G, epfEmp: ee, epfCo: ec, etf: et, advRec: ar, loanRec: lr, otherDed: od, net, jeId: je.id, paid: false, cancelled: false, closedVarCount: closedVar.length });
@@ -467,13 +505,17 @@
       if (E.bal(src) < net && !confirm('Balance < pay. Continue?')) return;
       
       const no = await E.next('DS');
+      let loanP = loan, loanI = 0;
+      if (loan > 0 && E.staffLoanSplit) { const sp = E.staffLoanSplit(e.id, loan); loanI = sp.interest; loanP = loan - loanI; }
+      if (loanI && !E.acct('4100')) await E.ensureCoa();
       
       const lines = [];
       lines.push({ acc: drAcc, dr: gross, ...(drJob ? { job: drJob, cat: 'Labour' } : {}) });
       if (ec + et) { lines.push({ acc: drAcc, dr: ec + et, ...(drJob ? { job: drJob, cat: 'Labour' } : {}) }); }
       lines.push({ acc: src, cr: net });
       if (adv) lines.push({ acc: '1250', cr: adv });
-      if (loan) lines.push({ acc: '1250', cr: loan });
+      if (loanP) lines.push({ acc: '1250', cr: loanP });
+      if (loanI) lines.push({ acc: '4100', cr: loanI });
       if (ee + ec + et) lines.push({ acc: '2100', cr: ee + ec + et });
       
       const je = await E.post({ date: E.val('ds_pd'), ref: no, narr: `Daily salary · ${e.name} (${targetLabel})`, source: 'payroll', lines });
@@ -560,6 +602,7 @@
       </tr>`;
     }).join('');
     E.$('wrb').innerHTML = `<div class="tw"><table><thead><tr><th>Employee</th><th>No-pay</th><th>OT</th><th>Bonus</th><th class="r">Advance</th><th>Recover</th><th class="r">Loan</th><th>Recover</th><th>Charge</th><th class="r">Gross</th><th class="r">Net</th></tr></thead><tbody id="wr">${rows}</tbody></table></div>
+      ${splitBox()}
       <div class="tot"><span id="w_g"></span></div>
       <button class="btn p" data-a="saveMonthlyRun" style="margin-top:12px">➡️ Review</button>`;
     recalcMonthly();
@@ -579,7 +622,7 @@
       const bonus = E.c(i.bonus || 0);
       const gross = basic + ot + bonus;
       const on = E.setting('epfOn') && e.epf;
-      const ee = on ? Math.round(gross * E.setting('epfEmp') / 100) : 0;
+      const ee = on ? Math.round(epfBase(gross, ot, bonus) * E.setting('epfEmp') / 100) : 0;
       const od = E.c(i.other || 0);
       const net = gross - ee - i.adv - i.loan - od;
       tr.querySelector('.gv').textContent = gross ? E.m(gross) : '';
@@ -603,16 +646,17 @@
         const e = emp(tr.dataset.id);
         const i = rowIn(tr);
         const on = E.setting('epfOn') && e.epf;
-        const nopay = parseInt(i.days) || 0;
+        const nopay = parseFloat(i.days) || 0;
         const nopayDed = Math.round((e.amount || 0) / dim * nopay);
         const basic = Math.max(0, (e.amount || 0) + (e.allow || 0) - nopayDed);
         const hourly = (e.amount || 0) / (dim * 8);
         const ot = Math.round((i.ot || 0) * hourly * 1.5);
         const bonus = E.c(i.bonus || 0);
         const gross = basic + ot + bonus;
-        const ee = on ? Math.round(gross * E.setting('epfEmp') / 100) : 0;
-        const ec = on ? Math.round(gross * E.setting('epfCo') / 100) : 0;
-        const et = on ? Math.round(gross * E.setting('etf') / 100) : 0;
+        const eb = epfBase(gross, ot, bonus);
+        const ee = on ? Math.round(eb * E.setting('epfEmp') / 100) : 0;
+        const ec = on ? Math.round(eb * E.setting('epfCo') / 100) : 0;
+        const et = on ? Math.round(eb * E.setting('etf') / 100) : 0;
         const od = E.c(i.other || 0);
         const net = gross - ee - i.adv - i.loan - od;
         const advB = E.advBal(e.id);
@@ -633,6 +677,7 @@
       if (!confirm('Cancel ' + r.no + '?')) return;
       await E.reverse(r.jeId);
       if (r.loanRec) { try { await E.staffLoanReverseRun(r.id); } catch (x) {} }
+      for (const v of E.rows('closedJobVariances').filter(x => x.sourceJeId === r.jeId)) { try { await E.del('closedJobVariances', v.id); } catch (x) { console.warn(x); } }
       for (const l of r.lines) for (const lid of (l.logIds || [])) { const g = E.D.prodLogs.find(x => x.id === lid); if (g && g.status === 'paid') { const b = JSON.parse(JSON.stringify(g)); g.status = 'accrued'; g.runId = ''; g.runNo = ''; await E.save('prodLogs', g, b); } }
       const b = JSON.parse(JSON.stringify(r)); r.cancelled = true;
       await E.save('wageRuns', r, b);

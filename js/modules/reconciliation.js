@@ -30,7 +30,7 @@
     /* Actual monthly salary (compare to aggregate) */
     const actualSalary = E.rows('journalEntries')
       .filter(j => j.date && j.date.slice(0, 7) === month)
-      .flatMap(j => j.lines.filter(l => ['5130', '6050'].includes(l.acc)))
+      .flatMap(j => j.lines.filter(l => ['5130'].includes(l.acc)))
       .reduce((s, l) => s + (l.dr - l.cr), 0);
 
     /* Planned (from fixed expenses) */
@@ -54,7 +54,7 @@
       }
       d.activeJobs.forEach(jobId => {
         if (!perJob[jobId]) perJob[jobId] = { total: 0, days: 0 };
-        perJob[jobId].total += d.perJobShare || 0;
+        perJob[jobId].total += (d.amounts && d.amounts[jobId] != null) ? d.amounts[jobId] : (d.perJobShare || 0);
         perJob[jobId].days += 1;
       });
     });

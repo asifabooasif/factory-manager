@@ -37,11 +37,11 @@
     const dsToday = E.rows('wageRuns').filter(r => r.kind === 'daily-salary' && r.date === t && !r.cancelled);
     const dnToday = E.rows('deliveries').filter(d => d.date === t && d.status !== 'Cancelled');
     const invToday = E.rows('invoices').filter(i => i.date === t && !i.cancelled && !i.opening);
-    const rcToday = E.rows('receipts').filter(r => r.date === t && r.kind !== 'credit');
+    const rcToday = E.rows('receipts').filter(r => r.date === t && r.kind !== 'credit' && !r.reversed);
     const purToday = E.rows('purchases').filter(p => p.date === t && !p.cancelled && !p.opening);
     const advToday = E.rows('wageRuns').filter(r => r.kind === 'advance' && r.date === t && !r.cancelled);
     const pettyToday = E.rows('journalEntries').filter(j => j.date === t && j.source === 'petty');
-    const payToday = E.rows('payments').filter(p => p.date === t && p.kind !== 'debit');
+    const payToday = E.rows('payments').filter(p => p.date === t && p.kind !== 'debit' && !p.reversed);
     const pendDn = E.rows('deliveries').filter(d => d.status === 'Delivered');
     const yd = yesterdayOf(t);
     const ydWork = E.isWorkingDate ? E.isWorkingDate(yd) : false;
