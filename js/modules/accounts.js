@@ -1,7 +1,7 @@
 /* PART 21 — Cash & Bank Accounts. Create bank / cash / loan accounts (Chart of Accounts), pay and receive with vouchers, transfer between accounts, bank & cash book with running balance, and daily cash count. Everything posts through the normal ledger engine, so it stays balanced and period-locked. */
 (E=>{const at=E.N.findIndex(n=>n.id==='journal');E.N.splice(at,0,{g:'Accounting',id:'accounts',ico:'💳',label:'Cash & Bank Accounts'});
 const F={tab:'ov',bk:'1100',from:E.today().slice(0,8)+'01',to:'',cc:'1000',ccd:E.today()};
-const CTRL=['1110','1200','1210','1250','1300','1310','1320','2000','2100','2150','2200','1400','1410'];
+const CTRL=['1110','1200','1210','1250','1300','1310','1320','2000','2100','2150','2400','1260','2200','1400','1410'];
 const byCode=(a,b)=>a.code.localeCompare(b.code),lab=a=>a.code+' · '+a.name;
 const src=()=>E.rows('coa').filter(a=>(a.bank||a.code==='1010')&&!a.inactive).sort(byCode),banks=()=>E.rows('coa').filter(a=>a.bank&&!a.inactive).sort(byCode);
 const other=types=>a=>!a.inactive&&!a.bank&&a.code!=='1010'&&!CTRL.includes(a.code)&&types.includes(a.type);

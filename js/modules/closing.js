@@ -73,6 +73,29 @@
     const nop = E.skuList(i => i.cat !== 'Finished Good').filter(s => !((E.D.items.find(i => i.id === s.itemId) || {}).buyPrice)).length;
     add('Every material has a purchase price', !nop, nop + ' material(s) without a purchase price', 'items');
 
+    /* 13. customer invoices vs receivables control account (was only in the Health Check) */
+    const recv = E.rows('invoices').filter(i => !i.cancelled).reduce((s, i) => s + i.total - i.paid, 0);
+    add('Customer invoices agree with receivables (1200)', recv === E.bal('1200', t), 'Invoices ' + E.m(recv) + ' · Ledger ' + E.m(E.bal('1200', t)), 'sales');
+
+    /* 14. cheque control accounts */
+    const pend = E.rows('cheques').filter(c => c.status === 'Pending'), T = E.today();
+    const pin = pend.filter(c => c.dir === 'in').reduce((s, c) => s + c.amount, 0), pout = pend.filter(c => c.dir === 'out').reduce((s, c) => s + c.amount, 0);
+    add('Cheques in hand agree with the ledger (1110)', pin === E.bal('1110', t), 'Cheque list ' + E.m(pin) + ' · Ledger ' + E.m(E.bal('1110', t)), 'chqdesk');
+    add('Cheques issued agree with the ledger (2150)', pout === (E.acct('2150') ? E.bal('2150', t) : 0), 'Cheque list ' + E.m(pout) + ' · Ledger ' + E.m(E.acct('2150') ? E.bal('2150', t) : 0), 'chqdesk');
+    if (E.chqAdvTotal) {
+      const ai = E.chqAdvTotal('in'), ao = E.chqAdvTotal('out'), li = E.acct('2400') ? E.bal('2400', t) : 0, lo = E.acct('1260') ? E.bal('1260', t) : 0;
+      add('Advance cheques agree with the ledger (2400 / 1260)', ai === li && ao === lo, 'Customer advances ' + E.m(ai) + ' vs ' + E.m(li) + ' · Supplier advances ' + E.m(ao) + ' vs ' + E.m(lo), 'chqdesk');
+    }
+    const od = pend.filter(c => c.date < T);
+    add('No cheque is past its date and still uncleared', !od.length, od.length ? od.length + ' cheque(s) overdue — deposit, clear or postpone them' : 'All cheques are within date', 'chqdesk');
+
+    /* 15. bank reconciliation: ledger lines older than 31 days not yet ticked off */
+    const cut = new Date(Date.parse(T + 'T00:00:00Z') - 31 * 864e5).toISOString().slice(0, 10), ticked = new Set(E.rows('recon').map(r => r.acc + '|' + r.jeId + '|' + r.idx));
+    let unrec = 0;
+    const banks = E.rows('coa').filter(a => a.bank && a.code !== '1000').map(a => a.code);
+    E.rows('journalEntries').forEach(j => { if (j.date > cut) return; j.lines.forEach((l, i) => { if (banks.includes(l.acc) && !ticked.has(l.acc + '|' + j.id + '|' + i)) unrec++; }); });
+    add('Bank entries older than 31 days are reconciled', !unrec, unrec ? unrec + ' bank line(s) not yet ticked on the reconciliation' : 'All older bank lines reconciled', 'banking');
+
     return C;
   }
 
@@ -80,20 +103,25 @@
     const C = checks(), bad = C.filter(c => c.ok === WARN).length, lk = E.setting('lockedUntil') || '';
     return `<div class="kp">${E.kpi('Checks passed', (C.length - bad) + ' / ' + C.length, bad ? '<span class="bad">' + bad + ' need attention</span>' : '<span class="ok">Ready to close</span>')}${E.kpi('Period locked until', lk || 'not locked', 'Entries on or before this date cannot be changed')}</div>
     <div class="card"><h3>Close checklist</h3><div class="tw"><table><tbody>${C.map(c => `<tr><td style="width:34px;font-size:18px">${c.ok === OK ? '✅' : '⚠️'}</td><td><b>${E.esc(c.n)}</b><div class="muted">${E.esc(c.d)}</div></td><td class="r"><button class="btn sm" data-nav="${c.go}">Open</button></td></tr>`).join('')}</tbody></table></div></div>
-    ${E.role === 'owner' ? `<div class="card"><h3>Lock the period</h3><p class="muted" style="margin-bottom:10px">Once locked, nothing on or before the date can be posted, changed or cancelled. Do this after every check above is green and reports are printed.</p><div class="g2"><div class="f">Lock all entries up to (inclusive)<input id="lk_d" type="date" value="${lk || E.today().slice(0, 8) + '01'}"></div></div><button class="btn p" data-a="lkSave">Lock period</button> <button class="btn" data-a="lkClear">Unlock</button></div>` : ''}`;
+    ${E.role === 'owner' ? `<div class="card"><h3>Lock the period</h3><p class="muted" style="margin-bottom:10px">Once locked, nothing on or before the date can be posted, changed or cancelled. Do this after every check above is green and reports are printed.</p><div class="g2"><div class="f">Lock all entries up to (inclusive)<input id="lk_d" type="date" value="${lk || new Date(Date.parse(E.today().slice(0, 8) + '01T00:00:00Z') - 864e5).toISOString().slice(0, 10)}"></div></div><button class="btn p" data-a="lkSave">Lock period</button> <button class="btn" data-a="lkClear">Unlock</button></div>` : ''}`;
   });
 
   E.A.lkSave = async () => {
     const d = E.val('lk_d');
     if (!d) return E.toast('Choose a date', 'error');
-    if (!confirm('Lock all entries up to ' + d + '?')) return;
+    if (d > E.today()) return E.toast('Choose a date that is not in the future', 'error');
+    const bad = checks().filter(c => c.ok === WARN).length;
+    if (!confirm((bad ? bad + ' check(s) above still need attention. ' : '') + 'Lock all entries up to ' + d + '?')) return;
     await E.setSetting({ lockedUntil: d });
+    await E.audit('lock', 'settings', 'lockedUntil', null, { lockedUntil: d });
     E.go();
     E.toast('Period locked until ' + d, 'success');
   };
   E.A.lkClear = async () => {
     if (!confirm('Unlock all periods?')) return;
     await E.setSetting({ lockedUntil: '' });
+    await E.audit('unlock', 'settings', 'lockedUntil', null, { lockedUntil: '' });
     E.go();
+    E.toast('Period unlocked', 'success');
   };
 })(window.ERP);

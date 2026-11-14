@@ -92,6 +92,8 @@
     ck('Job WIP = ledger 1310', wipJ, E.bal('1310'), 'Job records');
     ck('Cheques in hand = ledger 1110', pc, E.bal('1110'), 'Cheque list');
     ck('Issued cheques = ledger 2150', pi, E.acct('2150') ? E.bal('2150') : 0, 'Cheque list');
+    ck('Customer advances (cheques) = ledger 2400', E.chqAdvTotal ? E.chqAdvTotal('in') : 0, E.acct('2400') ? E.bal('2400') : 0, 'Cheque list');
+    ck('Supplier advances (cheques) = ledger 1260', E.chqAdvTotal ? E.chqAdvTotal('out') : 0, E.acct('1260') ? E.bal('1260') : 0, 'Cheque list');
     C.push([neg === 0, 'No negative stock', neg ? neg + ' item(s) negative' : 'OK']);
     C.push([E.bal('1010') >= 0, 'Petty cash not negative', E.m(E.bal('1010'))]);
     E.rows('coa').filter(a => a.bank).forEach(a => { if (E.bal(a.code) < 0) C.push([false, a.name + ' is overdrawn', E.m(E.bal(a.code))]) });

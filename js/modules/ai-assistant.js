@@ -227,7 +227,9 @@
       if (low.length) out.push({ pri: 'medium', icon: '📦', t: low.length + ' item(s) at/below reorder', nav: 'stock', navLabel: 'Stock' });
 
       var cheques = E.rows('cheques').filter(function (c) { return c.status === 'Pending' && c.date <= t; });
-      if (cheques.length) out.push({ pri: 'high', icon: '🏦', t: cheques.length + ' cheque(s) due for clearing', nav: 'banking', navLabel: 'Clear' });
+      if (cheques.length) out.push({ pri: 'high', icon: '🏦', t: cheques.length + ' cheque(s) due — deposit or clear (' + m(cheques.reduce(function (s, c) { return s + c.amount; }, 0)) + ')', nav: 'chqdesk', navLabel: 'Cheque Desk' });
+      var advs = E.chqAdvLeft ? E.rows('cheques').filter(function (c) { return E.chqAdvLeft(c) > 0; }) : [];
+      if (advs.length) out.push({ pri: 'low', icon: '💼', t: advs.length + ' advance cheque(s) not yet applied to an invoice/bill', nav: 'chqdesk', navLabel: 'Apply' });
 
       var unabs = E.unabsorbed ? E.unabsorbed() : 0;
       if (unabs > 0) out.push({ pri: 'low', icon: '🏭', t: 'Overhead pool: ' + m(unabs) + ' not absorbed', nav: 'expenses', navLabel: 'Absorb' });
@@ -560,10 +562,27 @@
         run: function () { return { text: '**Buy Materials:**\n1. Purchases → + New Purchase\n2. Supplier, date, invoice no\n3. Add item lines (rate auto-fills)\n4. Receive & Post\n\n**Posts:** Dr 1300 / Cr 2000', acts: [{ l: 'Open Purchases', a: 'nav', id: 'purchases' }] }; } },
       { id: 'how-close', re: [/how (?:to|do i) (?:close|finish) month/i, /month.?end/i],
         run: function () { return { text: '**Month-end Close:**\n1. Pay all wage/salary runs\n2. Absorb overhead\n3. Complete jobs\n4. Stock take\n5. Bank reconciliation\n6. Reports → Month-end Close (all green)\n7. Backup + Lock period', acts: [{ l: 'Open Close', a: 'nav', id: 'closing' }, { l: '🎬 Month-end Tour', a: 'tour', id: 'month-end' }] }; } },
+      { id: 'cheques', re: [/cheque|chq|\bpdc\b|post.?dated|advance (?:payment|cheque)/i],
+        run: function () {
+          if (!factoryReady()) return { text: 'Create a factory first.' };
+          if (!E.chqAnalyse) return { text: 'Open **Banking & Cheques** to see your cheques.', acts: [{ l: 'Open →', a: 'nav', id: 'banking' }] };
+          var bks = E.rows('coa').filter(function (a) { return a.bank; }).map(function (a) { return { code: a.code, name: a.name, bal: E.bal(a.code) }; });
+          var A = E.chqAnalyse(E.rows('cheques'), { today: today(), banks: bks, bankTotal: bks.reduce(function (s, b) { return s + b.bal; }, 0), pn: function (id) { var p = E.D.parties.find(function (x) { return x.id === id; }); return p ? p.name : '?'; }, m: m, weeks: 12 });
+          var out = ['**Cheques**', '• In hand: ' + m(A.inOpen.v) + ' (' + A.inOpen.n + ')', '• Issued, not cleared: ' + m(A.outOpen.v) + ' (' + A.outOpen.n + ')', '• Due within 7 days: in ' + m(A.due7.inV) + ' · out ' + m(A.due7.outV), '• Advances on account: ' + m(A.advIn), '• Dishonour rate: ' + A.dish.rateV.toFixed(1) + '%'];
+          A.alerts.slice(0, 3).forEach(function (a) { out.push('⚠️ ' + a.t); });
+          return { text: out.join('\n'), acts: [{ l: 'Open Cheque Desk →', a: 'nav', id: 'chqdesk' }] };
+        } },
+      { id: 'quotes', re: [/quotation|\bquotes?\b/i],
+        run: function () {
+          if (!factoryReady()) return { text: 'Create a factory first.' };
+          var Q = E.rows('quotes'), live = Q.filter(function (q) { return (q.status === 'Draft' || q.status === 'Sent') && !(q.validUntil && q.validUntil < today()); });
+          var acc = Q.filter(function (q) { return q.status === 'Accepted'; });
+          return { text: '**Quotations**\n• Open: ' + live.length + ' (' + m(live.reduce(function (s, q) { return s + q.total; }, 0)) + ')\n• Accepted, not yet a job: ' + acc.length, acts: [{ l: 'Open Quotations →', a: 'nav', id: 'quotes' }] };
+        } },
       { id: 'go', re: /^(?:open|go to|show|navigate to)\s+([a-z\- ]+)/i,
         run: function (mm) {
           var t = mm[1].toLowerCase().replace(/\s+/g, '');
-          var map = { dashboard: 'dashboard', items: 'items', stock: 'stock', sales: 'sales', purchases: 'purchases', jobs: 'jobs', wages: 'wages', payroll: 'wages', employees: 'employees', reports: 'reports', cash: 'accounts', bank: 'accounts', accounts: 'accounts', setup: 'setup', closing: 'closing', cloud: 'cloud', 'daily-salaries': 'daily-salaries', 'monthly-salaries': 'monthly-salaries', ai: 'ai' };
+          var map = { dashboard: 'dashboard', items: 'items', stock: 'stock', sales: 'sales', purchases: 'purchases', jobs: 'jobs', wages: 'wages', payroll: 'wages', employees: 'employees', reports: 'reports', cash: 'accounts', bank: 'accounts', accounts: 'accounts', cheques: 'chqdesk', cheque: 'chqdesk', chequedesk: 'chqdesk', quotations: 'quotes', quotes: 'quotes', setup: 'setup', closing: 'closing', cloud: 'cloud', 'daily-salaries': 'daily-salaries', 'monthly-salaries': 'monthly-salaries', ai: 'ai' };
           var r = map[t];
           if (r) return { text: 'Opening **' + r + '**…', acts: [{ l: 'Go →', a: 'nav', id: r }] };
           return { text: 'I don\'t know "' + t + '". Try: items, sales, purchases, jobs, wages, setup.' };
@@ -589,7 +608,9 @@
         '\nCash & bank: ' + m(bal('1000') + bal('1010') + bankAccts().reduce(function (a, x) { return a + E.bal(x.code); }, 0)) +
         '\nReceivables: ' + m(E.rows('invoices').filter(function (i) { return !i.cancelled && i.total > i.paid; }).reduce(function (s, i) { return s + (i.total - i.paid); }, 0)) +
         '\nPayables: ' + m(E.rows('purchases').filter(function (p) { return !p.cancelled && p.total > p.paid; }).reduce(function (s, p) { return s + (p.total - p.paid); }, 0)) +
-        '\nJobs in progress: ' + E.rows('jobs').filter(function (j) { return j.status === 'In Progress'; }).length
+        '\nJobs in progress: ' + E.rows('jobs').filter(function (j) { return j.status === 'In Progress'; }).length +
+        '\nCheques in hand (pending): ' + m(E.rows('cheques').filter(function (c) { return c.dir === 'in' && c.status === 'Pending'; }).reduce(function (s, c) { return s + c.amount; }, 0)) +
+        '\nCheques issued (pending): ' + m(E.rows('cheques').filter(function (c) { return c.dir === 'out' && c.status === 'Pending'; }).reduce(function (s, c) { return s + c.amount; }, 0))
       ) : 'No factory open.';
       var prompt = 'You are an AI assistant for Lanka Slipper ERP (manufacturing/accounting). Answer concisely (under 150 words). Use ** bold ** and • bullets. Never invent numbers.\n\nCONTEXT:\n' + ctx + '\n\nQUESTION: ' + q;
       try {
@@ -607,7 +628,7 @@
           var r2 = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': cfg.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-            body: JSON.stringify({ model: cfg.model || 'claude-3-5-haiku-20241022', max_tokens: 400, messages: [{ role: 'user', content: prompt }] })
+            body: JSON.stringify({ model: cfg.model || 'claude-haiku-5-5', max_tokens: 400, messages: [{ role: 'user', content: prompt }] })
           });
           var d2 = await r2.json();
           if (d2.error) throw new Error(d2.error.message);
@@ -630,14 +651,6 @@
       pushMsg('user', q);
       paintChat();
 
-      if (cfg.provider !== 'local' && cfg.key) {
-        pushMsg('ai', '🤔 Thinking…');
-        paintChat();
-        var llm = await askLLM(q);
-        popMsg();
-        if (llm) { pushMsg('ai', llm); paintChat(); return; }
-      }
-
       var mt = matchIntent(q);
       if (mt) {
         try {
@@ -646,6 +659,13 @@
         } catch (e) { pushMsg('ai', '⚠️ ' + e.message); }
         paintChat();
         return;
+      }
+      if (cfg.provider !== 'local' && cfg.key) {
+        pushMsg('ai', '🤔 Thinking…');
+        paintChat();
+        var llm = await askLLM(q);
+        popMsg();
+        if (llm) { pushMsg('ai', llm); paintChat(); return; }
       }
       pushMsg('ai', 'I didn\'t catch that. Try:\n• "cash balance"\n• "who owes me"\n• "what\'s next"\n• "show me a tour"\n• "help"');
       paintChat();
@@ -892,7 +912,7 @@
             provOpt('claude', 'Anthropic Claude') +
             provOpt('gemini', 'Google Gemini') +
           '</select></div>' +
-          '<div class="f">Model<input id="aim" value="' + esc(cfg.model) + '" placeholder="gpt-4o-mini / claude-3-5-haiku-20241022 / gemini-1.5-flash"></div>' +
+          '<div class="f">Model<input id="aim" value="' + esc(cfg.model) + '" placeholder="gpt-4o-mini / claude-haiku-5-5 / gemini-1.5-flash"></div>' +
           '<div class="f">API Key<input id="aik" type="password" value="' + esc(cfg.key) + '" placeholder="sk-..."></div>' +
         '</div>' +
         '<button class="btn p" data-a="aiSave">Save</button> <button class="btn" data-a="aiTest">Test connection</button>' +
