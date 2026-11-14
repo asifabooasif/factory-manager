@@ -2,7 +2,8 @@
 (E => {
   const ni = E.N.findIndex(n => n.id === 'jobs');
   E.N.splice(ni + 1, 0, { g: 'Factory', id: 'production', ico: '🧵', label: 'Daily Production' });
-  const F = { tab: 'sheet', date: E.today(), from: E.today().slice(0, 8) + '01', to: E.today(), job: '', emp: '' };
+  { const pn = E.N.find(n => n.id === 'production'); E.N.splice(E.N.indexOf(pn) + 1, 0, { g: pn.g, id: 'tracker', ico: '📡', label: 'Production Tracker' }); }
+  const F = { tab: 'log', date: E.today(), from: E.today().slice(0, 8) + '01', to: E.today(), job: '', emp: '' };
   const emp = id => E.D.employees.find(x => x.id === id);
   const op = id => E.D.operations.find(x => x.id === id);
   const J = id => E.D.jobs.find(x => x.id === id);
@@ -68,7 +69,7 @@
   const empFind = t => { t = (t || '').trim().toLowerCase(); return E.rows('employees').find(e => elabel(e).toLowerCase() === t || e.code.toLowerCase() === t); };
 
   E.route('production', 'Daily Production', () => {
-    const TABS = [['log', '📝 Daily log'], ['batch', '📦 Material Batches'], ['sum', '📊 Summary'], ['prog', '🧭 Job progress'], ['ops', '⚙️ Operations & rates'], ['cons', '🧪 Consumables']];
+    const TABS = [['track', '📡 Live tracker'], ['log', '📝 Daily log'], ['batch', '📦 Material Batches'], ['sum', '📊 Summary'], ['prog', '🧭 Job progress'], ['ops', '⚙️ Operations & rates'], ['cons', '🧪 Consumables']];
     return `<div class="kp">
       ${E.kpi('Pairs today', live().filter(l => l.date === E.today()).reduce((s, l) => s + (l.convertedQty || l.qty), 0), 'pairs made today')}
       ${E.kpi('Wages today', E.m(live().filter(l => l.date === E.today()).reduce((s, l) => s + l.amount, 0)), 'piece work')}
@@ -78,8 +79,139 @@
     <div id="prb">${body()}</div>`;
   });
 
+  /* ============ LIVE PRODUCTION TRACKER ============
+     One board for every job in progress: stage-by-stage pairs, completed (all stages), queue between stages,
+     who did what, size-wise counts, pace / ETA, release-ready pairs and delivered pairs. Refreshes itself. */
+  const DAYMS = 86400000;
+  const addD = (d, n) => new Date(new Date(d + 'T00:00:00Z').getTime() + n * DAYMS).toISOString().slice(0, 10);
+  const dBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / DAYMS);
+  const enm = id => (emp(id) || {}).name || '?';
+  const badge = (t, c) => `<span style="background:${c};color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;margin-left:6px;white-space:nowrap">${t}</span>`;
+
+  function lineStats(l) {
+    const f = E.jobFlow(l), item = it(l.itemId) || {}, pp = f.pp, today = E.today();
+    const L = live().filter(x => x.lineId === l.id && f.stages.some(s => s.opId === x.opId));
+    const dates = [...new Set(L.map(x => x.date))].sort();
+    const cum = {}; f.stages.forEach(s => { cum[s.opId] = 0; });
+    const series = {};
+    dates.forEach(d => { L.filter(x => x.date === d).forEach(x => { cum[x.opId] += pairsOf(x, pp); }); series[d] = R2(Math.min(...f.stages.map(s => cum[s.opId]))); });
+    const compOn = d => { let v = 0; for (const k of dates) { if (k <= d) v = series[k]; else break; } return v; };
+    const doneToday = R2(f.completed - compOn(addD(today, -1)));
+    const span = dates.length ? Math.max(1, Math.min(7, dBetween(dates[0], today) + 1)) : 0;
+    const avg = span ? R2(Math.max(0, f.completed - compOn(addD(today, -7))) / span) : 0;
+    const remaining = R2(Math.max(0, f.target - f.completed));
+    const eta = remaining > 0 && avg > 0 ? addD(today, Math.ceil(remaining / avg)) : null;
+    const workers = {}; f.stages.forEach(s => { workers[s.opId] = {}; });
+    L.forEach(x => { const w = workers[x.opId]; w[x.empId] = R2((w[x.empId] || 0) + pairsOf(x, pp)); });
+    const queue = f.stages.map((s, i) => (s.wait && i > 0) ? R2(Math.max(0, Math.min(...f.stages.slice(0, i).map(p => p.logged)) - s.logged)) : 0);
+    const sizes = item.sizeRun ? [...new Set(String(item.sizeRun).split(',').map(x => x.trim()).filter(Boolean))] : [];
+    let sizeTbl = '';
+    if (sizes.length && L.some(x => x.size)) {
+      const cols = sizes.concat(['']);
+      const cell = (sid, sz) => R2(L.filter(x => x.opId === sid && (x.size || '') === sz).reduce((s, x) => s + pairsOf(x, pp), 0));
+      sizeTbl = `<div class="tw"><table><thead><tr><th>Stage</th>${cols.map(c => `<th class="r">${c ? 'Size ' + E.esc(c) : 'No size'}</th>`).join('')}</tr></thead><tbody>${f.stages.map(s => `<tr><td>${E.esc(s.name)}</td>${cols.map(c => `<td class="r">${cell(s.opId, c) || '·'}</td>`).join('')}</tr>`).join('')}<tr><td><b>Completed (size-wise)</b></td>${cols.map(c => `<td class="r"><b>${R2(Math.min(...f.stages.map(s => cell(s.opId, c)))) || '·'}</b></td>`).join('')}</tr></tbody></table></div>`;
+    }
+    const delivered = R2(E.rows('deliveries').filter(d => d.jobId === l.jobId && d.status !== 'Cancelled' && !d.cancelled).flatMap(d => d.lines || []).filter(x => x.itemId === l.itemId && (x.variantId || '') === (l.variantId || '')).reduce((s, x) => s + (x.pairs != null ? x.pairs : (x.qty || 0) * pp), 0));
+    return { f, doneToday, avg, eta, workers, queue, delivered, remaining, sizeTbl };
+  }
+
+  function lineBlock(l, s) {
+    const f = s.f, bottleneck = f.completed < f.target && f.stages.length > 1 ? f.limiting : null;
+    const stages = f.stages.length ? f.stages.map((st, i) => {
+      const pct = f.target ? Math.min(100, Math.round(st.logged / f.target * 100)) : 0, isB = bottleneck && bottleneck.opId === st.opId;
+      const ws = Object.entries(s.workers[st.opId] || {}).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([id, p]) => `${E.esc(enm(id))} ${p}`).join(' · ');
+      return `<div style="min-width:150px;flex:1;border:1px solid ${isB ? '#dc2626' : 'var(--bd,#e5e7eb)'};border-radius:10px;padding:8px">
+        <div style="font-size:12px"><b>${E.esc(st.name)}</b>${isB ? badge('bottleneck', '#dc2626') : ''}${s.queue[i] > 0 ? badge('queue ' + s.queue[i], '#d97706') : ''}</div>
+        <div style="background:#eee;border-radius:4px;height:12px;margin:6px 0"><div style="background:${pct >= 100 ? '#059669' : pct > 0 ? '#d97706' : '#e5e7eb'};height:100%;width:${pct}%;border-radius:4px"></div></div>
+        <div style="font-size:12px"><b>${st.logged}</b> / ${f.target} pairs ${st.wait ? '<span class="muted">· needs earlier</span>' : ''}</div>
+        <div class="muted" style="font-size:11px">${ws || 'no one yet'}</div></div>`;
+    }).join('<div style="align-self:center;color:#9ca3af">›</div>') : '<span class="muted">Nothing logged yet. Log the first operation in Daily log.</span>';
+    return `<div style="border-top:1px solid var(--bd,#e5e7eb);padding:12px 0">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <div><b>${E.esc(l.code)}</b> ${f.legacy ? badge('no routing set', '#6b7280') : ''}</div>
+        <div style="font-size:12px">Completed <b>${f.completed}</b>/${f.target} · Released <b>${f.released}</b> · Ready <b style="color:${f.ready > 0 ? '#059669' : 'inherit'}">${f.ready}</b> · Delivered <b>${s.delivered}</b> · Today <b>+${s.doneToday}</b> · Pace <b>${s.avg}</b>/day${s.eta ? ' · ETA <b>' + s.eta + '</b>' : ''}</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${stages}</div>
+      ${s.sizeTbl ? `<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Size-wise counts</summary>${s.sizeTbl}</details>` : ''}</div>`;
+  }
+
+  function trackerHtml() {
+    const today = E.today(), jobs = active().sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
+    const D = jobs.map(j => {
+      const lines = jl(j.id).map(l => ({ l, s: lineStats(l) }));
+      const sum = fn => R2(lines.reduce((a, x) => a + fn(x.s), 0));
+      const t = { target: sum(s => s.f.target), completed: sum(s => s.f.completed), released: sum(s => s.f.released), ready: sum(s => s.f.ready), delivered: sum(s => s.delivered), doneToday: sum(s => s.doneToday), avg: sum(s => s.avg) };
+      t.remaining = R2(Math.max(0, t.target - t.completed));
+      t.eta = t.remaining > 0 && t.avg > 0 ? addD(today, Math.ceil(t.remaining / t.avg)) : null;
+      const left = j.due ? dBetween(today, j.due) : null;
+      let status = ['On track', '#059669'];
+      if (t.remaining === 0 && t.target > 0) status = ['All completed', '#2563eb'];
+      else if (left !== null && left < 0) status = ['Overdue ' + (-left) + 'd', '#dc2626'];
+      else if (left !== null && t.eta && t.eta > j.due) status = ['Behind: ETA ' + t.eta, '#d97706'];
+      else if (!t.eta && t.target > 0 && t.completed < t.target) status = ['No output in last 7 days', '#6b7280'];
+      const issued = E.rows('stockMoves').some(m => m.job === j.id && m.type === 'issue');
+      const logged = live().some(x => x.jobId === j.id);
+      const steps = [['Job created', true], ['Materials issued', issued], ['Production started', logged], ['Goods completed', t.completed > 0], ['Fully completed', t.target > 0 && t.completed >= t.target], ['Released to stock', t.released > 0], ['Delivered', t.delivered > 0]];
+      return { j, lines, t, left, status, steps, wip: E.jobWip ? E.jobWip(j.id) : 0 };
+    });
+    const all = k => R2(D.reduce((a, x) => a + x.t[k], 0));
+    const todayLogs = live().filter(x => x.date === today);
+    const alerts = [];
+    D.forEach(x => {
+      if (x.t.ready > 0) alerts.push(`<b>${E.esc(x.j.no)}</b>: ${x.t.ready} pairs are completed and ready to release.`);
+      if (x.status[0].startsWith('Overdue') || x.status[0].startsWith('Behind')) alerts.push(`<b>${E.esc(x.j.no)}</b>: ${E.esc(x.status[0])} (due ${E.esc(x.j.due || '-')}).`);
+      x.lines.forEach(({ l, s }) => {
+        if (s.f.legacy) alerts.push(`<b>${E.esc(l.code)}</b> (${E.esc(x.j.no)}) has no routing, so completion is only an estimate. Set it in Operations & rates.`);
+        s.f.stages.forEach((st, i) => { if (s.queue[i] >= Math.max(6, s.f.target * 0.2)) alerts.push(`<b>${E.esc(l.code)}</b>: ${s.queue[i]} pairs are waiting for <b>${E.esc(st.name)}</b>.`); });
+      });
+    });
+    const byW = {};
+    todayLogs.forEach(x => { const w = byW[x.empId] = byW[x.empId] || { pairs: 0, amount: 0, ops: {} }; const p = pairsOf(x, x.pairsPerPack || 1); w.pairs = R2(w.pairs + p); w.amount += x.amount || 0; w.ops[x.opName] = R2((w.ops[x.opName] || 0) + p); });
+    const feed = live().slice().sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.no || '').localeCompare(a.no || '')).slice(0, 12);
+    const now = new Date().toTimeString().slice(0, 8);
+    return `<div class="kp">
+      ${E.kpi('Jobs in progress', D.length, 'live')}
+      ${E.kpi('Completed (all stages)', all('completed') + ' / ' + all('target'), 'pairs')}
+      ${E.kpi('Ready to release', all('ready'), 'pairs')}
+      ${E.kpi('Released to stock', all('released'), 'pairs')}
+      ${E.kpi('Completed today', all('doneToday'), 'pairs')}
+      ${E.kpi('Wages today', E.m(todayLogs.reduce((s, x) => s + (x.amount || 0), 0)), Object.keys(byW).length + ' workers')}
+    </div>
+    <div class="bar"><span class="muted" style="font-size:12px">Updated ${now} · refreshes every 20 seconds</span><span class="gap"></span><button class="btn sm" data-a="trRefresh">↻ Refresh</button><button class="btn p" data-a="trLog">+ Log production</button></div>
+    <details class="card" style="margin-bottom:12px"><summary style="cursor:pointer"><b>Workflow guide</b> <span class="muted">· how a pair is tracked from job to delivery</span></summary>
+      <ol style="line-height:1.7;margin:8px 0 0 18px"><li><b>Job</b>: create the job with articles and target packs.</li><li><b>Routing</b>: set each article's operations once (Daily Production › Operations & rates › Article routing).</li><li><b>Materials</b>: issue materials to the job (Material Batch or Job › Materials).</li><li><b>Log production</b>: every worker logs pairs per operation each day (or ★ All stages if one worker does everything).</li><li><b>Completed</b>: the system counts a pair as completed only after every stage in its routing has it, and shows the stage holding things up.</li><li><b>Release</b>: Jobs › Release moves completed pairs from WIP to finished-goods stock, up to the completed count.</li><li><b>Deliver and invoice</b> from Sales; the tracker then shows delivered pairs.</li></ol></details>
+    ${alerts.length ? `<div class="card" style="margin-bottom:12px"><h3>Needs attention</h3><ul style="margin:6px 0 0 18px;line-height:1.7">${alerts.slice(0, 14).map(a => `<li>${a}</li>`).join('')}</ul></div>` : ''}
+    ${D.length ? D.map(x => {
+      const pct = x.t.target ? Math.min(100, Math.round(x.t.completed / x.t.target * 100)) : 0, rp = x.t.target ? Math.min(100, Math.round(x.t.released / x.t.target * 100)) : 0;
+      return `<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+        <div><b style="font-size:16px">${E.esc(x.j.no)}</b> <span class="muted">· ${E.esc((E.D.parties.find(p => p.id === x.j.partyId) || { name: 'Stock' }).name)} · due ${E.esc(x.j.due || '-')}${x.left !== null ? ' (' + (x.left >= 0 ? x.left + ' days left' : -x.left + ' days late') + ')' : ''}</span>${badge(E.esc(x.status[0]), x.status[1])}</div>
+        <div><button class="btn sm" data-a="trOpen" data-id="${x.j.id}">Open job</button> <button class="btn ${x.t.ready > 0 ? 'p' : ''} sm" data-a="trRel" data-id="${x.j.id}">Release goods${x.t.ready > 0 ? ' (' + x.t.ready + ')' : ''}</button></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">${x.steps.map(([n, ok]) => `<span style="padding:3px 10px;border-radius:12px;font-size:12px;background:${ok ? '#d1fae5' : '#f3f4f6'};color:${ok ? '#065f46' : '#6b7280'}">${ok ? '✔' : '○'} ${n}</span>`).join('')}</div>
+      <div style="font-size:12px;margin-bottom:4px">Completed <b>${x.t.completed}</b> of ${x.t.target} pairs (${pct}%) · Released <b>${x.t.released}</b> (${rp}%) · Ready <b>${x.t.ready}</b> · Delivered <b>${x.t.delivered}</b> · WIP value <b>${E.m(x.wip)}</b></div>
+      <div style="position:relative;background:#eee;border-radius:6px;height:14px"><div style="position:absolute;background:#bfdbfe;height:100%;width:${pct}%;border-radius:6px"></div><div style="position:absolute;background:#059669;height:100%;width:${rp}%;border-radius:6px"></div></div>
+      <div class="muted" style="font-size:11px;margin:3px 0 4px">Blue = completed, green = released to stock</div>
+      ${x.lines.map(({ l, s }) => lineBlock(l, s)).join('')}</div>`;
+    }).join('') : '<div class="card muted">No jobs in progress.</div>'}
+    <div class="g2">
+      <div class="card"><h3>Today's output by worker</h3>${Object.keys(byW).length ? `<div class="tw"><table><thead><tr><th>Worker</th><th>Operations</th><th class="r">Pairs</th><th class="r">Wages</th></tr></thead><tbody>${Object.entries(byW).sort((a, b) => b[1].pairs - a[1].pairs).map(([id, w]) => `<tr><td><b>${E.esc(enm(id))}</b></td><td>${Object.entries(w.ops).map(([o, p]) => `<span class="tag">${E.esc(o)}: ${p}</span>`).join(' ')}</td><td class="r"><b>${w.pairs}</b></td><td class="r">${E.m(w.amount)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Nothing logged today yet.</p>'}</div>
+      <div class="card"><h3>Latest entries</h3>${feed.length ? `<div class="tw"><table><thead><tr><th>Date</th><th>Worker</th><th>Article · operation</th><th class="r">Pairs</th></tr></thead><tbody>${feed.map(x => `<tr><td>${E.esc(x.date)}</td><td>${E.esc(enm(x.empId))}</td><td>${E.esc(x.code || '')} · ${E.esc(x.opName || '')}</td><td class="r">${pairsOf(x, x.pairsPerPack || 1)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No production logged yet.</p>'}</div>
+    </div>`;
+  }
+  E.route('tracker', 'Production Tracker', () => trackerHtml());
+  E.A.trRefresh = () => E.go();
+  E.A.trRel = id => E.A.relM(id);
+  E.A.trOpen = id => E.A.openJob(id);
+  E.A.trLog = () => { F.tab = 'log'; if (location.hash === '#/production') E.go(); else location.hash = '#/production'; };
+  setInterval(() => {
+    try {
+      const h = location.hash, on = h.indexOf('#/tracker') === 0 || (h.indexOf('#/production') === 0 && F.tab === 'track'), mw = document.getElementById('mw'), ae = document.activeElement;
+      if (!on || (mw && mw.classList.contains('o')) || (ae && /INPUT|SELECT|TEXTAREA/.test(ae.tagName))) return;
+      E.go();
+    } catch (e) { /* ignore */ }
+  }, 20000);
+
   E.A.prTab = t => { F.tab = t; E.go(); };
-  const body = () => F.tab === 'log' ? logTab() : F.tab === 'batch' ? matTab() : F.tab === 'sum' ? sumTab() : F.tab === 'prog' ? progTab() : F.tab === 'ops' ? opsTab() : consTab();
+  const body = () => F.tab === 'track' ? trackerHtml() : F.tab === 'log' ? logTab() : F.tab === 'batch' ? matTab() : F.tab === 'sum' ? sumTab() : F.tab === 'prog' ? progTab() : F.tab === 'ops' ? opsTab() : consTab();
 
   E.hooks.push(e => {
     const t = e.target, f = t.dataset && t.dataset.f;
