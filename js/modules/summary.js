@@ -48,7 +48,7 @@
     const advGivenUpToT = sum(advAll.filter(r => r.date <= F.t), r => r.amount);
     const advRecUpToT = sum(runsUpToT, recOf);
     /* FIX: include staff loans */
-    const loansOutstanding = E.rows('staffLoans').filter(l => !l.cancelled && !l.settled).reduce((s, l) => s + (E.staffLoanTotals ? E.staffLoanTotals(l).principalOut : 0), 0);
+    const loansOutstanding = E.rows('employees').reduce((s, e) => s + E.loanBal(e.id, F.t), 0);
     const outst = advGivenUpToT - advRecUpToT + loansOutstanding;
 
     const per = E.rows('employees').map(e => {
@@ -68,7 +68,7 @@
         if (r.kind === 'run') return sum(r.lines.filter(l => l.empId === e.id), l => l.advRec || 0);
         return r.advRec || 0;
       });
-      const myLoans = E.rows('staffLoans').filter(l => l.empId === e.id && !l.cancelled && !l.settled).reduce((s, l) => s + (E.staffLoanTotals ? E.staffLoanTotals(l).principalOut : 0), 0);
+      const myLoans = E.loanBal(e.id, F.t);
       return { e, cat, myAdvIn, wRec, sRec, dRec, wGross, sGross, dGross, advBal: myGiven - myRec + myLoans, hasData: myAdvIn || wGross || sGross || dGross || (myGiven - myRec) || myLoans };
     }).filter(x => x.hasData);
 

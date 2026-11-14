@@ -103,6 +103,8 @@
     const loanBalances = E.rows('staffLoans').filter(l => !l.cancelled && !l.settled)
       .reduce((s, l) => s + (E.staffLoanTotals ? E.staffLoanTotals(l).principalOut : 0), 0);
     ck('Employee advances + staff loans = ledger 1250', advBalances + loanBalances, E.acct('1250') ? E.bal('1250') : 0, 'Staff balances');
+    const la = E.staffLoanAudit ? E.staffLoanAudit() : { issues: [] };
+    C.push([!la.issues.length, 'Staff loan records match payroll and the ledger', la.issues.length ? la.issues.length + ' problem(s). Open People & Payroll → Loan Integrity Check' : 'OK']);
     ck('Wages & salaries payable = unpaid runs (ledger 2200)', wr.filter(r => !r.paid).reduce((s, r) => s + r.net, 0), E.acct('2200') ? E.bal('2200') : 0, 'Unpaid runs');
     ck('Piece wages accrued = unpaid production logs (ledger 2210)', E.rows('prodLogs').filter(l => l.status === 'accrued').reduce((s, l) => s + l.amount, 0), E.acct('2210') ? E.bal('2210') : 0, 'Production logs');
     const nb = emps.filter(e => E.advBal && E.advBal(e.id) < 0); C.push([!nb.length, 'No worker has recovered more advance than given', nb.length ? nb.map(e => e.name).join(', ') : 'OK']);

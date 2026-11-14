@@ -193,11 +193,11 @@
       const pairs = logs.reduce((s, l) => s + (l.convertedQty || l.qty), 0);
       const a = attUnpaid(e.id, f, to);
       const advBal = E.advBal(id);
-      const loanDue = E.staffLoanDue ? E.staffLoanDue(id, to.slice(0, 7)) : 0;
+      const loanBalV = E.loanBal ? E.loanBal(id) : 0, loanDef = E.staffLoanSuggest ? Math.min(E.staffLoanSuggest(id), loanBalV) : 0;
       const advDefault = advBal > 0 && e.payType === 'MonthlySalaried' && e.advInstall ? Math.min(advBal, e.advInstall) : (advBal > 0 ? advBal : 0);
       const ops = {};
       logs.forEach(l => { const o = ops[l.opName] || (ops[l.opName] = { q: 0, pairs: 0, a: 0, r: l.rate }); o.q += l.qty; o.pairs += (l.convertedQty || l.qty); o.a += l.amount; });
-      return `<tr data-id="${e.id}" data-piece="${pc}" data-advbal="${advBal}" data-loandue="${loanDue}" data-kind="${isW ? 'wage' : 'salaried'}">
+      return `<tr data-id="${e.id}" data-piece="${pc}" data-advbal="${advBal}" data-loanbal="${loanBalV}" data-kind="${isW ? 'wage' : 'salaried'}">
         <td><b>${E.esc(e.name)}</b> ${payBadge(e)}<br><span class="muted">${e.code} · ${isW ? E.m(e.amount) + '/day' : 'salary separate'}</span></td>
         <td>${isW ? inp('days', 56, a.days || '') : '<span class="muted">—</span>'}</td>
         <td class="r">${pc ? `<b>${E.m(pc)}</b><div class="muted" style="font-size:11px;text-align:left">${Object.entries(ops).map(([n, o]) => E.esc(n) + ': ' + o.pairs + ' pairs × ' + E.m(o.r)).join('<br>')}</div>` : '—'}</td>
@@ -205,15 +205,15 @@
         <td>${inp('bonus', 70)}</td>
         <td class="r">${advBal ? E.m(advBal) : '—'}</td>
         <td>${advBal ? inp('adv', 70, advDefault ? (advDefault / 100).toFixed(2) : '') : '<input type="hidden" data-k="adv" value="0">—'}</td>
-        <td class="r">${loanDue ? '<b>' + E.m(loanDue) + '</b>' : '—'}</td>
-        <td>${loanDue ? inp('loan', 70, (loanDue / 100).toFixed(2)) : '<input type="hidden" data-k="loan" value="0">—'}</td>
+        <td class="r">${loanBalV ? '<b>' + E.m(loanBalV) + '</b><div class="muted la" style="font-size:11px"></div>' : '—'}</td>
+        <td>${loanBalV ? inp('loan', 70, loanDef ? (loanDef / 100).toFixed(2) : '') : '<input type="hidden" data-k="loan" value="0">—'}</td>
         <td>${inp('other', 60)}</td>
         <td>${toSel(e.target || 'OH')}</td>
         <td class="r gv"></td>
         <td class="r nv"></td>
       </tr>`;
     }).join('');
-    E.$('wrb').innerHTML = `<div class="tw"><table><thead><tr><th>Employee</th><th>Days</th><th class="r">Piece</th><th>OT</th><th>Bonus</th><th class="r">Advance</th><th>Recover</th><th class="r">Loan</th><th>Recover</th><th>Other</th><th>Charge</th><th class="r">Gross</th><th class="r">Net</th></tr></thead><tbody id="wr">${rows}</tbody></table></div>
+    E.$('wrb').innerHTML = `<div class="tw"><table><thead><tr><th>Employee</th><th>Days</th><th class="r">Piece</th><th>OT</th><th>Bonus</th><th class="r">Advance</th><th>Recover</th><th class="r">Loan pending</th><th>Deduct</th><th>Other</th><th>Charge</th><th class="r">Gross</th><th class="r">Net</th></tr></thead><tbody id="wr">${rows}</tbody></table></div>
       ${splitBox()}
       <div class="tot"><span id="w_g"></span></div>
       <button class="btn p" data-a="saveWageRun" style="margin-top:12px">➡️ Review</button>`;
@@ -235,6 +235,8 @@
       const ee = on ? Math.round(epfBase(gross, ot, bonus) * E.setting('epfEmp') / 100) : 0;
       const od = E.c(i.other || 0);
       const net = gross - ee - i.adv - i.loan - od;
+      const lb = +tr.dataset.loanbal || 0, la = tr.querySelector('.la');
+      if (la) { la.textContent = 'after: ' + E.m(lb - i.loan); la.style.color = (i.loan > lb || i.loan < 0) ? '#dc2626' : ''; }
       tr.querySelector('.gv').textContent = gross ? E.m(gross) : '';
       tr.querySelector('.nv').textContent = gross ? E.m(net) : '';
       tr.querySelector('.nv').style.color = net < 0 ? '#dc2626' : '';
@@ -269,6 +271,8 @@
         if (kind === 'wage') { basic = Math.round((i.days || 0) * (e.amount || 0)); const hourly = (e.amount || 0) / 8; ot = Math.round((i.ot || 0) * hourly * 1.5); }
         const bonus = E.c(i.bonus || 0);
         const gross = basic + pc + ot + bonus;
+        if (i.loan < 0 || i.adv < 0) throw new Error(e.name + ': deductions cannot be negative');
+        if (!gross && (i.loan || i.adv)) throw new Error(e.name + ': there is no pay in this run, so a loan / advance cannot be deducted');
         if (!gross) return;
         if (kind === 'wage' && (i.days || 0) > 0) {
           const u = attUnpaid(e.id, f, to);
@@ -281,9 +285,11 @@
         const od = E.c(i.other || 0);
         const net = gross - ee - i.adv - i.loan - od;
         if (net < 0) throw new Error(e.name + ': deductions exceed pay');
+        E.staffLoanCheck(e.id, i.loan, d);
+        if (i.adv > E.advBal(e.id)) throw new Error(e.name + ': advance recovery ' + E.m(i.adv) + ' is more than the advance balance ' + E.m(E.advBal(e.id)));
         const ops = {};
         logs.forEach(l => { const o = ops[l.opName] || (ops[l.opName] = { opName: l.opName, qty: 0, pairs: 0, amount: 0, rate: l.rate }); o.qty += l.qty; o.pairs += (l.convertedQty || l.qty); o.amount += l.amount; });
-        L.push({ empId: e.id, name: e.name, payType: e.payType, payCat: kind, basic, piece: pc, ot, bonus, gross, epfEmp: ee, epfCo: ec, etf: et, advRec: i.adv, loanRec: i.loan, otherDed: od, net, days: i.days || 0, nopay: 0, otHrs: i.ot || 0, target: i.to, pieceDetail: Object.values(ops), logIds: logs.map(l => l.id), advBefore: E.advBal(e.id), advAfter: E.advBal(e.id) - i.adv });
+        L.push({ empId: e.id, name: e.name, payType: e.payType, payCat: kind, basic, piece: pc, ot, bonus, gross, epfEmp: ee, epfCo: ec, etf: et, advRec: i.adv, loanRec: i.loan, otherDed: od, net, days: i.days || 0, nopay: 0, otHrs: i.ot || 0, target: i.to, pieceDetail: Object.values(ops), logIds: logs.map(l => l.id), advBefore: E.advBal(e.id), advAfter: E.advBal(e.id) - i.adv, loanBefore: E.loanBal(e.id), loanAfter: E.loanBal(e.id) - i.loan });
       });
       if (!L.length) throw new Error('Nothing to pay');
       if (L.some(l => l.target === 'SPLIT')) { split = [...document.querySelectorAll('.wsp')].map(i => ({ id: i.dataset.id, p: Math.round((parseFloat(i.value) || 0) * 100) })).filter(x => x.p > 0); if (split.reduce((a, x) => a + x.p, 0) !== 10000) throw new Error('Split must = 100%'); }
@@ -311,18 +317,17 @@
         ${od ? `<tr><td>Other deductions</td><td class="r">-${E.m(od)}</td></tr>` : ''}
         <tr style="background:var(--acs)"><td><b>Net pay</b></td><td class="r"><b style="font-size:16px">${E.m(net)}</b></td></tr>
       </tbody></table></div>
-      ${loan ? '<p class="muted" style="margin-top:10px;font-size:12px"><b>Loan recovery</b> will mark instalments paid (or partially paid).</p>' : ''}`;
+      ${loan ? `<div class="tw" style="margin-top:10px"><table><thead><tr><th>Loan deduction</th><th class="r">Pending before</th><th class="r">Deduct</th><th class="r">Pending after</th></tr></thead><tbody>${L.filter(l => l.loanRec > 0).map(l => `<tr><td>${E.esc(l.name)}</td><td class="r">${E.m(l.loanBefore || 0)}</td><td class="r">-${E.m(l.loanRec)}</td><td class="r"><b>${E.m((l.loanBefore || 0) - l.loanRec)}</b></td></tr>`).join('')}</tbody></table></div>` : ''}`;
     const mf = document.querySelector('#mw .mf');
     if (mf) mf.innerHTML = `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="confirmWagePost">✔ Confirm & Post</button>`;
     E._pendWage = { L, split, type, to, f, wd, monthly };
   }
 
-  E.A.confirmWagePost = async () => {
+  E.A.confirmWagePost = () => E.once('confirmWagePost', async () => {
     try {
       const p = E._pendWage;
-      if (!p) throw new Error('No pending');
+      if (!p) throw new Error('No pending run. Close this window and build the run again.');
       const { L, split, type, to, f, wd, monthly } = p;
-      delete E._pendWage;
       const dr = {};
       const closedVar = [];
       
@@ -367,34 +372,44 @@
       const G = S('gross'), ee = S('epfEmp'), ec = S('epfCo'), et = S('etf');
       const ar = S('advRec'), lr = S('loanRec'), od = S('otherDed'), net = S('net');
       const no = await E.next(monthly ? 'SAL' : 'WG');
-      /* Loan recovery: principal back to 1250, interest to 4100 (split worked out before the instalments are marked paid) */
-      let lrP = 0, lrI = 0;
-      for (const l of L) if (l.loanRec > 0) {
-        const sp = E.staffLoanSplit ? E.staffLoanSplit(l.empId, l.loanRec) : { principal: l.loanRec, interest: 0 };
-        const rest = l.loanRec - sp.principal - sp.interest;
-        l.loanPrin = sp.principal + rest; l.loanInt = sp.interest;
-        lrP += l.loanPrin; lrI += l.loanInt;
+      /* Everything is re-checked against the LIVE balances before a single ledger line is posted */
+      for (const l of L) {
+        E.staffLoanCheck(l.empId, l.loanRec || 0, wd);
+        if ((l.advRec || 0) > E.advBal(l.empId)) throw new Error(l.name + ': advance recovery is more than the advance balance');
       }
-      if (lrI && !E.acct('4100')) await E.ensureCoa();
-      
       const lines = Object.values(dr).filter(x => x.dr).map(x => x.acc === '1310' ? { acc: '1310', dr: x.dr, job: x.job, art: x.art, cat: 'Labour', head: monthly ? '5130' : '5110' } : { acc: x.acc, dr: x.dr }).concat([{ acc: '2200', cr: net }]);
-      
       if (ee + ec + et) lines.push({ acc: '2100', cr: ee + ec + et });
       if (ar) lines.push({ acc: '1250', cr: ar });
-      if (lrP) lines.push({ acc: '1250', cr: lrP });
-      if (lrI) lines.push({ acc: '4100', cr: lrI });
+      if (lr) lines.push({ acc: '1250', cr: lr });
       if (od) lines.push({ acc: '2230', cr: od });
-      const je = await E.post({ date: wd, ref: no, narr: `${type} ${monthly ? 'salaries' : 'wages'} ${f} to ${to}`, source: 'payroll', lines });
-      const run = await E.save('wageRuns', { no, kind: 'run', type, date: wd, from: f, to, lines: L, split, gross: G, epfEmp: ee, epfCo: ec, etf: et, advRec: ar, loanRec: lr, otherDed: od, net, jeId: je.id, paid: false, cancelled: false, closedVarCount: closedVar.length });
-      if (closedVar.length) {
-        for (const cv of closedVar) await E.save('closedJobVariances', { factoryId: E.fid, jobId: cv.jobId, jobNo: cv.jobNo, type: 'late-wage', amount: cv.amount, date: wd, closedDate: J(cv.jobId).completedAt, notes: 'Wage run ' + no, sourceJeId: je.id, createdAt: new Date().toISOString() });
-      }
-      if (lr) for (const l of L) if (l.loanRec > 0) { try { await E.staffLoanApply(l.empId, l.loanRec, run.id, no, wd); } catch (e) { console.warn(e); } }
-      for (const l of L) for (const id of l.logIds) { const g = E.D.prodLogs.find(x => x.id === id); if (!g) continue; const b = JSON.parse(JSON.stringify(g)); g.status = 'paid'; g.runId = run.id; g.runNo = no; await E.save('prodLogs', g, b); }
+      /* ledger entry + run + loan deductions + production logs are ONE unit: if any step fails everything is undone */
+      await E.postThen({ date: wd, ref: no, narr: `${type} ${monthly ? 'salaries' : 'wages'} ${f} to ${to}`, source: 'payroll', lines }, async je => {
+        const undo = [];
+        try {
+          const run = await E.save('wageRuns', { no, kind: 'run', type, date: wd, from: f, to, lines: L, split, gross: G, epfEmp: ee, epfCo: ec, etf: et, advRec: ar, loanRec: lr, otherDed: od, net, jeId: je.id, paid: false, cancelled: false, closedVarCount: closedVar.length });
+          undo.push(async () => { const b = JSON.parse(JSON.stringify(run)); run.cancelled = true; await E.save('wageRuns', run, b); });
+          for (const cv of closedVar) {
+            const v = await E.save('closedJobVariances', { factoryId: E.fid, jobId: cv.jobId, jobNo: cv.jobNo, type: 'late-wage', amount: cv.amount, date: wd, closedDate: J(cv.jobId).completedAt, notes: 'Wage run ' + no, sourceJeId: je.id, createdAt: new Date().toISOString() });
+            undo.push(() => E.del('closedJobVariances', v.id));
+          }
+          undo.push(() => E.staffLoanReverseRun(run.id));
+          for (const l of L) if (l.loanRec > 0) await E.staffLoanApply(l.empId, l.loanRec, { runId: run.id, runNo: no, date: wd, jeId: je.id });
+          for (const l of L) for (const id of l.logIds) {
+            const g = E.D.prodLogs.find(x => x.id === id); if (!g) continue;
+            const before = JSON.parse(JSON.stringify(g)), b = JSON.parse(JSON.stringify(g));
+            g.status = 'paid'; g.runId = run.id; g.runNo = no; await E.save('prodLogs', g, b);
+            undo.push(() => E.put('prodLogs', before));
+          }
+        } catch (err) {
+          for (const u of undo.reverse()) { try { await u(); } catch (x) { console.error('undo failed', x); } }
+          throw err;
+        }
+      });
+      delete E._pendWage;
       E.closeM(); E.go();
       E.toast(no + ' posted' + (closedVar.length ? ' · ' + closedVar.length + ' → 5390' : ''), closedVar.length ? 'warning' : 'success');
     } catch (e) { E.toast(e.message, 'error'); }
-  };
+  });
 
   E.route('daily-salaries', 'Daily Salaries', () => {
     const R = E.rows('wageRuns').filter(r => r.kind === 'daily-salary').sort((a, b) => b.no.localeCompare(a.no));
@@ -425,7 +440,7 @@
     const jobs = E.rows('jobs').filter(j => j.status === 'In Progress');
     
     E.modal('Record Daily Salary', `
-      <div class="f">Employee *<select id="ds_e" onchange="E.A.dsDailyUpdate()">${emps.map(e => `<option value="${e.id}">${E.esc(e.name)} · ${E.m(e.amount)}/day</option>`).join('')}</select></div>
+      <div class="f">Employee *<select id="ds_e" onchange="E.A.dsEmpChange()">${emps.map(e => `<option value="${e.id}">${E.esc(e.name)} · ${E.m(e.amount)}/day</option>`).join('')}</select></div>
       <div class="g2">
         <div class="f">From<input id="ds_f" type="date" value="${E.today()}"></div>
         <div class="f">To<input id="ds_t" type="date" value="${E.today()}"></div>
@@ -445,13 +460,14 @@
         <div class="f">Advance recovery<input id="ds_adv" type="number" step="0.01" value="0" oninput="E.A.dsDailyUpdate()"></div>
         <div class="f">Loan recovery<input id="ds_loan" type="number" step="0.01" value="0" oninput="E.A.dsDailyUpdate()"></div>
       </div>
+      <div id="ds_info" class="muted" style="font-size:12px;margin:6px 0"></div>
       <div class="f">Paid from *<select id="ds_s"><option value="">—</option>${E.opts(a => a.bank || a.code === '1010')}</select></div>
       <div class="f">Notes<input id="ds_n"></div>
       <div class="tot"><span>Gross</span><span id="ds_g">Rs 0</span></div>
       <div class="tot"><span>Net to pay</span><b id="ds_n2">Rs 0</b></div>
       <div id="ds_epf" class="muted" style="font-size:12px;margin-top:8px"></div>
     `, `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="saveDailySalary">Post</button>`);
-    setTimeout(() => E.A.dsDailyUpdate(), 50);
+    setTimeout(() => E.A.dsEmpChange(), 50);
   };
 
   E.A.dsDailyUpdate = () => {
@@ -463,12 +479,24 @@
     const adv = E.c(E.val('ds_adv')), loan = E.c(E.val('ds_loan'));
     const on = e && E.setting('epfOn') && e.epf;
     const ee = on ? Math.round(gross * E.setting('epfEmp') / 100) : 0;
+    if (E.$('ds_info') && e) {
+      const lb = E.loanBal(e.id), ab = E.advBal(e.id);
+      E.$('ds_info').innerHTML = (ab ? 'Advance balance <b>' + E.m(ab) + '</b> → after <b>' + E.m(ab - adv) + '</b> · ' : '') + (lb ? 'Loan pending <b>' + E.m(lb) + '</b> → after <b style="color:' + ((loan > lb || loan < 0) ? '#dc2626' : 'inherit') + '">' + E.m(lb - loan) + '</b>' : 'No pending staff loan');
+    }
     if (E.$('ds_g')) E.$('ds_g').textContent = E.m(gross);
     if (E.$('ds_n2')) E.$('ds_n2').textContent = E.m(gross - ee - adv - loan);
     if (E.$('ds_epf')) E.$('ds_epf').textContent = ee ? `EPF deduction ${E.m(ee)} (${E.setting('epfEmp')}%)` : (on ? 'EPF member, no EPF at this gross' : '');
   };
 
-  E.A.saveDailySalary = async () => {
+  /* switching employee pre-fills the usual loan deduction and shows pending balances */
+  E.A.dsEmpChange = () => {
+    const id = E.val('ds_e'), sug = E.staffLoanSuggest ? Math.min(E.staffLoanSuggest(id), E.loanBal(id)) : 0;
+    if (E.$('ds_loan')) E.$('ds_loan').value = sug ? (sug / 100).toFixed(2) : '0';
+    if (E.$('ds_adv')) E.$('ds_adv').value = '0';
+    E.A.dsDailyUpdate();
+  };
+
+  E.A.saveDailySalary = () => E.once('saveDailySalary', async () => {
     try {
       const e = emp(E.val('ds_e'));
       if (!e) throw new Error('Select employee');
@@ -479,6 +507,12 @@
       const adv = E.c(E.val('ds_adv')), loan = E.c(E.val('ds_loan'));
       const advB = E.advBal(e.id);
       if (adv > advB) throw new Error('Advance exceeds balance (' + E.m(advB) + ')');
+      if (adv < 0 || loan < 0) throw new Error('Deductions cannot be negative');
+      E.staffLoanCheck(e.id, loan, E.val('ds_pd'));
+      const from = E.val('ds_f'), toD = E.val('ds_t') || from;
+      if (!from || from > toD) throw new Error('Check the From / To dates');
+      const dupe = E.rows('wageRuns').find(r => r.kind === 'daily-salary' && !r.cancelled && r.empId === e.id && r.from <= toD && r.to >= from);
+      if (dupe) throw new Error(e.name + ' was already paid ' + dupe.no + ' for ' + dupe.from + ' to ' + dupe.to + '. Cancel it first if it is wrong.');
       const src = E.val('ds_s');
       if (!src) throw new Error('Choose account');
       
@@ -505,9 +539,7 @@
       if (E.bal(src) < net && !confirm('Balance < pay. Continue?')) return;
       
       const no = await E.next('DS');
-      let loanP = loan, loanI = 0;
-      if (loan > 0 && E.staffLoanSplit) { const sp = E.staffLoanSplit(e.id, loan); loanI = sp.interest; loanP = loan - loanI; }
-      if (loanI && !E.acct('4100')) await E.ensureCoa();
+      const loanP = loan;
       
       const lines = [];
       lines.push({ acc: drAcc, dr: gross, ...(drJob ? { job: drJob, cat: 'Labour' } : {}) });
@@ -515,27 +547,30 @@
       lines.push({ acc: src, cr: net });
       if (adv) lines.push({ acc: '1250', cr: adv });
       if (loanP) lines.push({ acc: '1250', cr: loanP });
-      if (loanI) lines.push({ acc: '4100', cr: loanI });
       if (ee + ec + et) lines.push({ acc: '2100', cr: ee + ec + et });
       
-      const je = await E.post({ date: E.val('ds_pd'), ref: no, narr: `Daily salary · ${e.name} (${targetLabel})`, source: 'payroll', lines });
-      
-      const rec = await E.save('wageRuns', {
-        no, kind: 'daily-salary', empId: e.id, date: E.val('ds_pd'), from: E.val('ds_f'), to: E.val('ds_t'),
-        days, rate, gross, epfEmp: ee, epfCo: ec, etf: et, advRec: adv, loanRec: loan, net, bank: src, target: drAcc, notes: E.val('ds_n'), jeId: je.id, paid: true, cancelled: false
+      const lb0 = E.loanBal(e.id);
+      await E.postThen({ date: E.val('ds_pd'), ref: no, narr: `Daily salary · ${e.name} (${targetLabel})`, source: 'payroll', lines }, async je => {
+        const rec = await E.save('wageRuns', {
+          no, kind: 'daily-salary', empId: e.id, date: E.val('ds_pd'), from: E.val('ds_f'), to: E.val('ds_t'),
+          days, rate, gross, epfEmp: ee, epfCo: ec, etf: et, advRec: adv, loanRec: loan, loanBefore: lb0, loanAfter: lb0 - loan, net, bank: src, target: drAcc, notes: E.val('ds_n'), jeId: je.id, paid: true, cancelled: false
+        });
+        if (loan) {
+          try { await E.staffLoanApply(e.id, loan, { runId: rec.id, runNo: no, date: E.val('ds_pd'), jeId: je.id }); }
+          catch (err) { const b = JSON.parse(JSON.stringify(rec)); rec.cancelled = true; await E.save('wageRuns', rec, b); throw err; }
+        }
       });
-      
-      if (loan) { try { await E.staffLoanApply(e.id, loan, rec.id, no, E.val('ds_pd')); } catch (x) { console.warn(x); } }
       E.closeM(); E.go(); E.toast(no + ' posted to ' + targetLabel, 'success');
     } catch (err) { E.toast(err.message, 'error'); }
-  };
+  });
 
   E.A.dailyCancel = async id => {
     try {
       const r = E.D.wageRuns.find(x => x.id === id);
+      if (r.cancelled) throw new Error('Already cancelled');
       if (!confirm('Cancel ' + r.no + '?')) return;
       await E.reverse(r.jeId);
-      if (r.loanRec) { try { await E.staffLoanReverseRun(r.id); } catch (x) { console.warn(x); } }
+      await E.staffLoanReverseRun(r.id);
       const b = JSON.parse(JSON.stringify(r));
       r.cancelled = true;
       await E.save('wageRuns', r, b);
@@ -585,23 +620,23 @@
     const rows = emps.map(e => {
       const a = att(e.id, f, to);
       const advBal = E.advBal(e.id);
-      const loanDue = E.staffLoanDue ? E.staffLoanDue(e.id, to.slice(0, 7)) : 0;
+      const loanBalV = E.loanBal ? E.loanBal(e.id) : 0, loanDef = E.staffLoanSuggest ? Math.min(E.staffLoanSuggest(e.id), loanBalV) : 0;
       const adv0 = e.advInstall ? Math.min(advBal, e.advInstall) : advBal;
-      return `<tr data-id="${e.id}">
+      return `<tr data-id="${e.id}" data-loanbal="${loanBalV}">
         <td><b>${E.esc(e.name)}</b><br><span class="muted">${e.code} · ${E.m(e.amount)}/mo</span></td>
         <td>${inp('days', 56, a.absent || '')}</td>
         <td>${inp('ot', 52, a.ot || '')}</td>
         <td>${inp('bonus', 70)}</td>
         <td class="r">${advBal ? E.m(advBal) : '—'}</td>
         <td>${advBal ? inp('adv', 70, adv0 ? (adv0 / 100).toFixed(2) : '') : '<input type="hidden" data-k="adv" value="0">—'}</td>
-        <td class="r">${loanDue ? '<b>' + E.m(loanDue) + '</b>' : '—'}</td>
-        <td>${loanDue ? inp('loan', 70, (loanDue / 100).toFixed(2)) : '<input type="hidden" data-k="loan" value="0">—'}</td>
+        <td class="r">${loanBalV ? '<b>' + E.m(loanBalV) + '</b><div class="muted la" style="font-size:11px"></div>' : '—'}</td>
+        <td>${loanBalV ? inp('loan', 70, loanDef ? (loanDef / 100).toFixed(2) : '') : '<input type="hidden" data-k="loan" value="0">—'}</td>
         <td>${toSel(e.target || 'ADM')}</td>
         <td class="r gv"></td>
         <td class="r nv"></td>
       </tr>`;
     }).join('');
-    E.$('wrb').innerHTML = `<div class="tw"><table><thead><tr><th>Employee</th><th>No-pay</th><th>OT</th><th>Bonus</th><th class="r">Advance</th><th>Recover</th><th class="r">Loan</th><th>Recover</th><th>Charge</th><th class="r">Gross</th><th class="r">Net</th></tr></thead><tbody id="wr">${rows}</tbody></table></div>
+    E.$('wrb').innerHTML = `<div class="tw"><table><thead><tr><th>Employee</th><th>No-pay</th><th>OT</th><th>Bonus</th><th class="r">Advance</th><th>Recover</th><th class="r">Loan pending</th><th>Deduct</th><th>Charge</th><th class="r">Gross</th><th class="r">Net</th></tr></thead><tbody id="wr">${rows}</tbody></table></div>
       ${splitBox()}
       <div class="tot"><span id="w_g"></span></div>
       <button class="btn p" data-a="saveMonthlyRun" style="margin-top:12px">➡️ Review</button>`;
@@ -625,6 +660,8 @@
       const ee = on ? Math.round(epfBase(gross, ot, bonus) * E.setting('epfEmp') / 100) : 0;
       const od = E.c(i.other || 0);
       const net = gross - ee - i.adv - i.loan - od;
+      const lb = +tr.dataset.loanbal || 0, la = tr.querySelector('.la');
+      if (la) { la.textContent = 'after: ' + E.m(lb - i.loan); la.style.color = (i.loan > lb || i.loan < 0) ? '#dc2626' : ''; }
       tr.querySelector('.gv').textContent = gross ? E.m(gross) : '';
       tr.querySelector('.nv').textContent = gross ? E.m(net) : '';
       tr.querySelector('.nv').style.color = net < 0 ? '#dc2626' : '';
@@ -661,8 +698,12 @@
         const net = gross - ee - i.adv - i.loan - od;
         const advB = E.advBal(e.id);
         if (i.adv > advB) throw new Error(e.name + ': advance exceeds balance');
+        if (i.loan < 0 || i.adv < 0) throw new Error(e.name + ': deductions cannot be negative');
+        E.staffLoanCheck(e.id, i.loan, wd);
+        const dupe = E.rows('wageRuns').find(r => r.kind === 'run' && r.type === 'Monthly' && !r.cancelled && r.from <= to && r.to >= f && (r.lines || []).some(x => x.empId === e.id));
+        if (dupe) throw new Error(e.name + ': already has salary run ' + dupe.no + ' covering ' + dupe.from + ' to ' + dupe.to + '. Cancel that run first if it is wrong.');
         if (net < 0) throw new Error(e.name + ': net negative');
-        L.push({ empId: e.id, name: e.name, payType: e.payType, basic, piece: 0, ot, bonus, gross, epfEmp: ee, epfCo: ec, etf: et, advRec: i.adv, loanRec: i.loan, otherDed: od, net, days: 0, nopay: nopay || 0, otHrs: i.ot || 0, target: i.to, pieceDetail: [], logIds: [], advBefore: advB, advAfter: advB - i.adv });
+        L.push({ empId: e.id, name: e.name, payType: e.payType, basic, piece: 0, ot, bonus, gross, epfEmp: ee, epfCo: ec, etf: et, advRec: i.adv, loanRec: i.loan, otherDed: od, net, days: 0, nopay: nopay || 0, otHrs: i.ot || 0, target: i.to, pieceDetail: [], logIds: [], advBefore: advB, advAfter: advB - i.adv, loanBefore: E.loanBal(e.id), loanAfter: E.loanBal(e.id) - i.loan });
       });
       if (!L.length) throw new Error('Nothing to pay');
       if (L.some(l => l.target === 'SPLIT')) { split = [...document.querySelectorAll('.wsp')].map(i => ({ id: i.dataset.id, p: Math.round((parseFloat(i.value) || 0) * 100) })).filter(x => x.p > 0); if (split.reduce((a, x) => a + x.p, 0) !== 10000) throw new Error('Split must = 100%'); }
@@ -673,10 +714,11 @@
   E.A.canRun = async id => {
     try {
       const r = E.D.wageRuns.find(x => x.id === id);
+      if (r.cancelled) throw new Error('Already cancelled');
       if (r.paid) throw new Error('Already paid');
       if (!confirm('Cancel ' + r.no + '?')) return;
       await E.reverse(r.jeId);
-      if (r.loanRec) { try { await E.staffLoanReverseRun(r.id); } catch (x) {} }
+      await E.staffLoanReverseRun(r.id);
       for (const v of E.rows('closedJobVariances').filter(x => x.sourceJeId === r.jeId)) { try { await E.del('closedJobVariances', v.id); } catch (x) { console.warn(x); } }
       for (const l of r.lines) for (const lid of (l.logIds || [])) { const g = E.D.prodLogs.find(x => x.id === lid); if (g && g.status === 'paid') { const b = JSON.parse(JSON.stringify(g)); g.status = 'accrued'; g.runId = ''; g.runNo = ''; await E.save('prodLogs', g, b); } }
       const b = JSON.parse(JSON.stringify(r)); r.cancelled = true;
@@ -725,17 +767,19 @@
       <p class="muted">Dr 1250 / Cr bank. Recovered in salary runs. Wage workers cannot take advances — use Staff Loans instead.</p>
     `, `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="saveAdv">Post</button>`);
   };
-  E.A.saveAdv = async () => {
+  E.A.saveAdv = () => E.once('saveAdv', async () => {
     try {
       const c = chk();
       const e = emp(E.val('v_e'));
+      if (!e) throw new Error('Select employee');
       if (payCat(e) === 'Wage') throw new Error('Wage workers cannot take advances — use Staff Loans');
       const no = await E.next('ADV');
-      await E.post({ date: c.d, ref: no, narr: 'Advance · ' + e.name, source: 'payroll', lines: [{ acc: '1250', dr: c.a }, { acc: c.s, cr: c.a }] });
-      await E.save('wageRuns', { no, kind: 'advance', empId: e.id, date: c.d, amount: c.a, note: E.val('z_n'), cancelled: false });
+      await E.postThen({ date: c.d, ref: no, narr: 'Advance · ' + e.name, source: 'payroll', lines: [{ acc: '1250', dr: c.a }, { acc: c.s, cr: c.a }] }, async je => {
+        await E.save('wageRuns', { no, kind: 'advance', empId: e.id, date: c.d, amount: c.a, note: E.val('z_n'), jeId: je.id, cancelled: false });
+      });
       E.closeM(); E.go(); E.toast('Advance posted', 'success');
     } catch (err) { E.toast(err.message, 'error'); }
-  };
+  });
 
   E.A.slips = id => {
     const r = E.D.wageRuns.find(x => x.id === id);
@@ -751,6 +795,7 @@
         ${l.epfEmp ? `<tr><td>EPF</td><td class="r">-${E.m(l.epfEmp)}</td></tr>` : ''}
         ${l.advRec ? `<tr><td>Advance</td><td class="r">-${E.m(l.advRec)}</td></tr>` : ''}
         ${l.loanRec ? `<tr><td>Staff loan</td><td class="r">-${E.m(l.loanRec)}</td></tr>` : ''}
+        ${l.loanBefore ? `<tr><td class="muted">Loan still pending after this pay</td><td class="r muted">${E.m(l.loanAfter)}</td></tr>` : ''}
         ${l.otherDed ? `<tr><td>Other</td><td class="r">-${E.m(l.otherDed)}</td></tr>` : ''}
         <tr><td><b>Net</b></td><td class="r"><b>${E.m(l.net)}</b></td></tr>
       </table><br>Signature: ____________________</div>`).join('')}</body></html>`;
@@ -776,10 +821,8 @@
       }
     });
     E.rows('wageRuns').filter(r => r.kind === 'advance' && r.empId === id && !r.cancelled).forEach(r => { ev.push({ d: r.date, k: 'Advance', t: r.note || 'Advance', earn: 0, adv: r.amount, loan: 0, pay: 0 }); });
-    E.rows('staffLoans').filter(l => l.empId === id && !l.cancelled).forEach(l => {
-      ev.push({ d: l.date, k: 'Loan given', t: l.no + ' · ' + E.m(l.principal), earn: 0, adv: 0, loan: l.principal, pay: 0 });
-      l.rows.forEach(r => { if (r.paid) ev.push({ d: r.paidDate, k: 'Loan recovered', t: `${l.no} · #${r.n}`, earn: 0, adv: 0, loan: -r.paidPrincipal, pay: 0 }); });
-    });
+    /* payroll deductions are already shown inside their wage / salary lines, so only loans given, repayments and write-offs are added here */
+    (E.staffLoanEvents ? E.staffLoanEvents(id, true) : []).forEach(x => ev.push({ d: x.d, k: x.k, t: x.t, earn: 0, adv: 0, loan: x.amt, pay: 0 }));
     return ev.sort((a, b) => a.d.localeCompare(b.d));
   }
 
@@ -793,7 +836,7 @@
     const before = ev.filter(x => x.d < LG.from).reduce((s, x) => s + x.adv + x.loan, 0);
     let ab = before;
     const paid = ev.reduce((s, x) => s + x.pay, 0);
-    const loanBal = E.rows('staffLoans').filter(l => l.empId === e.id && !l.cancelled && !l.settled).reduce((s, l) => s + E.staffLoanTotals(l).principalOut, 0);
+    const loanBal = E.loanBal(e.id);
     return `<div class="bar">
       <select class="fs" data-f="lg.emp" style="min-width:240px">${es.map(x => `<option value="${x.id}" ${x.id === LG.emp ? 'selected' : ''}>${E.esc(x.code + ' — ' + x.name)}</option>`).join('')}</select>
       <span class="muted">From</span><input type="date" class="fs" data-f="lg.from" value="${LG.from}">

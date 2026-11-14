@@ -1,6 +1,6 @@
 /* Data Reset & Restore — start fresh safely. Always downloads a backup first, then asks you to type ERASE. */
 (E=>{
-const TX=['journalEntries','stockMoves','purchases','issues','expenses','wageRuns','invoices','receipts','cheques','payments','deliveries','recon','attendance','qc','quotes','vouchers','cashCounts','prodLogs','costRuns','purchaseOrders','stockTakes','loans','jobs','jobLines','sequences'],
+const TX=['journalEntries','stockMoves','purchases','issues','expenses','wageRuns','invoices','receipts','cheques','payments','deliveries','recon','attendance','qc','quotes','vouchers','cashCounts','prodLogs','costRuns','purchaseOrders','stockTakes','loans','staffLoans','closedJobVariances','jobs','jobLines','sequences'],
  MS=['items','variants','parties','employees','assets','rateCards','operations','budgets'],
  N=c=>E.rows(c).length,T=l=>l.reduce((s,c)=>s+N(c),0);
 E.nav('System','datareset','🧹','Data Reset & Restore');

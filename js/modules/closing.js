@@ -53,6 +53,8 @@
     const advTotal = advAdvances + advLoans;
     add('Staff advance + loan balances agree with the ledger (1250)', advTotal === E.bal('1250', t),
       'Advances ' + E.m(advAdvances) + ' + Loans ' + E.m(advLoans) + ' = ' + E.m(advTotal) + ' · Ledger ' + E.m(E.bal('1250', t)), 'advreg');
+    const la = E.staffLoanAudit ? E.staffLoanAudit() : { issues: [] };
+    add('Staff loan records match payroll and the ledger', !la.issues.length, la.issues.length ? la.issues.length + ' problem(s) found' : 'OK', 'loanaudit');
 
     /* 8. overhead pool — ignores 5390 */
     const un = E.unabsorbed ? E.unabsorbed() : 0;

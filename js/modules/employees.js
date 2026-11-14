@@ -27,7 +27,7 @@
   };
   const isSalaried = p => payCat(p) !== 'Wage';
   const advBal = id => (E.advBal ? E.advBal(id) : 0);
-  const used = id => E.D.wageRuns.some(w => JSON.stringify(w).includes(id));
+  const used = id => E.D.wageRuns.some(w => JSON.stringify(w).includes(id)) || E.D.staffLoans.some(l => l.empId === id);
 
   const paidIn = p => {
     const cat = payCat(p);
@@ -321,6 +321,7 @@
   E.A.delEmp = async id => {
     const p = E.D.employees.find(x => x.id === id);
     if (used(id)) {
+      if (p.active && E.loanBal && E.loanBal(id) > 0 && !confirm(p.name + ' still owes ' + E.m(E.loanBal(id)) + ' on staff loans. Deactivate anyway? (The loan stays on record; recover or write it off from Staff Loans.)')) return;
       const b = JSON.parse(JSON.stringify(p));
       p.active = !p.active;
       await E.save('employees', p, b);

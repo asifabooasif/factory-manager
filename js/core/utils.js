@@ -1,6 +1,8 @@
 (E=>{const $=id=>document.getElementById(id);E.$=$;E.val=id=>($(id)?.value||'').trim();
 E.esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 E.uid=()=>'x'+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
+/* Double-click / double-tap guard: while an action with this key is running, a second call is ignored. */
+const busy=new Set();E.once=async(key,fn)=>{if(busy.has(key))return;busy.add(key);try{return await fn()}finally{busy.delete(key)}};
 E.today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
 E.toast=(m,t)=>{const e=document.createElement('div');e.className='ts '+(t||'');e.textContent=m;$('ts').appendChild(e);setTimeout(()=>e.remove(),3500)};
 E.modal=(t,b,f,w)=>{$('mw').innerHTML=`<div class="m ${w?'w':''}"><div class="mh"><span>${E.esc(t)}</span><button data-a="close">✕</button></div><div class="mb">${b}</div><div class="mf">${f}</div></div>`;$('mw').classList.add('o')};

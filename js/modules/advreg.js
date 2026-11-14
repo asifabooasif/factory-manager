@@ -13,9 +13,12 @@
   const isSalaried = e => payCat(e) !== 'Wage';
   const allRuns = () => E.rows('wageRuns').filter(r => !r.cancelled);
   const advances = () => E.rows('wageRuns').filter(r => r.kind === 'advance' && !r.cancelled);
-  const loansOpen = empId => (E.rows('staffLoans') || [])
-    .filter(l => l.empId === empId && !l.cancelled && !l.settled)
-    .reduce((s, l) => s + (E.staffLoanTotals ? E.staffLoanTotals(l).principalOut : 0), 0);
+  const loanRecOf = (r, empId) => {
+    if (r.kind === 'run') { const line = (r.lines || []).find(l => l.empId === empId); return line ? (line.loanRec || 0) : 0; }
+    if (r.kind === 'daily-salary' && r.empId === empId) return r.loanRec || 0;
+    return 0;
+  };
+  const dayBefore = d => { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() - 1); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
   const recoveryOf = (r, empId) => {
     if (r.kind === 'run') {
       const line = (r.lines || []).find(l => l.empId === empId);
@@ -44,12 +47,14 @@
       .map(e => {
         const cat = payCat(e);
         const sal = isSalaried(e);
-        const loanBal = loansOpen(e.id);
+        /* loan balances are worked out AS AT the month start / month end, so past months never change when later payroll is posted */
+        const loanOpen = E.loanBal(e.id, dayBefore(f)), loanBal = E.loanBal(e.id, t);
         const empAdv = advs.filter(r => r.empId === e.id);
         const given0 = empAdv.filter(r => r.date < f).reduce((s, r) => s + (r.amount || 0), 0);
         const givenM = empAdv.filter(r => r.date >= f && r.date <= t).reduce((s, r) => s + (r.amount || 0), 0);
         const rec0 = runs.filter(r => r.date < f).reduce((s, r) => s + recoveryOf(r, e.id), 0);
         const recM = runs.filter(r => r.date >= f && r.date <= t).reduce((s, r) => s + recoveryOf(r, e.id), 0);
+        const loanRecM = runs.filter(r => r.date >= f && r.date <= t).reduce((s, r) => s + loanRecOf(r, e.id), 0);
         const mRuns = runs.filter(r => r.date >= f && r.date <= t);
         let netWages = 0, netDaily = 0, netMonthly = 0;
         mRuns.forEach(r => {
@@ -60,14 +65,14 @@
           else if (n.category === 'monthly') netMonthly += n.net;
         });
         return {
-          e, cat, sal, loanBal,
-          open: given0 - rec0 + loanBal,
+          e, cat, sal, loanBal, loanRecM,
+          open: given0 - rec0 + loanOpen,
           givenM, recM,
           close: given0 - rec0 + givenM - recM + loanBal,
           netWages, netDaily, netMonthly, netTotal: netWages + netDaily + netMonthly
         };
       })
-      .filter(x => x.open || x.givenM || x.recM || x.netTotal || x.close || x.loanBal);
+      .filter(x => x.open || x.givenM || x.recM || x.loanRecM || x.netTotal || x.close || x.loanBal);
   }
 
   const body = () => {
@@ -86,7 +91,7 @@
       <thead><tr>
         <th>Employee</th><th>Category</th>
         <th class="r">Opening</th><th>Adv. Month</th><th class="r">Staff Loan</th>
-        <th class="r">Recovered</th><th class="r">Closing</th>
+        <th class="r">Adv. Recovered</th><th class="r">Loan Deducted</th><th class="r">Closing</th>
         <th class="r">Wages Net</th><th class="r">Daily Sal.</th><th class="r">Monthly Sal.</th>
       </tr></thead>
       <tbody>${D.map(x => {
@@ -101,17 +106,18 @@
           <td>${advGiven}</td>
           <td class="r">${x.loanBal ? '<b>' + E.m(x.loanBal) + '</b>' : '<span class="muted">—</span>'}</td>
           <td class="r">${advCell(x.recM)}</td>
+          <td class="r">${x.loanRecM ? E.m(x.loanRecM) : '<span class="muted">—</span>'}</td>
           <td class="r">${advCell(x.close, true)}</td>
           <td class="r">${x.netWages ? E.m(x.netWages) : '—'}</td>
           <td class="r">${x.netDaily ? E.m(x.netDaily) : '—'}</td>
           <td class="r">${x.netMonthly ? `<b>${E.m(x.netMonthly)}</b>` : '—'}</td>
         </tr>`;
-      }).join('') || '<tr><td colspan="10" class="muted">No advances or payments in this month</td></tr>'}</tbody>
+      }).join('') || '<tr><td colspan="11" class="muted">No advances or payments in this month</td></tr>'}</tbody>
     </table></div>
     <p class="muted" style="margin-top:10px;font-size:12px;line-height:1.6">
       <b>How to read this:</b>
       Wage workers can only appear in <em>Wages Net</em>. Daily/Monthly staff appear in their salary columns plus any piece work.
-      Closing balance = outstanding advances + unpaid staff loans. Both sit in ledger 1250.
+      Closing balance = outstanding advances + pending staff loans, both as at month end. Both sit in ledger 1250.
     </p>`;
   };
 

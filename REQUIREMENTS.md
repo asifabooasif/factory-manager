@@ -43,6 +43,7 @@ Status: DONE = built and tested | NEW = added in this update | OPEN = not built 
 | Jobs with costing, material issue, wastage, finished-goods release | DONE |
 | Inventory with weighted-average cost, stock cards, adjustments | DONE |
 | Delivery notes, invoices, credit notes, receivables ageing | DONE |
+| Staff loans: interest-free, running pending balance, deduction typed at every wage / daily / monthly payroll (never above the pending balance), repayments and write-offs, payroll and ledger cross-check with one-click repair | NEW |
 | Attendance and overtime | NEW |
 | Quality control (reject rate, defect analysis) | NEW |
 | Material planning from BOM vs stock | NEW |
