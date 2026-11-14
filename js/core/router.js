@@ -11,7 +11,7 @@ E.go=()=>{cur=location.hash.replace(/^#\/?/,'')||'dashboard';if(!E.R[cur])cur='d
 addEventListener('hashchange',E.go);
 document.addEventListener('click',e=>{const gh=e.target.closest('[data-grp]');if(gh){const b=gh.nextElementSibling,o=b.style.display==='none';b.style.display=o?'block':'none';gh.classList.toggle('open',o);let m={};try{m=JSON.parse(localStorage.getItem('erp_nav')||'{}')}catch(x){}m[gh.dataset.grp]=o;localStorage.setItem('erp_nav',JSON.stringify(m));return}
  const n=e.target.closest('[data-nav]');
- if(n){const it=E.N.find(x=>x.id===n.dataset.nav);if(it.soon)return E.toast('Coming in a later part');location.hash='#/'+it.id;return}
+ if(n){const it=E.N.find(x=>x.id===n.dataset.nav);if(!it)return E.toast('That screen is not available','error');if(it.soon)return E.toast('Coming in a later part');location.hash='#/'+it.id;return}
  const a=e.target.closest('[data-a]');if(a&&E.A[a.dataset.a])E.A[a.dataset.a](a.dataset.id,e)});
 document.addEventListener('input',e=>E.hooks.forEach(h=>h(e)));
 E.A.theme=()=>{const h=document.documentElement,t=h.dataset.theme==='dark'?'professional':'dark';h.dataset.theme=t;localStorage.setItem('erp_t',t)};})(window.ERP);
