@@ -1,6 +1,6 @@
 {
   "name": "lanka-slipper-erp-windows",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Windows app for Lanka Slipper ERP",
   "author": "Lanka Slipper",
   "main": "main.js",
@@ -21,7 +21,8 @@
       "preload.js",
       "store.js",
       "offline.html",
-      "app-url.json"
+      "app-url.json",
+      "build/icon.png"
     ],
     "directories": {
       "buildResources": "build",

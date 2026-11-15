@@ -53,9 +53,16 @@ service cloud.firestore {
       allow create, update: if signedIn() && active() && request.resource.data.email == mail();
       allow read, delete:   if isOwner();
     }
+    // messages for the Notification Center: everyone signed in and active may read them (the app shows
+    // only those of the factory they have open); the owner, or someone who can write in that factory, may send
     match /erp_notify/{n} {
-      allow create: if isOwner();
-      allow read:   if isOwner();
+      allow read:   if active();
+      allow create: if request.resource.data.keys().hasOnly(['factoryId', 'title', 'body', 'route', 'level', 'to', 'kind', 'by', 'at'])
+                    && request.resource.data.get('title', '').size() < 200
+                    && request.resource.data.get('body', '').size() < 1000
+                    && (isOwner()
+                        || (active() && canWrite(request.resource.data.get('factoryId', '')) && request.resource.data.get('by', '') == mail()));
+      allow delete: if isOwner();
     }
   }
 }

@@ -29,6 +29,7 @@
     st.perm = p.display; return p.display;
   }
   async function schedule() {
+    if (E.notify && E.notify.androidPlan) return E.notify.androidPlan();   /* the Notification Center plans the alerts now */
     const n = LN(); if (!n || !E.fid) return;
     if ((await perm(false)) !== 'granted') return;
     await n.cancel({ notifications: [{ id: ID_CHQ }, { id: ID_PROD }] }).catch(() => {});
@@ -42,6 +43,18 @@
     if (list.length) await n.schedule({ notifications: list });
   }
 
+  E.native.local = LN; E.native.askPerm = perm;
+  /* notification channels (Android 8+) and what happens when a notification is tapped */
+  async function setupLocal() {
+    const n = LN(); if (!n) return;
+    try {
+      await n.createChannel({ id: 'alerts', name: 'Alerts', description: 'Cheques due, overdue invoices, low stock, late jobs', importance: 4, visibility: 1, vibration: true, lights: true, lightColor: '#F5A623' });
+      await n.createChannel({ id: 'reminders', name: 'Reminders', description: 'Daily production reminder', importance: 3, visibility: 1 });
+      await n.createChannel({ id: 'team', name: 'Team messages', description: 'Messages from the owner and team', importance: 4, visibility: 1, vibration: true });
+    } catch (e) { console.warn('channels', e); }
+    n.addListener('localNotificationActionPerformed', ev => { const x = (ev.notification && ev.notification.extra) || {}; if (E.notify) E.notify.open(x.route); });
+  }
+
   /* ---- 3. Push notifications (Firebase Cloud Messaging) ---- */
   async function pushInit() {
     const M = P('FirebaseMessaging'); if (!M) return;
@@ -52,8 +65,8 @@
       const u = E.sync && E.sync.user;
       if (u && t.token) await firebase.firestore().collection('erp_devices').doc(t.token.slice(-40)).set({ token: t.token, email: (u.email || '').toLowerCase(), platform: C.getPlatform(), updated: new Date().toISOString() });
       await M.subscribeToTopic({ topic: 'all' }).catch(() => {});
-      M.addListener('notificationReceived', ev => { const n = ev.notification || {}; E.toast((n.title ? n.title + ': ' : '') + (n.body || ''), 'success'); });
-      M.addListener('notificationActionPerformed', ev => { const d = (ev.notification && ev.notification.data) || {}; if (d.route && E.R[d.route]) location.hash = '#/' + d.route; });
+      M.addListener('notificationReceived', ev => { const n = ev.notification || {}, d = n.data || {}; if (E.notify) E.notify.addMessage({ id: d.nid, title: n.title, body: n.body, route: d.route }); E.toast((n.title ? n.title + ': ' : '') + (n.body || ''), 'success'); });
+      M.addListener('notificationActionPerformed', ev => { const d = (ev.notification && ev.notification.data) || {}; if (E.notify) E.notify.open(d.route); else if (d.route && E.R[d.route]) location.hash = '#/' + d.route; });
     } catch (e) { console.warn('push', e); }
   }
 
@@ -78,12 +91,9 @@
   E.route('mobile', 'Mobile & Notifications', () => {
     const chk = (k, d, a, t) => `<label class="f" style="flex-direction:row;gap:8px"><input type="checkbox" ${LS.get(k, d) ? 'checked' : ''} data-a="${a}" style="width:auto"> ${t}</label>`;
     return `<div class="kp">${E.kpi('Running as', native ? 'Android app' : 'Web browser', native ? 'version ' + (st.version || '…') : 'install for the full app')}${E.kpi('Notifications', st.perm === 'granted' ? 'On' : st.perm === 'denied' ? 'Blocked' : 'Not enabled')}${E.kpi('Connection', navigator.onLine ? 'Online' : 'Offline')}</div>
-    <div class="card"><h3>Reminders on this phone</h3>
-      ${chk('chq', true, 'mobChq', 'Daily 9:00 reminder when cheques are due within 3 days')}
-      ${chk('prod', false, 'mobProd', "Daily reminder to log production at <input id=\"m_pt\" type=\"time\" value=\"" + (LS.get('prodTime', '17:00')) + "\" class=\"fs\" style=\"width:auto\">")}
-      <div class="bar"><button class="btn p" data-a="mobEnable">Enable notifications</button><button class="btn" data-a="mobTest">Send test</button><button class="btn" data-a="mobCheck">Check for app update</button></div>
-      ${native ? '' : '<p class="muted">Notifications and updates work in the Android app. In a browser only the layout is mobile-friendly.</p>'}</div>
-    ${E.isOwner && E.isOwner() ? `<div class="card"><h3>Send a message to every phone</h3><div class="f">Title<input id="m_bt" value="Lanka Slipper ERP"></div><div class="f">Message<textarea id="m_bm" rows="2"></textarea></div><button class="btn p" data-a="mobBroadcast">Send to all devices</button><p class="muted" style="margin-top:8px">Needs the Cloud Function in functions/index.js deployed (see ANDROID.md).</p></div>` : ''}`;
+    <div class="card"><h3>Notifications</h3><p class="muted">Alerts, reminders and team messages are now managed in the Notification Center.</p>
+      <div class="bar"><button class="btn p" data-a="goNotify">Open Notification Center</button><button class="btn" data-a="mobEnable">Allow notifications</button><button class="btn" data-a="mobCheck">Check for app update</button></div>
+      ${native ? '' : '<p class="muted">Updates and phone notifications work in the Android app.</p>'}</div>`;
   });
   E.A.mobChq = (id, e) => { LS.set('chq', e.target.checked); schedule(); };
   E.A.mobProd = (id, e) => { LS.set('prod', e.target.checked); schedule(); };
@@ -98,6 +108,7 @@
   if (A) A.addListener('appStateChange', s => { if (s.isActive) { schedule(); checkUpdate(false); } });
   /* Android back button: close pop-up or menu first, then go back, then exit */
   if (A) A.addListener('backButton', () => {
+    if (E.notify && E.notify.closePanel()) return;
     const mw = document.getElementById('mw');
     if (mw && mw.classList.contains('o')) return E.closeM();
     if (document.body.classList.contains('mopen')) return document.body.classList.remove('mopen');
@@ -107,5 +118,5 @@
   const SB = P('StatusBar'); if (SB) { SB.setBackgroundColor({ color: '#2a1758' }).catch(() => {}); SB.setStyle({ style: 'DARK' }).catch(() => {}); }
   const SP = P('SplashScreen'); if (SP) setTimeout(() => SP.hide().catch(() => {}), 600);
   /* once the user is signed in and data is open */
-  let t = setInterval(() => { if (E.sync && E.sync.granted && E.fid) { clearInterval(t); pushInit(); schedule(); checkUpdate(false); } }, 1500);
+  let t = setInterval(() => { if (E.sync && E.sync.granted && E.fid) { clearInterval(t); setupLocal(); pushInit(); schedule(); checkUpdate(false); } }, 1500);
 })(window.ERP);
