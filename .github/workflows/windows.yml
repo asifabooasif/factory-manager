@@ -1,0 +1,27 @@
+name: Build Windows app
+on:
+  workflow_dispatch:
+  push:
+    tags: ['windows-v*']
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Write app address
+        shell: bash
+        run: |
+          test -n "${{ vars.APP_URL }}" || (echo "Add repository variable APP_URL"; exit 1)
+          echo '{"url":"${{ vars.APP_URL }}"}' > windows/app-url.json
+      - name: Build installer
+        working-directory: windows
+        run: |
+          npm install
+          npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slipper-erp-windows
+          path: |
+            windows/dist/*.exe
