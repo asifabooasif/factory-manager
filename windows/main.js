@@ -12,7 +12,7 @@ function create() {
   /* Google refuses sign-in from browsers that call themselves Electron, so present as plain Chrome */
   win.webContents.setUserAgent(win.webContents.getUserAgent().replace(/\s?Electron\/\S+/i, '').replace(/\s?lanka-slipper-erp-windows\/\S+/i, ''));
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (authHost(url) || isOurs(url)) return { action: 'allow', overrideBrowserWindowOptions: { width: 520, height: 700, autoHideMenuBar: true, parent: win } };
+    if (!url || url === 'about:blank' || authHost(url) || isOurs(url)) return { action: 'allow', overrideBrowserWindowOptions: { width: 520, height: 700, autoHideMenuBar: true, parent: win } };
     shell.openExternal(url); return { action: 'deny' };
   });
   win.webContents.on('did-fail-load', (e, code, d, u, main) => { if (main && code !== -3) win.loadFile(path.join(__dirname, 'offline.html'), { query: { url: URL_ } }); });
