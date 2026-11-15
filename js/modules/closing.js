@@ -85,8 +85,8 @@
     add('Cheques in hand agree with the ledger (1110)', pin === E.bal('1110', t), 'Cheque list ' + E.m(pin) + ' · Ledger ' + E.m(E.bal('1110', t)), 'chqdesk');
     add('Cheques issued agree with the ledger (2150)', pout === (E.acct('2150') ? E.bal('2150', t) : 0), 'Cheque list ' + E.m(pout) + ' · Ledger ' + E.m(E.acct('2150') ? E.bal('2150', t) : 0), 'chqdesk');
     if (E.chqAdvTotal) {
-      const ai = E.chqAdvTotal('in'), ao = E.chqAdvTotal('out'), li = E.acct('2400') ? E.bal('2400', t) : 0, lo = E.acct('1260') ? E.bal('1260', t) : 0;
-      add('Advance cheques agree with the ledger (2400 / 1260)', ai === li && ao === lo, 'Customer advances ' + E.m(ai) + ' vs ' + E.m(li) + ' · Supplier advances ' + E.m(ao) + ' vs ' + E.m(lo), 'chqdesk');
+      const ai = E.chqAdvTotal('in') + (E.custCreditRcpt ? E.custCreditRcpt() : 0), ao = E.chqAdvTotal('out'), li = E.acct('2400') ? E.bal('2400', t) : 0, lo = E.acct('1260') ? E.bal('1260', t) : 0;
+      add('Customer credit & advance cheques agree with the ledger (2400 / 1260)', ai === li && ao === lo, 'Customer advances ' + E.m(ai) + ' vs ' + E.m(li) + ' · Supplier advances ' + E.m(ao) + ' vs ' + E.m(lo), 'chqdesk');
     }
     const od = pend.filter(c => c.date < T);
     add('No cheque is past its date and still uncleared', !od.length, od.length ? od.length + ' cheque(s) overdue — deposit, clear or postpone them' : 'All cheques are within date', 'chqdesk');

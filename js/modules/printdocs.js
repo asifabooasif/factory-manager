@@ -75,8 +75,8 @@ function htmlRc(r){const p=cu(r.partyId);
   const owing=E.rows('invoices').filter(i=>!i.cancelled&&i.partyId===r.partyId).reduce((s,i)=>s+(i.total-i.paid),0);
   return page('RECEIPT',[['Receipt no',r.no],['Date',r.date],['Method',(E.acct(r.acc)||{}).name||r.acc||'']],
    `<div class="cards">${who(p,'Received from')}<div class="card"><h4>Amount received</h4><div class="big">${E.m(r.amount)}</div></div></div>
-   <table class="it"><thead><tr><th>Applied to invoice</th><th>Invoice date</th><th class="r">Amount</th></tr></thead><tbody>${al||'<tr><td colspan="3">On account</td></tr>'}</tbody><tfoot><tr><td colspan="2" class="r">TOTAL</td><td class="r">${E.m(r.amount)}</td></tr></tfoot></table>
-   <div class="sum"><div class="words"><b>Amount in words</b>${E.esc(words(r.amount))}</div><table class="tot"><tr class="bal"><td>Still owed by customer</td><td class="r">${E.m(owing)}</td></tr></table></div>`,
+   <table class="it"><thead><tr><th>Applied to invoice</th><th>Invoice date</th><th class="r">Amount</th></tr></thead><tbody>${al}${(r.advance||0)>0?'<tr><td colspan="2"><b>Kept on account (advance / overpayment)</b></td><td class="r">'+E.m(r.advance)+'</td></tr>':''}${!al&&!(r.advance>0)?'<tr><td colspan="3">On account</td></tr>':''}</tbody><tfoot><tr><td colspan="2" class="r">TOTAL</td><td class="r">${E.m(r.amount)}</td></tr></tfoot></table>
+   <div class="sum"><div class="words"><b>Amount in words</b>${E.esc(words(r.amount))}</div><table class="tot"><tr class="bal"><td>Still owed by customer</td><td class="r">${E.m(owing)}</td></tr>${E.custCredit&&E.custCredit(r.partyId)>0?'<tr><td>Credit held for customer</td><td class="r">'+E.m(E.custCredit(r.partyId))+'</td></tr>':''}</table></div>`,
    {s1:'Prepared by',s2:'Received by (cashier)',s3:'',stamp:r.reversed?'REVERSED':''})}
 function htmlCN(r){const p=cu(r.partyId),inv=E.D.invoices.find(i=>i.id===r.invId)||{};
   const rows=(r.lines||[]).map((l,i)=>`<tr><td>${i+1}</td><td>${E.esc(l.code||'')}</td><td class="r">${l.qty}</td><td class="r">${E.m(l.rate)}</td><td class="r">${E.m(l.value)}</td></tr>`).join('');

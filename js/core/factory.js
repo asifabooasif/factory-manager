@@ -13,7 +13,7 @@
     ['1320', 'Finished Goods Stock', 'asset', 0],
     ['2000', 'Trade Payables', 'liability', 0], ['2100', 'EPF/ETF Payable', 'liability', 0], ['2150', 'Post-Dated Cheques Issued', 'liability', 0],
     ['2200', 'Wages Payable', 'liability', 0], ['2210', 'Accrued Piece-Rate Wages', 'liability', 0],
-    ['2230', 'Staff Deductions Payable', 'liability', 0], ['2300', 'Accrued Expenses', 'liability', 0], ['2400', 'Customer Advances (cheques received in advance)', 'liability', 0],
+    ['2230', 'Staff Deductions Payable', 'liability', 0], ['2300', 'Accrued Expenses', 'liability', 0], ['2400', 'Customer Advances & Overpayments', 'liability', 0],
     ['3000', 'Owner Capital', 'equity', 0], ['3100', 'Retained Earnings', 'equity', 0],
     ['3200', 'Opening Balance Equity', 'equity', 0],
     ['4000', 'Sales Revenue', 'income', 0],

@@ -51,7 +51,7 @@ E.A.lnSave=async()=>{try{const s=rd(),lender=E.val('ln_l'),d=E.val('ln_d'),ex=E.
  if(ex){if(!DT.test(od))throw new Error('Enter the opening date');if(pd<0||pd>=s.n)throw new Error('Instalments already paid must be fewer than the total ('+s.n+')')}else if(!bank)throw new Error('Choose the account that received the money');
  if(!E.acct(INT))throw new Error('Account '+INT+' Finance Charges is missing');if(!E.acct('3000')&&ex)throw new Error('Account 3000 Owner Capital is missing');
  const pdate=ex?od:d;if(E.locked(pdate))throw new Error('Period is locked up to '+E.setting('lockedUntil'));
- let code='';for(let c=2400;c<2500;c++)if(!E.acct(String(c))){code=String(c);break}if(!code)throw new Error('No free loan account code (2400-2499)');
+ let code='';for(let c=2401;c<2500;c++)if(!E.acct(String(c))){code=String(c);break}if(!code)throw new Error('No free loan account code (2400-2499)');
  const x=E.loanSchedule(s),rows=x.rows;rows.slice(0,pd).forEach(r=>{r.paid=true;r.prepaid=true;r.paidDate=r.due;r.paidPrincipal=r.principal;r.paidInterest=r.interest});
  const owing=pd?rows[pd].opening:s.principal,no=await E.next('LN');
  await E.save('coa',{id:E.fid+'-'+code,code,name:'Loan - '+lender+' ('+no+')',type:'liability',bank:0,kind:'liability',custom:true});
