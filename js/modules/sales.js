@@ -24,7 +24,7 @@
           <td class="r">${packs}</td><td class="r muted">${pairs}</td>
           <td class="r">${E.m(d.total)}</td>
           <td><span class="tag">${dst(d)}</span></td>
-          <td class="r">${d.status === 'Delivered' ? `<button class="btn sm d" data-a="canDN" data-id="${d.id}">Cancel</button>` : ''}</td>
+          <td class="r"><button class="btn sm" data-a="prDN" data-id="${d.id}" title="Print delivery note">🖨</button> ${d.status === 'Delivered' ? `<button class="btn sm d" data-a="canDN" data-id="${d.id}">Cancel</button>` : ''}</td>
         </tr>`;
       }).join('') || '<tr><td colspan="8" class="muted">No delivery notes</td></tr>'}</tbody>
     </table></div></div>
@@ -35,7 +35,7 @@
         <td class="r">${E.m(i.total)}</td><td class="r">${E.m(i.paid)}</td>
         <td class="r"><b>${i.cancelled ? '—' : E.m(ib(i))}</b></td>
         <td><span class="tag">${ist(i)}</span></td>
-        <td class="r">${!i.cancelled && !i.paid ? `<button class="btn sm d" data-a="canInv" data-id="${i.id}">Cancel</button>` : ''}</td>
+        <td class="r"><button class="btn sm" data-a="prInv" data-id="${i.id}" title="Print invoice">🖨</button> ${!i.cancelled && !i.paid ? `<button class="btn sm d" data-a="canInv" data-id="${i.id}">Cancel</button>` : ''}</td>
       </tr>`).join('') || '<tr><td colspan="8" class="muted">No invoices</td></tr>'}</tbody>
     </table></div></div>`;
   }
@@ -281,7 +281,7 @@
   /* Receipts list with reversal */
   E.A.rcptList = () => {
     const R = E.rows('receipts').filter(r => r.kind !== 'credit' && r.jeId).sort((a, b) => b.no.localeCompare(a.no));
-    E.modal('Customer receipts', `<div class="tw"><table><thead><tr><th>No</th><th>Date</th><th>Customer</th><th class="r">Amount</th><th>Invoices</th><th></th></tr></thead><tbody>${R.map(r => `<tr style="${r.reversed ? 'opacity:.5' : ''}"><td>${r.no}</td><td>${r.date}</td><td>${E.esc((cu(r.partyId) || {}).name || '?')}</td><td class="r">${E.m(r.amount)}</td><td class="muted">${(r.allocs || []).map(x => { const i = E.D.invoices.find(q => q.id === x.id); return (i ? i.no : '?') + ' ' + E.m(x.a); }).join(', ')}</td><td class="r">${r.reversed ? '<span class="tag">Reversed ' + (r.reversedOn || '') + '</span>' : '<button class="btn sm d" data-a="revRecv" data-id="' + r.id + '">Reverse</button>'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No receipts</td></tr>'}</tbody></table></div>
+    E.modal('Customer receipts', `<div class="tw"><table><thead><tr><th>No</th><th>Date</th><th>Customer</th><th class="r">Amount</th><th>Invoices</th><th></th></tr></thead><tbody>${R.map(r => `<tr style="${r.reversed ? 'opacity:.5' : ''}"><td>${r.no}</td><td>${r.date}</td><td>${E.esc((cu(r.partyId) || {}).name || '?')}</td><td class="r">${E.m(r.amount)}</td><td class="muted">${(r.allocs || []).map(x => { const i = E.D.invoices.find(q => q.id === x.id); return (i ? i.no : '?') + ' ' + E.m(x.a); }).join(', ')}</td><td class="r"><button class="btn sm" data-a="prRcpt" data-id="' + r.id + '">🖨</button> ${r.reversed ? '<span class="tag">Reversed ' + (r.reversedOn || '') + '</span>' : '<button class="btn sm d" data-a="revRecv" data-id="' + r.id + '">Reverse</button>'}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No receipts</td></tr>'}</tbody></table></div>
       <p class="muted">Reversing posts the opposite journal entry today and puts the amount back on the invoice(s).</p>`, `<button class="btn" data-a="close">Close</button>`, 1);
   };
   E.A.revRecv = async id => {
