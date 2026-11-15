@@ -16,7 +16,9 @@ E.route('datareset','Data Reset & Restore',()=>`<div class="kp">${E.kpi('Transac
 E.A.doReset=async()=>{const m=(document.querySelector('input[name=rs_m]:checked')||{}).value;
  if((E.val('rs_c')||'').trim()!=='ERASE')return E.toast('Type ERASE to confirm','error');
  const cols=m==='audit'?['auditLog']:m==='all'?TX.concat(MS,['auditLog']):TX.concat(['auditLog']);
+ if(!(E.sync.granted&&E.sync.user&&navigator.onLine))return E.toast('This device is not connected to the cloud. Erasing now would clear only this device and your other devices would keep the data. Sign in and get online first (see System > Sync & Devices).','error');
  try{if(m!=='audit')E.A.backup();
   for(const c of cols)for(const r of E.rows(c).slice())await E.del(c,r.id);
-  E.toast('Data erased. A backup file was downloaded first.','success');location.hash=m==='audit'?'#/datareset':'#/opening';E.go()}catch(e){E.toast(e.message,'error')}};
+  try{await firebase.firestore().waitForPendingWrites()}catch(x){}
+  E.toast('Data erased on this device and in the cloud. A backup file was downloaded first.','success');location.hash=m==='audit'?'#/datareset':'#/opening';E.go()}catch(e){E.toast(e.message,'error')}};
 })(window.ERP);
