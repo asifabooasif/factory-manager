@@ -5,14 +5,41 @@
   "author": "Lanka Slipper",
   "main": "main.js",
   "private": true,
-  "scripts": { "start": "electron .", "dist": "electron-builder --win nsis portable --publish never" },
-  "devDependencies": { "electron": "^33.0.0", "electron-builder": "^25.0.0" },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis portable --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
   "build": {
     "appId": "lk.lankaslipper.erp.desktop",
     "productName": "Slipper ERP",
-    "files": ["main.js", "offline.html", "app-url.json"],
-    "directories": { "buildResources": "build", "output": "dist" },
-    "win": { "icon": "build/icon.png" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true }
+    "files": [
+      "main.js",
+      "preload.js",
+      "store.js",
+      "offline.html",
+      "app-url.json"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "win": {
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**"
+    ]
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.5.0"
   }
 }
