@@ -1,0 +1,9 @@
+{
+  "android": {
+    "versionCode": 1,
+    "versionName": "1.0.0",
+    "minVersionCode": 1,
+    "url": "https://github.com/YOUR-NAME/YOUR-REPO/releases/latest",
+    "notes": "First Android release."
+  }
+}

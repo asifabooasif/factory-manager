@@ -1,0 +1,18 @@
+{
+  "name": "lanka-slipper-erp-windows",
+  "version": "1.0.0",
+  "description": "Windows app for Lanka Slipper ERP",
+  "author": "Lanka Slipper",
+  "main": "main.js",
+  "private": true,
+  "scripts": { "start": "electron .", "dist": "electron-builder --win nsis portable --publish never" },
+  "devDependencies": { "electron": "^33.0.0", "electron-builder": "^25.0.0" },
+  "build": {
+    "appId": "lk.lankaslipper.erp.desktop",
+    "productName": "Slipper ERP",
+    "files": ["main.js", "offline.html", "app-url.json"],
+    "directories": { "buildResources": "build", "output": "dist" },
+    "win": { "icon": "build/icon.png" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true }
+  }
+}

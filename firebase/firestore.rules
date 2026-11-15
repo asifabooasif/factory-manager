@@ -47,5 +47,15 @@ service cloud.firestore {
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt', 'name', 'photo']));
       allow delete: if isOwner() && e != 'asifabooasif@gmail.com';
     }
+
+    // ---- phones registered for push notifications; owner broadcasts -------------------
+    match /erp_devices/{t} {
+      allow create, update: if signedIn() && active() && request.resource.data.email == mail();
+      allow read, delete:   if isOwner();
+    }
+    match /erp_notify/{n} {
+      allow create: if isOwner();
+      allow read:   if isOwner();
+    }
   }
 }

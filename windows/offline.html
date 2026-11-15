@@ -1,0 +1,4 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Slipper ERP</title>
+<style>body{font-family:Segoe UI,sans-serif;background:#2a1758;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center}button{padding:10px 20px;border:0;border-radius:10px;font-size:15px;cursor:pointer}</style></head>
+<body><div><h2>Slipper ERP</h2><p id="m">Cannot reach the server. Check the internet connection.</p><p><button onclick="go()">Try again</button></p></div>
+<script>const u=new URLSearchParams(location.search).get('url');if(!u)document.getElementById('m').textContent='App address is not set. Rebuild the installer with APP_URL.';function go(){if(u)location.href=u;}</script></body></html>
