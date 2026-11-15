@@ -48,10 +48,12 @@ const gate=(mode,msg)=>{let g=E.$('gate');
  const head='<div class="gl">🏭</div>';
  const B={
   loading:`${head}<div class="gsp"></div><p>${E.esc(msg||'Loading…')}</p>`,
-  signin:`${head}<h2>Lanka Slipper ERP</h2><p class="muted">Sign in with your Google account to enter. Only people added by the owner can use this system.</p><button class="btn p gbig" data-a="cloudIn">${G_LOGO}&nbsp; Continue with Google</button><p class="gerr">${E.esc(msg||'')}</p>`,
+  signin:`<div class="lx-eyebrow">LANKA SLIPPER · FACTORY MANAGER</div><h2>Sign in</h2><p class="lx-sub">Use your Google account to enter. Only people added by the owner can use this system.</p><button class="btn p gbig" data-a="cloudIn">${G_LOGO}&nbsp; Continue with Google</button><p class="gerr">${E.esc(msg||'')}</p><div class="lx-hint">💡 Click the lamp</div>`,
   denied:`${head}<h2>No access</h2><p><b>${E.esc(em)}</b></p><p class="muted">${E.esc(msg||'')}</p><div class="gb"><button class="btn p" data-a="cloudSwitch">Use a different Google account</button><button class="btn" data-a="cloudOut">Sign out</button></div>`,
   error:`${head}<h2>Cannot continue</h2><p>${E.esc(msg||'')}</p><div class="gb"><button class="btn p" data-a="gateRetry">Try again</button>${u?'<button class="btn" data-a="cloudOut">Sign out</button>':''}</div>`};
- g.innerHTML='<div class="gc">'+(B[mode]||B.loading)+'</div>'};
+ g.dataset.mode=mode;
+ if(mode==='signin'&&E.loginFx){g.innerHTML=E.loginFx.wrap('<div class="gc">'+B.signin+'</div>');E.loginFx.bind(g)}
+ else g.innerHTML='<div class="gc">'+(B[mode]||B.loading)+'</div>'};
 const hideGate=()=>{const g=E.$('gate');if(g)g.style.display='none'};
 
 const ROLE={owner:'Owner',accountant:'Accountant',viewer:'View only'};E.ROLE=ROLE;
