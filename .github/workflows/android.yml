@@ -18,13 +18,23 @@ jobs:
         run: |
           test -n "$APP_URL" || (echo "Add repository variable APP_URL (Settings > Secrets and variables > Actions > Variables)"; exit 1)
           test -n "${{ secrets.GOOGLE_SERVICES_JSON_B64 }}" || echo "WARNING: no GOOGLE_SERVICES_JSON_B64 secret. Google sign-in and push will not work."
+      - name: Write app config (embeds APP_URL)
+        run: node scripts/write-config.js
       - run: npm install
       - run: npx cap add android
       - name: Firebase config
         run: |
           if [ -n "${{ secrets.GOOGLE_SERVICES_JSON_B64 }}" ]; then echo "${{ secrets.GOOGLE_SERVICES_JSON_B64 }}" | base64 -d > android/app/google-services.json; fi
+      - name: Use the fixed signing key (same SHA-1 every build)
+        run: |
+          mkdir -p ~/.android && cp android-signing/debug.keystore ~/.android/debug.keystore
+          echo "SHA-1 to register in Firebase:"; keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1|SHA256"
       - run: node scripts/patch-android.js
       - run: npx cap sync android
+      - name: Verify the website address is inside the app
+        run: |
+          cat android/app/src/main/assets/capacitor.config.json
+          grep -q '"url"' android/app/src/main/assets/capacitor.config.json || (echo "ERROR: APP_URL was not embedded in the app"; exit 1)
       - name: Build
         working-directory: android
         run: |
