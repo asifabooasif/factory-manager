@@ -804,6 +804,7 @@
     w.document.write(h); w.document.close(); setTimeout(() => w.print(), 300);
   };
 
+  E.empLedgerEvents = id => ledgerEvents(id);
   const LG = { emp: '', from: E.today().slice(0, 4) + '-01-01', to: E.today() };
 
   function ledgerEvents(id) {
