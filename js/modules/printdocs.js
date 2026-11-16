@@ -12,7 +12,7 @@ const H={Small:44,Medium:64,Large:88};
 const logoH=()=>H[S('pr_logoSize')]||64;
 const accent=()=>/^#[0-9a-f]{6}$/i.test(S('pr_color'))?S('pr_color'):'#1e3a8a';
 function company(){const f=E.factory()||{};return {name:S('pr_name')||f.name||'',addr:S('pr_addr'),phone:S('pr_phone'),email:S('pr_email'),reg:S('pr_reg'),bank:S('pr_bank'),terms:S('pr_terms'),foot:S('pr_foot')}}
-const CSS=()=>`@page{size:${S('pr_paper')==='A5'?'A5':'A4'};margin:12mm 12mm 16mm;@bottom-right{content:"Page " counter(page) " of " counter(pages);font:9px Arial;color:#777}}
+const CSS=land=>`@page{size:${S('pr_paper')==='A5'?'A5':'A4'}${land?' landscape':''};margin:12mm 12mm 16mm;@bottom-right{content:"Page " counter(page) " of " counter(pages);font:9px Arial;color:#777}}
 *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}:root{--ac:${accent()}}
 body{font:${S('pr_font')==='Large'?'13px':'11.5px'}/1.4 "Segoe UI",Arial,Helvetica,sans-serif;color:#1b1f2a;margin:0}
 .top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}.brand{display:flex;gap:14px;align-items:center}
@@ -36,7 +36,7 @@ table.it th.r{text-align:right}table.it td{padding:7px 8px;border-bottom:1px sol
 .copy{font-size:9px;letter-spacing:2px;color:#777;margin-top:4px}`;
 const logoImg=()=>S('pr_logo')?`<img src="${S('pr_logo')}" alt="">`:'';
 function page(title,meta,body,o={}){const c=company(),addr=[c.addr,[c.phone&&'Tel: '+c.phone,c.email].filter(Boolean).join('  ·  '),c.reg&&'Reg / VAT: '+c.reg].filter(Boolean).join('\n');
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${E.esc(title)}</title><style>${CSS()}</style></head><body>${o.stamp?`<div class="stamp">${o.stamp}</div>`:''}
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${E.esc(title)}</title><style>${CSS(o.land)}.cmp td,.cmp th{padding:4px 6px;font-size:10px}.cmp tr.sub td{color:#4b5263;font-size:9.5px;background:#fff}.cmp tr.sub td:first-child{padding-left:18px}.cmp tr.b td{font-weight:700}</style></head><body>${o.stamp?`<div class="stamp">${o.stamp}</div>`:''}
 <div class="top"><div class="brand">${logoImg()}<div><h1>${E.esc(c.name)}</h1><div class="sm">${E.esc(addr)}</div></div></div>
 <div class="docbox"><div class="ti">${title}</div><div class="meta">${meta.map(([k,v])=>`<span>${E.esc(k)}</span><span>${E.esc(String(v))}</span>`).join('')}</div>${S('pr_copy')?`<div class="copy">${E.esc(S('pr_copy'))}</div>`:''}</div></div><div class="rule"></div>${body}
 ${o.nosign?'':`<div class="sig"><div>${o.s1||'Prepared by'}</div><div>${o.s2||'Authorised by'}</div><div>${o.s3||'Customer signature, name, date and stamp'}</div></div>`}
@@ -75,8 +75,8 @@ function htmlRc(r){const p=cu(r.partyId);
   const owing=E.rows('invoices').filter(i=>!i.cancelled&&i.partyId===r.partyId).reduce((s,i)=>s+(i.total-i.paid),0);
   return page('RECEIPT',[['Receipt no',r.no],['Date',r.date],['Method',(E.acct(r.acc)||{}).name||r.acc||'']],
    `<div class="cards">${who(p,'Received from')}<div class="card"><h4>Amount received</h4><div class="big">${E.m(r.amount)}</div></div></div>
-   <table class="it"><thead><tr><th>Applied to invoice</th><th>Invoice date</th><th class="r">Amount</th></tr></thead><tbody>${al}${(r.advance||0)>0?'<tr><td colspan="2"><b>Kept on account (advance / overpayment)</b></td><td class="r">'+E.m(r.advance)+'</td></tr>':''}${!al&&!(r.advance>0)?'<tr><td colspan="3">On account</td></tr>':''}</tbody><tfoot><tr><td colspan="2" class="r">TOTAL</td><td class="r">${E.m(r.amount)}</td></tr></tfoot></table>
-   <div class="sum"><div class="words"><b>Amount in words</b>${E.esc(words(r.amount))}</div><table class="tot"><tr class="bal"><td>Still owed by customer</td><td class="r">${E.m(owing)}</td></tr>${E.custCredit&&E.custCredit(r.partyId)>0?'<tr><td>Credit held for customer</td><td class="r">'+E.m(E.custCredit(r.partyId))+'</td></tr>':''}</table></div>`,
+   <table class="it"><thead><tr><th>Applied to invoice</th><th>Invoice date</th><th class="r">Amount</th></tr></thead><tbody>${al||'<tr><td colspan="3">On account</td></tr>'}</tbody><tfoot><tr><td colspan="2" class="r">TOTAL</td><td class="r">${E.m(r.amount)}</td></tr></tfoot></table>
+   <div class="sum"><div class="words"><b>Amount in words</b>${E.esc(words(r.amount))}</div><table class="tot"><tr class="bal"><td>Still owed by customer</td><td class="r">${E.m(owing)}</td></tr></table></div>`,
    {s1:'Prepared by',s2:'Received by (cashier)',s3:'',stamp:r.reversed?'REVERSED':''})}
 function htmlCN(r){const p=cu(r.partyId),inv=E.D.invoices.find(i=>i.id===r.invId)||{};
   const rows=(r.lines||[]).map((l,i)=>`<tr><td>${i+1}</td><td>${E.esc(l.code||'')}</td><td class="r">${l.qty}</td><td class="r">${E.m(l.rate)}</td><td class="r">${E.m(l.value)}</td></tr>`).join('');
@@ -137,5 +137,5 @@ function shrink(file){return new Promise((ok,no)=>{const fr=new FileReader();fr.
 E.hooks.push(async e=>{const t=e.target;if(!t||!t.id)return;
   if(t.id==='pr_file'&&t.files&&t.files[0]){try{LOGO=await shrink(t.files[0]);E.$('pr_lg').innerHTML=`<img src="${LOGO}" style="max-width:180px;max-height:70px">`;preview()}catch(x){E.toast(x.message,'error')}}
   else if(/^pr_/.test(t.id)&&t.id!=='pr_file'&&t.id!=='pr_prev')preview()});
-E.words=words;
+E.words=words;E.prPage=page;E.prOut=out;E.prWho=who;
 })(window.ERP);
