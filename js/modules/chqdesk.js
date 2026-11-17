@@ -349,7 +349,7 @@
   async function unwind(c) {
     if (E.locked(E.today())) throw new Error('Period is locked up to ' + E.setting('lockedUntil') + ' — reversals are posted today');
     if (c.status === 'Cleared' && c.clearJe) await rvJe(c.clearJe);
-    if (c.endorse && !c.endorse.reversed) { await rvJe(c.endorse.jeId); for (const x of c.endorse.allocs) await bump('purchases', x.id, -x.a); c.endorse.reversed = true; }
+    if (c.endorse && !c.endorse.reversed) { for (const ap of (c.endorse.applied || [])) if (!ap.reversed) { await rvJe(ap.jeId); await bump('purchases', ap.id, -ap.a); ap.reversed = true; } await rvJe(c.endorse.jeId); for (const x of c.endorse.allocs) await bump('purchases', x.id, -x.a); c.endorse.reversed = true; }
     for (const ap of (c.applied || [])) if (!ap.reversed) { await rvJe(ap.jeId); await bump(docCol(c.dir), ap.id, -ap.a); ap.reversed = true; }
     await rvJe(c.jeId); for (const x of (c.allocs || [])) await bump(docCol(c.dir), x.id, -x.a);
   }

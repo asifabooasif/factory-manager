@@ -7,7 +7,7 @@ const addDays=(d,n)=>{const x=new Date(d+'T00:00:00');x.setDate(x.getDate()+(+n|
 const dayDiff=(a,b)=>Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/864e5);
 const M=n=>({n:n||0}),Q=n=>({q:n||0}), T=(t,c)=>({t:String(t==null?'':t),c});
 const nat=a=>a&&(a.type==='asset'||a.type==='expense');
-const TABS=[['party','Ledger Search (anything)'],['ar','Receivables'],['ap','Payables'],['daybook','Day Book'],['tb','Trial Balance'],['gl','Account Ledger'],['bank','Cash & Bank']];
+const TABS=[['party','Ledger Search (anything)'],['ar','Receivables'],['ap','Payables'],['chq','Cheques pending'],['chqret','Returned cheques'],['adv','Advances'],['daybook','Day Book'],['tb','Trial Balance'],['gl','Account Ledger'],['bank','Cash & Bank']];
 E.nav('Reports','rcenter','🗂','Report Center');
 
 /* ---------- Party ledger: every transaction of one customer / supplier ---------- */
@@ -18,10 +18,25 @@ function ledgerFor(pid,from,to){
   E.rows('receipts').filter(r=>r.partyId===pid).forEach(r=>{
     if(r.kind==='credit'){add(r.date,r.no,'Sales return / credit note','Invoice '+inv(r.invId),'',0,r.amount);if(r.refund)add(r.date,r.no,'Refund paid to customer','Invoice '+inv(r.invId),'',r.amount,0)}
     else{const m=(E.acct(r.acc)||{}).name||r.acc||'';add(r.date,r.no,'Receipt',m,(r.allocs||[]).map(a=>inv(a.id)).filter(Boolean).join(', '),0,r.amount);if(r.reversed)add(r.reversedOn||r.date,r.no,'Receipt reversed',m,'',r.amount,0)}});
+  E.rows('receipts').filter(r=>r.partyId===pid&&r.kind!=='credit').forEach(r=>(r.advApplied||[]).filter(x=>x.refund&&!x.reversed).forEach(x=>add(x.date,r.no,'Advance refunded to customer',(E.acct(x.acc)||{}).name||'','',x.a,0)));
+  E.rows('payments').filter(r=>r.partyId===pid&&r.kind!=='debit').forEach(r=>(r.advApplied||[]).filter(x=>x.refund&&!x.reversed).forEach(x=>add(x.date,r.no,'Advance refunded by supplier',(E.acct(x.acc)||{}).name||'','',0,x.a)));
   E.rows('purchases').filter(b=>b.partyId===pid&&!b.cancelled).forEach(b=>add(b.date,b.no,b.opening?'Opening balance (supplier)':'Purchase bill',b.invNo?'Supplier inv '+b.invNo:'',b.grnNo?'GRN '+b.grnNo:'',0,b.total));
   E.rows('payments').filter(r=>r.partyId===pid).forEach(r=>{
     if(r.kind==='debit'){add(r.date,r.no,'Purchase return / debit note','Bill '+bill(r.billId),'',r.amount,0);if(r.refund)add(r.date,r.no,'Refund received from supplier','Bill '+bill(r.billId),'',0,r.amount)}
     else{const m=(E.acct(r.acc)||{}).name||r.acc||'';add(r.date,r.no,'Payment',m,(r.allocs||[]).map(a=>bill(a.id)).filter(Boolean).join(', '),r.amount,0);if(r.reversed)add(r.reversedOn||r.date,r.no,'Payment reversed',m,'',0,r.amount)}});
+  E.rows('cheques').forEach(c=>{
+    const nm=E.D.parties.find(q=>q.id===c.partyId)||{};
+    if(c.partyId===pid){
+      if(c.dir==='in'){add(c.recvDate||c.date,c.no,'Cheque received','Cheque '+c.chqNo+' · '+(c.bank||''),'dated '+c.date,0,c.amount);
+        if(c.status==='Bounced')add(c.bounceDate||c.date,c.no,'Cheque returned','Cheque '+c.chqNo,c.bounceReason||'',c.amount,0);
+        else if(c.status==='Cancelled')add(c.cancelDate||c.date,c.no,'Cheque cancelled','Cheque '+c.chqNo,'',c.amount,0)}
+      else{add(c.recvDate||c.date,c.no,'Cheque issued','Cheque '+c.chqNo+' · '+(c.bank||''),'dated '+c.date,c.amount,0);
+        if(c.status==='Bounced')add(c.bounceDate||c.date,c.no,'Issued cheque returned','Cheque '+c.chqNo,c.bounceReason||'',0,c.amount);
+        else if(c.status==='Cancelled')add(c.cancelDate||c.date,c.no,'Issued cheque cancelled','Cheque '+c.chqNo,'',0,c.amount)}
+    }
+    if(c.endorse&&c.endorse.partyId===pid){add(c.endorse.date,c.no,'Paid by endorsed cheque','Customer cheque '+c.chqNo+' from '+(nm.name||''),'',c.amount,0);
+      if(c.endorse.reversed)add(c.bounceDate||c.cancelDate||c.endorse.date,c.no,'Endorsement reversed','Cheque '+c.chqNo,'',0,c.amount)}
+  });
   x.sort((a,b)=>a.date.localeCompare(b.date)||a.no.localeCompare(b.no));
   let bal=0,open=0;const rows=[];
   x.forEach(t=>{if(from&&t.date<from){open+=t.dr-t.cr;bal=open;return}if(to&&t.date>to)return;bal+=t.dr-t.cr;rows.push(Object.assign({bal},t))});
@@ -37,7 +52,9 @@ function party(){
   const rows=[];
   if(R.from)rows.push({c:[T(R.from),T(''),T('Balance brought forward'),T(''),T(''),M(0),M(0),bal(L.open)],cls:'b'});
   L.rows.forEach(t=>rows.push({c:[T(t.date),T(t.no),T(t.type),T(t.ref),T(t.desc),M(t.dr),M(t.cr),bal(t.bal)]}));
-  const word=L.close>0?`${p.name} owes you ${E.m(L.close)}`:L.close<0?`You owe ${p.name} ${E.m(-L.close)}`:'Nothing outstanding';
+  const ca=E.advHeld?E.advHeld('cust',R.pid):0,sa=E.advHeld?E.advHeld('supp',R.pid):0;
+  const word0=L.close>0?`${p.name} owes you ${E.m(L.close)}`:L.close<0?`You owe ${p.name} ${E.m(-L.close)}`:'Nothing outstanding';
+  const word=word0+(ca?` · Advance held for the customer ${E.m(ca)}`:'')+(sa?` · Advance paid to the supplier ${E.m(sa)}`:'');
   const od=[];E.rows('invoices').filter(i=>i.partyId===R.pid&&!i.cancelled&&i.total-i.paid>0).forEach(i=>od.push(['Invoice',i.no,i.date,addDays(i.date,p.days||0),i.total-i.paid]));
   E.rows('purchases').filter(b=>b.partyId===R.pid&&!b.cancelled&&b.total-b.paid>0).forEach(b=>od.push(['Bill',b.no,b.date,addDays(b.date,p.days||0),-(b.total-b.paid)]));
   return {title:'PARTY LEDGER',sub:p.name,cols:[['Date'],['Entry'],['Type'],['Reference'],['Details'],['Debit',1],['Credit',1],['Balance',1]],rows,
@@ -102,6 +119,27 @@ function ageing(kind){
     foot:[T('TOTAL'),...tot.map(M),M(all),T('')],summary:[['Total outstanding',E.m(all)],['Overdue',E.m(tot.slice(1).reduce((s,x)=>s+x,0))],[ar?'Customers':'Suppliers',String(rows.filter(r=>r.pid).length)]],
     meta:[['As at',R.asat],['Ageing from','due date']],land:true,note:'Ageing counts days after the due date (invoice date plus the party’s credit days). Balances are as they stand now.'};
 }
+/* ---------- Cheques pending (in hand and issued), returned cheques, advances ---------- */
+function chq(){
+  const t=E.today(),L=E.rows('cheques').filter(c=>c.status==='Pending').sort((a,b)=>a.date.localeCompare(b.date));let ri=0,is=0,due=0,od=0;
+  const rows=L.map(c=>{const d=dayDiff(t,c.date);if(c.dir==='in'){ri+=c.amount}else is+=c.amount;if(d<=0)od+=c.dir==='in'?c.amount:0;else if(d<=7)due+=c.dir==='in'?c.amount:0;
+    return {c:[T(c.dir==='in'?'Received (in hand)':'Issued'),T(c.chqNo),T((E.D.parties.find(p=>p.id===c.partyId)||{}).name||'?'),T(c.bank||''),T(c.recvDate||''),T(c.date),T(d<=0?'due / overdue':d+' days'),T(c.deposit?'Deposited':'Not deposited'),M(c.amount)]}});
+  return {title:'CHEQUES PENDING',sub:'Received cheques in hand and cheques issued, not yet cleared',cols:[['Direction'],['Cheque no'],['Party'],['Bank'],['Received'],['Cheque date'],['Due in'],['Status'],['Amount',1]],rows,foot:[T(''),T(''),T(''),T(''),T(''),T(''),T(''),T('Received minus issued'),M(ri-is)],
+    summary:[['Cheques in hand',E.m(ri)],['Cheques issued',E.m(is)],['Due within 7 days',E.m(due)],['Due / overdue',E.m(od)]],meta:[['As at',t]],land:true,note:'Received cheques are held in account 1110 (Cheques in Hand) until they are deposited and cleared.'};
+}
+function chqret(){
+  const L=E.rows('cheques').filter(c=>c.status==='Bounced').sort((a,b)=>(b.bounceDate||'').localeCompare(a.bounceDate||''));let tot=0,fee=0;
+  const rows=L.map(c=>{tot+=c.amount;fee+=c.bounceFee||0;const o=E.rows(c.dir==='in'?'invoices':'purchases').filter(i=>i.partyId===c.partyId&&!i.cancelled).reduce((s,i)=>s+Math.max(0,i.total-i.paid),0);
+    return {c:[T(c.bounceDate||''),T(c.dir==='in'?'Customer cheque':'Our cheque'),T(c.chqNo),T((E.D.parties.find(p=>p.id===c.partyId)||{}).name||'?'),T(c.bank||''),T(c.bounceReason||''),M(c.amount),M(c.bounceFee||0),M(o)],pid:c.partyId}});
+  return {title:'RETURNED CHEQUES',sub:'Cheques returned by the bank, with the party’s balance now open',cols:[['Returned on'],['Type'],['Cheque no'],['Party'],['Bank'],['Reason'],['Amount',1],['Bank charge',1],['Party open now',1]],rows,foot:[T(''),T(''),T(''),T(''),T(''),T('TOTAL'),M(tot),M(fee),T('')],
+    summary:[['Returned cheques',String(L.length)],['Value',E.m(tot)],['Bank charges',E.m(fee)]],meta:[['As at',E.today()]],land:true,note:'A returned cheque reopens the invoices it paid. Recover the money by a new receipt or cheque.'};
+}
+function adv(){
+  const L=(E.advList?E.advList():[]).filter(x=>x.left>0),rows=L.map(x=>({c:[T(x.side==='cust'?'Customer':'Supplier'),T((E.D.parties.find(p=>p.id===x.pid)||{}).name||'?'),T(x.src),T(x.date),M(x.orig),M(x.applied),M(x.left)],pid:x.pid}));
+  const c=L.filter(x=>x.side==='cust').reduce((s,x)=>s+x.left,0),sp=L.filter(x=>x.side==='supp').reduce((s,x)=>s+x.left,0);
+  return {title:'ADVANCES AND OVERPAYMENTS',sub:'Customer advances (we owe) and supplier advances (they owe us)',cols:[['Side'],['Party'],['Source'],['Date'],['Original',1],['Used',1],['Left',1]],rows,foot:[T(''),T(''),T(''),T('Customer / Supplier'),M(c),M(sp),T('')],
+    summary:[['Customer advances',E.m(c)],['Supplier advances',E.m(sp)]],meta:[['As at',E.today()]],land:true};
+}
 /* ---------- Day book ---------- */
 function daybook(){
   const rows=[];let n=0,dr=0;
@@ -134,7 +172,7 @@ function bank(){
   A.forEach(a=>{const op=o[a.code]||0,f=flow[a.code]||{i:0,o:0},cl=op+f.i-f.o;to+=op;ti+=f.i;tp+=f.o;tc+=cl;rows.push({c:[T(a.code),T(a.name),M(op),M(f.i),M(f.o),M(cl)]})});
   return {title:'CASH & BANK SUMMARY',sub:R.from+' to '+R.to,cols:[['Code'],['Account'],['Opening',1],['Money in',1],['Money out',1],['Closing',1]],rows,foot:[T(''),T('TOTAL'),M(to),M(ti),M(tp),M(tc)],summary:[['Opening',E.m(to)],['In',E.m(ti)],['Out',E.m(tp)],['Closing',E.m(tc)]],meta:[['Period',R.from+' to '+R.to]]};
 }
-const build=()=>({party:entity,ar:()=>ageing('ar'),ap:()=>ageing('ap'),daybook,tb,gl,bank}[R.tab]||party)();
+const build=()=>({party:entity,chq,chqret,adv,ar:()=>ageing('ar'),ap:()=>ageing('ap'),daybook,tb,gl,bank}[R.tab]||party)();
 /* ---------- rendering ---------- */
 const cell=(c,i)=>{if('q' in c)return `<td class="r">${c.q?+(+c.q).toFixed(3):''}</td>`;if('n' in c){const s=c.n===0&&!c.suf?'':E.m(c.n)+(c.suf?' '+c.suf:'');return `<td class="r">${s}</td>`}return `<td>${E.esc(c.t)}</td>`};
 function tableHtml(m,print){
