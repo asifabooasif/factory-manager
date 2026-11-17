@@ -47,7 +47,8 @@
 
   function computeDay(date) {
     const month = date.slice(0, 7);
-    const isWorking = E.isWorkingDate ? E.isWorkingDate(date) : false;
+    const wgt = E.dayWeight ? E.dayWeight(date) : (E.isWorkingDate && E.isWorkingDate(date) ? 1 : 0); /* 1 full day, 0.5 half day, 0 off */
+    const isWorking = wgt > 0;
     if (!isWorking) {
       return {
         id: 'DA-' + E.fid + '-' + date, factoryId: E.fid, date,
@@ -60,25 +61,25 @@
       return {
         id: 'DA-' + E.fid + '-' + date, factoryId: E.fid, date,
         isWorkingDay: true,
-        dailyFixedTotal: E.dailyFixedRate ? E.dailyFixedRate(month) : 0,
+        dailyFixedTotal: E.dailyFixedRate ? Math.round(E.dailyFixedRate(month) * wgt) : 0, dayWeight: wgt,
         breakdown: {}, activeJobs: [], perJobShare: 0, isIdle: true,
         computedAt: new Date().toISOString()
       };
     }
-    const totalDaily = E.dailyFixedRate ? E.dailyFixedRate(month) : 0;
+    const totalDaily = E.dailyFixedRate ? Math.round(E.dailyFixedRate(month) * wgt) : 0;
     const perJobShare = Math.round(totalDaily / activeJobs.length);
     const sh = shareOut(totalDaily, activeJobs);
     const breakdown = {};
     const expList = E.fixedDaysExpenses ? E.fixedDaysExpenses(month) : [];
     const wd = E.workingDaysIn ? E.workingDaysIn(month) : 1;
     if (wd > 0) {
-      expList.forEach(e => { breakdown[e.code] = Math.round(e.amount / wd); });
+      expList.forEach(e => { breakdown[e.code] = Math.round(e.amount / wd * wgt); });
       const salaryAgg = E.salaryAggregate ? E.salaryAggregate(month) : 0;
-      if (salaryAgg > 0) breakdown['SAL'] = Math.round(salaryAgg / wd);
+      if (salaryAgg > 0) breakdown['SAL'] = Math.round(salaryAgg / wd * wgt);
     }
     return {
       id: 'DA-' + E.fid + '-' + date, factoryId: E.fid, date,
-      isWorkingDay: true, dailyFixedTotal: totalDaily,
+      isWorkingDay: true, dailyFixedTotal: totalDaily, dayWeight: wgt,
       breakdown, activeJobs: activeJobs.map(j => j.id),
       perJobShare, shares: sh.shares, amounts: sh.amounts, basis: 'size', computedAt: new Date().toISOString()
     };
