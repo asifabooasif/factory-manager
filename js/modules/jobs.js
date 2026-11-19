@@ -530,21 +530,21 @@
       
       const no = await E.next('REL'), d = E.val('r_d');
       
-      await E.post({ 
+      await E.postThen({ 
         date: d, ref: no, narr: 'Release ' + totalPairsToRelease + ' pairs', source: 'release',
         lines: rq.map((x, i) => ({ acc: '1320', dr: vals[i], job: id, cat: 'Release', art: x.l.id })).concat([{ acc: '1310', cr: batchValue, job: id, cat: 'Release' }]) 
+      }, async () => {
+        for (let i = 0; i < rq.length; i++) {
+          const { l, pairs } = rq[i];
+          const pp = pairsPerPack(l);
+          const packsToAdd = pairs / pp;
+          await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: packsToAdd, value: vals[i], type: 'release', ref: no, job: id });
+          const b = JSON.parse(JSON.stringify(l));
+          l.released += packsToAdd;
+          l.fgValue += vals[i];
+          await E.save('jobLines', l, b);
+        }
       });
-      
-      for (let i = 0; i < rq.length; i++) {
-        const { l, pairs } = rq[i];
-        const pp = pairsPerPack(l);
-        const packsToAdd = pairs / pp;
-        await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: packsToAdd, value: vals[i], type: 'release', ref: no, job: id });
-        const b = JSON.parse(JSON.stringify(l));
-        l.released += packsToAdd;
-        l.fgValue += vals[i];
-        await E.save('jobLines', l, b);
-      }
       
       E.closeM(); E.go(); 
       E.toast(no + ': ' + totalPairsToRelease + ' pairs released', 'success');
@@ -567,6 +567,7 @@
         <div class="f">Due date<input id="j_u" type="date"></div>
       </div>
       <div class="f">Notes<input id="j_n"></div>
+      <div class="card" style="margin:8px 0;padding:10px"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="j_bom" checked style="width:auto"> <b>Issue all materials by BOM now</b></label><div class="muted" style="margin-top:4px">Deducts every BOM material for the full target from stock at average cost and charges it to this job's WIP (one journal entry). Untick to issue later (Material Ledger &gt; Issue by BOM) or in parts.</div><div class="f" style="margin-top:6px">Issue date<input id="j_bd" type="date" value="${E.today()}"></div></div>
       <datalist id="fg">${E.skuOpts(fg)}</datalist>
       <b>Articles (Target in Pairs)</b>
       <div id="jxr">${jr() + jr()}</div>
@@ -592,10 +593,27 @@
       });
       const ks = Object.values(m);
       if (!ks.length) throw new Error('Add at least one line');
+      const wantBom = !!(E.$('j_bom') && E.$('j_bom').checked), bd = E.val('j_bd') || E.val('j_d');
+      if (wantBom) {
+        const pk = {}; ks.forEach((x, i) => { pk['t' + i] = x.packs; });
+        const need = {}; ks.forEach((x, i) => { const it = E.D.items.find(q => q.id === x.s.itemId); ((it && it.bom) || []).forEach(b => { const k = b.itemId + '|' + (b.variantId || ''); need[k] = (need[k] || 0) + b.qty * x.packs * (it.pack || 1); }); });
+        const short = Object.keys(need).map(k => { const [iid, vid] = k.split('|'); const st = E.stock(iid, vid), sk = E.skuList().find(z => z.itemId === iid && z.variantId === vid); return need[k] > st.qty + 1e-9 ? (sk ? sk.code : 'material') + ' short by ' + (Math.round((need[k] - st.qty) * 1000) / 1000) : null; }).filter(Boolean);
+        if (short.length && !confirm('Not enough stock to issue the full BOM:\n' + short.join('\n') + '\n\nCreate the job WITHOUT issuing materials now?')) return;
+      }
       const no = await E.next('JOB');
       const j = await E.save('jobs', { no, date: E.val('j_d'), due: E.val('j_u'), partyId: E.val('j_p'), priority: E.val('j_pr'), notes: E.val('j_n'), status: 'In Progress' });
-      for (const { s, packs } of ks) await E.save('jobLines', { jobId: j.id, itemId: s.itemId, variantId: s.variantId, code: s.code, name: s.name, target: packs, released: 0, fgValue: 0 });
-      E.closeM(); E.A.openJob(j.id); E.toast(no + ' created', 'success');
+      const created = [];
+      for (const { s, packs } of ks) created.push(await E.save('jobLines', { jobId: j.id, itemId: s.itemId, variantId: s.variantId, code: s.code, name: s.name, target: packs, released: 0, fgValue: 0 }));
+      let note = no + ' created';
+      if (wantBom) {
+        const pk = {}; created.forEach(l => { pk[l.id] = l.target; });
+        const noBom = created.filter(l => !((E.D.items.find(x => x.id === l.itemId) || {}).bom || []).length).map(l => l.code);
+        try {
+          const r = await E.issueByBom({ jobId: j.id, date: bd, packs: pk });
+          note += ' · materials issued by BOM ' + E.m(r.total) + (noBom.length ? ' (no BOM for: ' + noBom.join(', ') + ')' : '');
+        } catch (e2) { note += ' · MATERIALS NOT ISSUED: ' + e2.message + ' — use Material Ledger > Issue by BOM'; }
+      }
+      E.closeM(); E.A.openJob(j.id); E.toast(note, 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
 

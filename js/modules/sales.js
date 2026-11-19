@@ -146,10 +146,14 @@
       if (cogs <= 0) throw new Error('These goods have no cost. Complete a job first.');
       if (!E.acct('1210')) await E.ensureCoa();
       /* Revenue is recognised at delivery: Dr Unbilled Receivable / Cr Sales, plus cost of goods sold. The invoice later moves Unbilled to Receivable. */
-      const je = await E.post({ date: d, ref: no, narr: 'Delivery ' + no, source: 'sale',
-        lines: [{ acc: '5400', dr: cogs, job: jb }, { acc: '1320', cr: cogs, job: jb }, { acc: '1210', dr: total }, { acc: '4000', cr: total }] });
-      for (const l of lines) await E.stockOut({ date: d, itemId: l.itemId, variantId: l.variantId, qty: l.qty, type: 'sale', ref: no, job: jb });
-      await E.save('deliveries', { no, date: d, partyId: pid, jobId: jb, lines, total, cogs, status: 'Delivered', jeId: je.id, invId: '', unbilled: true });
+      await E.postThen({ date: d, ref: no, narr: 'Delivery ' + no, source: 'sale',
+        lines: [{ acc: '5400', dr: cogs, job: jb }, { acc: '1320', cr: cogs, job: jb }, { acc: '1210', dr: total }, { acc: '4000', cr: total }] }, async je => {
+        const out = [];
+        try {
+          for (const l of lines) { await E.stockOut({ date: d, itemId: l.itemId, variantId: l.variantId, qty: l.qty, type: 'sale', ref: no, job: jb }); out.push(l); }
+          await E.save('deliveries', { no, date: d, partyId: pid, jobId: jb, lines, total, cogs, status: 'Delivered', jeId: je.id, invId: '', unbilled: true });
+        } catch (err) { for (const l of out) try { await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: l.qty, value: l.cost, type: 'cancel', ref: no, job: jb }); } catch (x) { console.error(x); } throw err; }
+      });
       E.closeM(); E.go(); E.toast(no + ' posted', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };

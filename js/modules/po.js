@@ -29,11 +29,12 @@ E.A.poSaveRecv=async id=>{try{const p=E.D.purchaseOrders.find(x=>x.id===id),d=E.
  const X=[...document.querySelectorAll('#rcb tr[data-i]')].map(tr=>({i:+tr.dataset.i,q:parseFloat(tr.querySelector('.rq').value)||0,rate:E.c(tr.querySelector('.rr').value)})).filter(x=>x.q>0);if(!X.length)throw new Error('Enter a quantity to receive');
  const lines=X.map(x=>{const l=p.lines[x.i];if(x.q>+(l.qty-l.received).toFixed(3)+1e-9)throw new Error(l.code+': more than pending. Edit the order or receive up to the pending quantity.');if(!(x.rate>0))throw new Error(l.code+': enter the rate');return{itemId:l.itemId,variantId:l.variantId,code:l.code,qty:x.q,rate:x.rate,amount:Math.round(x.q*x.rate),poLine:x.i}}),
  total=lines.reduce((s,l)=>s+l.amount,0),no=await E.next('PUR'),grn=await E.next('GRN'),inv=E.val('rc_i');
- const je=await E.post({date:d,ref:no,narr:'Purchase '+no+' · GRN '+grn+' · '+p.no+' · '+sup(p.partyId).name,source:'purchase',lines:[{acc:'1300',dr:total},{acc:'2000',cr:total}]});
+ let pu,bp;await E.postThen({date:d,ref:no,narr:'Purchase '+no+' · GRN '+grn+' · '+p.no+' · '+sup(p.partyId).name,source:'purchase',lines:[{acc:'1300',dr:total},{acc:'2000',cr:total}]},async je=>{
  for(const l of lines)await E.stockIn({date:d,itemId:l.itemId,variantId:l.variantId,qty:l.qty,value:l.amount,type:'purchase',ref:no});
- const pu=await E.save('purchases',{no,date:d,partyId:p.partyId,invNo:inv||grn,lines,total,paid:0,jeId:je.id,cancelled:false,poId:p.id,poNo:p.no,grnNo:grn}),b=JSON.parse(JSON.stringify(p));
+ pu=await E.save('purchases',{no,date:d,partyId:p.partyId,invNo:inv||grn,lines,total,paid:0,jeId:je.id,cancelled:false,poId:p.id,poNo:p.no,grnNo:grn});bp=JSON.parse(JSON.stringify(p));
  lines.forEach(l=>p.lines[l.poLine].received=+(p.lines[l.poLine].received+l.qty).toFixed(3));(p.grns=p.grns||[]).push({no:grn,date:d,purNo:no,purId:pu.id,invNo:inv,lines:lines.map(l=>({poLine:l.poLine,qty:l.qty,rate:l.rate}))});
- await E.save('purchaseOrders',p,b);E.closeM();E.go();E.toast(grn+' received · bill '+no+' posted','success')}catch(e){E.toast(e.message,'error')}};
+ await E.save('purchaseOrders',p,bp);await E.noteBuyPrice(lines,d)});
+ E.closeM();E.go();E.toast(grn+' received · bill '+no+' posted','success')}catch(e){E.toast(e.message,'error')}};
 /* If a bill made from a GRN is cancelled, the PO goes back to pending for those goods. */
 {const o=E.A.cancelPur;E.A.cancelPur=async(...a)=>{const pu=E.D.purchases.find(x=>x.id===a[0]),was=pu&&pu.cancelled;await o(...a);
  if(pu&&pu.poId&&!was&&pu.cancelled){const p=E.D.purchaseOrders.find(x=>x.id===pu.poId);if(p){const b=JSON.parse(JSON.stringify(p));pu.lines.forEach(l=>{if(p.lines[l.poLine])p.lines[l.poLine].received=Math.max(0,+(p.lines[l.poLine].received-l.qty).toFixed(3))});p.grns=(p.grns||[]).filter(g=>g.purId!==pu.id);await E.save('purchaseOrders',p,b);E.go()}}}}

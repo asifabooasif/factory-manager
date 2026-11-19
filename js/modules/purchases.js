@@ -24,9 +24,10 @@ E.A.newPur=()=>{const ss=E.rows('parties').filter(p=>p.active&&p.type!=='Custome
 E.A.savePur=async()=>{try{const L=plRead().filter(l=>l.q||l.rate||l.c[0].value);if(!L.length)throw new Error('Add at least one line');
  const lines=L.map((l,i)=>{if(!l.s)throw new Error('Line '+(i+1)+': select a valid item');if(!(l.q>0)||!(l.rate>0))throw new Error('Line '+(i+1)+': enter quantity and rate');return {itemId:l.s.itemId,variantId:l.s.variantId,code:l.s.code,qty:l.q,rate:l.rate,amount:Math.round(l.q*l.rate)}});
  const total=lines.reduce((s,l)=>s+l.amount,0),pid=E.val('u_p'),d=E.val('u_d'),no=await E.next('PUR');
- const je=await E.post({date:d,ref:no,narr:'Purchase '+no+' · '+sup(pid).name,source:'purchase',lines:[{acc:'1300',dr:total},{acc:'2000',cr:total}]});
- for(const l of lines)await E.stockIn({date:d,itemId:l.itemId,variantId:l.variantId,qty:l.qty,value:l.amount,type:'purchase',ref:no});
- await E.save('purchases',{no,date:d,partyId:pid,invNo:E.val('u_i'),lines,total,paid:0,jeId:je.id,cancelled:false});
+ await E.postThen({date:d,ref:no,narr:'Purchase '+no+' · '+sup(pid).name,source:'purchase',lines:[{acc:'1300',dr:total},{acc:'2000',cr:total}]},async je=>{
+  for(const l of lines)await E.stockIn({date:d,itemId:l.itemId,variantId:l.variantId,qty:l.qty,value:l.amount,type:'purchase',ref:no});
+  await E.save('purchases',{no,date:d,partyId:pid,invNo:E.val('u_i'),lines,total,paid:0,jeId:je.id,cancelled:false});
+  await E.noteBuyPrice(lines,d)});
  E.closeM();E.go();E.toast(no+' posted','success')}catch(e){E.toast(e.message,'error')}};
 E.A.viewPur=id=>{const p=E.D.purchases.find(x=>x.id===id);E.modal(p.no+' · '+E.esc(sup(p.partyId)?.name),`<div class="tw"><table><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th></tr></thead><tbody>${p.lines.map(l=>`<tr><td>${E.esc(l.code)}</td><td class="r">${l.qty}</td><td class="r">${E.m(l.rate)}</td><td class="r">${E.m(l.amount)}</td></tr>`).join('')}<tr><td colspan="3"><b>Total</b></td><td class="r"><b>${E.m(p.total)}</b></td></tr></tbody></table></div>`,`<button class="btn" data-a="close">Close</button>`)};
 E.A.cancelPur=async id=>{const p=E.D.purchases.find(x=>x.id===id);try{if(p.paid)throw new Error('Payments exist; cannot cancel');

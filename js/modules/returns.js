@@ -183,10 +183,11 @@
       if (!rf && tot > ib(inv)) throw new Error('This credit (' + E.m(tot) + ') is more than the invoice balance (' + E.m(ib(inv)) + '). Choose the account the refund is paid from.');
       const no = await E.next('CN'), d = E.val('rt_d'), ls = [{ acc: '4000', dr: tot }, { acc: rf || '1200', cr: tot }];
       if (cost > 0) { ls.push({ acc: '1320', dr: cost }, { acc: '5400', cr: cost }); }
-      await E.post({ date: d, ref: no, narr: 'Sales return ' + no + ' · ' + inv.no, source: 'sale', lines: ls });
-      for (const l of lines) await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: l.qty, value: l.cost, type: 'sreturn', ref: no });
-      if (!rf) { const b = JSON.parse(JSON.stringify(inv)); inv.paid += tot; await E.save('invoices', inv, b); }
-      await E.save('receipts', { no, kind: 'credit', date: d, partyId: inv.partyId, invId: inv.id, amount: tot, cost, lines, refund: rf });
+      await E.postThen({ date: d, ref: no, narr: 'Sales return ' + no + ' · ' + inv.no, source: 'sale', lines: ls }, async () => {
+        for (const l of lines) await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: l.qty, value: l.cost, type: 'sreturn', ref: no });
+        if (!rf) { const b = JSON.parse(JSON.stringify(inv)); inv.paid += tot; await E.save('invoices', inv, b); }
+        await E.save('receipts', { no, kind: 'credit', date: d, partyId: inv.partyId, invId: inv.id, amount: tot, cost, lines, refund: rf });
+      });
       E.closeM(); E.go(); E.toast(no + ' posted', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
@@ -200,10 +201,11 @@
       const rf = E.val('rt_s');
       if (!rf && tot > ib(bl)) throw new Error('This return (' + E.m(tot) + ') is more than the bill balance (' + E.m(ib(bl)) + '). Choose the account the supplier refunds into.');
       const no = await E.next('DBN'), d = E.val('rt_d');
-      await E.post({ date: d, ref: no, narr: 'Purchase return ' + no + ' · ' + bl.no, source: 'purchase', lines: [{ acc: rf || '2000', dr: tot }, { acc: '1300', cr: tot }] });
-      for (const l of lines) await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: -l.qty, value: -l.value, type: 'preturn', ref: no });
-      if (!rf) { const b = JSON.parse(JSON.stringify(bl)); bl.paid += tot; await E.save('purchases', bl, b); }
-      await E.save('payments', { no, kind: 'debit', date: d, partyId: bl.partyId, billId: bl.id, amount: tot, lines, refund: rf });
+      await E.postThen({ date: d, ref: no, narr: 'Purchase return ' + no + ' · ' + bl.no, source: 'purchase', lines: [{ acc: rf || '2000', dr: tot }, { acc: '1300', cr: tot }] }, async () => {
+        for (const l of lines) await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: -l.qty, value: -l.value, type: 'preturn', ref: no });
+        if (!rf) { const b = JSON.parse(JSON.stringify(bl)); bl.paid += tot; await E.save('purchases', bl, b); }
+        await E.save('payments', { no, kind: 'debit', date: d, partyId: bl.partyId, billId: bl.id, amount: tot, lines, refund: rf });
+      });
       E.closeM(); E.go(); E.toast(no + ' posted', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };

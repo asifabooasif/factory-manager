@@ -473,30 +473,14 @@
   };
   E.A.mbPost = async () => {
     try {
-      const jobId = E.val('mb_job'), lineId = E.val('mb_art'), pairs = parseFloat(E.val('mb_qty')) || 0, date = E.val('mb_date');
+      const jobId = E.val('mb_job'), lineId = E.val('mb_art'), pairs = parseFloat(E.val('mb_qty')) || 0, date = E.val('mb_date') || E.today();
       const line = E.D.jobLines.find(l => l.id === lineId);
       const item = line && it(line.itemId);
-      if (!item || !item.bom) throw new Error('No BOM');
-      const no = await E.next('BAT');
-      let total = 0;
-      for (const b of item.bom) {
-        const need = Math.round((b.qty * pairs) * 1000) / 1000;
-        const st = E.stock(b.itemId, b.variantId);
-        if (st.qty + 1e-9 < need) throw new Error('Insufficient stock');
-        const val = E.outValue(b.itemId, b.variantId, need);
-        await E.stockOut({ date, itemId: b.itemId, variantId: b.variantId, qty: need, type: 'issue', ref: no, job: jobId });
-        await E.save('issues', { no, date, jobId, itemId: b.itemId, variantId: b.variantId, qty: need, value: val, batch: true });
-        total += val;
-      }
-      await E.post({ date, ref: no, narr: 'Batch · ' + pairs + ' pairs', source: 'issue',
-        lines: [{ acc: '1310', dr: total, job: jobId, cat: 'Material', art: lineId, head: '5000' }, { acc: '1300', cr: total }] });
-      
-      const pp = item.pack || 1;
-      const packs = pairs / pp;
-      const bl = JSON.parse(JSON.stringify(line));
-      line.started = (line.started || 0) + packs;
-      await E.save('jobLines', line, bl);
-      E.go(); E.toast(no + ' posted', 'success');
+      if (!item || !(item.bom || []).length) throw new Error('No BOM');
+      if (!line || line.jobId !== jobId) throw new Error('Article does not belong to this job');
+      /* same atomic engine as Material Ledger > Issue by BOM: one journal entry, stock moves, rollback on any failure */
+      const r = await E.issueByBom({ jobId, date, packs: { [lineId]: pairs / (item.pack || 1) } });
+      E.go(); E.toast(r.no + ' posted', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
   

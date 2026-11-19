@@ -7,11 +7,15 @@ const mat=i=>i.cat!=='Finished Good',J=id=>E.D.jobs.find(x=>x.id===id),it=id=>E.
 const TY={purchase:'Purchase received',cancel:'Purchase cancelled',issue:'Issued to job',return:'Returned from job',open:'Opening stock',gain:'Stock gain',loss:'Stock loss / damage',preturn:'Returned to supplier'};
 const moves=(s)=>E.rows('stockMoves').filter(m=>m.itemId===s.itemId&&(m.variantId||'')===(s.variantId||'')).sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||'').localeCompare(b.createdAt||''));
 const q3=n=>Math.round(n*1000)/1000;
+/* Price tracking: every purchase refreshes the item's latest purchase price (used as the default on the next purchase and in estimates).
+   The previous price is kept once as the standard. Stock VALUE always uses the weighted-average cost; values already issued to jobs never change. */
+E.noteBuyPrice=async(lines,date)=>{for(const l of lines){const i=E.D.items.find(x=>x.id===l.itemId);if(!i)continue;if(i.lastBuyDate&&date<i.lastBuyDate)continue;const b=JSON.parse(JSON.stringify(i));if(!i.stdPrice&&i.buyPrice)i.stdPrice=i.buyPrice;i.buyPrice=l.rate;i.lastBuyDate=date;await E.save('items',i,b)}};
+E.avgCost=(itemId,variantId)=>{const s=E.stock(itemId,variantId||'');return s.qty>0?Math.round(s.value/s.qty):0};
 E.route('matledger','Material Ledger',()=>{const m=E.stockMap(),low=E.skuList(mat).filter(s=>s.min&&((m[s.itemId+'|'+s.variantId]||{qty:0}).qty<=s.min)).length,mv=E.skuList(mat).reduce((s,k)=>s+((m[k.itemId+'|'+k.variantId]||{value:0}).value),0);
  return `<div class="kp">${E.kpi('Materials & accessories stock',E.m(mv),'Ledger 1300: '+E.m(E.bal('1300')))}${E.kpi('Items below reorder level',low,low?'<span class="bad">Order soon</span>':'<span class="ok">All fine</span>')}${E.kpi('Issued to jobs this month',E.m(E.rows('stockMoves').filter(x=>x.type==='issue'&&x.date.slice(0,7)===E.today().slice(0,7)).reduce((s,x)=>s-x.value,0)),'')}</div>
- <div class="bar">${[['led','📜 Item history'],['day','📅 Daily usage'],['cov','🚦 Reorder & cover'],['bom','⚙️ Issue by BOM']].map(([k,l])=>`<button class="btn ${F.tab===k?'p':''}" data-a="mlTab" data-id="${k}">${l}</button>`).join('')}</div><div id="mlb">${tab()}</div>`});
+ <div class="bar">${[['led','📜 Item history'],['day','📅 Daily usage'],['cov','🚦 Reorder & cover'],['cost','💲 Cost & prices'],['bom','⚙️ Issue by BOM']].map(([k,l])=>`<button class="btn ${F.tab===k?'p':''}" data-a="mlTab" data-id="${k}">${l}</button>`).join('')}</div><div id="mlb">${tab()}</div>`});
 E.A.mlTab=t=>{F.tab=t;E.go()};
-const tab=()=>F.tab==='led'?led():F.tab==='day'?day():F.tab==='cov'?cov():bom();
+const tab=()=>F.tab==='led'?led():F.tab==='day'?day():F.tab==='cov'?cov():F.tab==='cost'?cost():bom();
 E.hooks.push(e=>{const t=e.target,f=t.dataset&&t.dataset.f;if(f&&f.startsWith('ml.')){F[f.slice(3)]=t.value;E.$('mlb').innerHTML=tab();return}
  if(t.closest&&t.closest('#bomt'))bomCalc()});
 /* ---------- item history ---------- */
@@ -24,6 +28,10 @@ function led(){const sk=E.skuFind(F.sku,mat),dl=`<datalist id="mlsk">${E.skuOpts
  return bar+`<div class="kp">${E.kpi('Opening',q3(oq)+' '+sk.unit,E.m(ov))}${E.kpi('Received',q3(rin),'')}${E.kpi('Used / issued',q3(rout),'')}${E.kpi('Closing',q3(oq+rin-rout)+' '+sk.unit,E.m(bv+rng.reduce((s,x)=>s+x.value,0)))}${E.kpi('Purchase price',item.buyPrice?E.m(item.buyPrice):'—','standard per '+E.esc(sk.unit))}</div>
  <div class="tw"><table><thead><tr><th>Date</th><th>Movement</th><th>Reference</th><th>Job</th><th class="r">In</th><th class="r">Out</th><th class="r">Balance</th><th class="r">Value</th><th class="r">Avg cost</th></tr></thead><tbody><tr><td colspan="6" class="muted">Brought forward</td><td class="r"><b>${q3(oq)}</b></td><td class="r">${E.m(ov)}</td><td></td></tr>${rng.map(x=>{bq+=x.qty;bv+=x.value;return `<tr><td>${x.date}</td><td><span class="tag">${TY[x.type]||x.type}</span></td><td>${E.esc(x.ref||'')}</td><td>${E.esc((J(x.job)||{}).no||'')}</td><td class="r">${x.qty>0?q3(x.qty):''}</td><td class="r">${x.qty<0?q3(-x.qty):''}</td><td class="r"><b>${q3(bq)}</b></td><td class="r">${E.m(bv)}</td><td class="r">${bq>0?E.m(Math.round(bv/bq)):'—'}</td></tr>`}).join('')||'<tr><td colspan="9" class="muted">No movement in this period</td></tr>'}</tbody></table></div>
  <div class="card"><h3>Purchase price history</h3><div class="tw"><table><thead><tr><th>Date</th><th>Bill</th><th>Supplier</th><th class="r">Qty</th><th class="r">Price paid</th><th class="r">vs standard</th></tr></thead><tbody>${ph.map(p=>`<tr><td>${p.d}</td><td>${p.no}</td><td>${E.esc(p.sup||'')}</td><td class="r">${p.q}</td><td class="r"><b>${E.m(p.r)}</b></td><td class="r ${item.buyPrice&&p.r>item.buyPrice?'bad':''}">${item.buyPrice?(p.r>=item.buyPrice?'+':'')+E.m(p.r-item.buyPrice):''}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">No purchases yet</td></tr>'}</tbody></table></div></div>`}
+/* ---------- cost & prices: average cost vs latest / lowest / highest purchase price ---------- */
+function cost(){const m=E.stockMap(),R=E.skuList(mat).map(s=>{const k=s.itemId+'|'+s.variantId,st=m[k]||{qty:0,value:0},ps=E.rows('purchases').filter(p=>!p.cancelled).flatMap(p=>p.lines.filter(l=>l.itemId===s.itemId&&(l.variantId||'')===(s.variantId||'')).map(l=>({d:p.date,r:l.rate}))).sort((a,b)=>a.d.localeCompare(b.d)),last=ps[ps.length-1],avg=st.qty>0?Math.round(st.value/st.qty):0;
+ return Object.assign({},s,{q:st.qty,v:st.value,avg,last:last?last.r:0,ld:last?last.d:'',lo:ps.length?Math.min(...ps.map(x=>x.r)):0,hi:ps.length?Math.max(...ps.map(x=>x.r)):0,n:ps.length})}).sort((a,b)=>a.label.localeCompare(b.label));
+ return `<div class="tw"><table><thead><tr><th>Material</th><th class="r">On hand</th><th class="r">Average cost (used for issues)</th><th class="r">Stock value</th><th class="r">Last purchase price</th><th>Last bought</th><th class="r">Lowest</th><th class="r">Highest</th><th class="r">Last vs average</th></tr></thead><tbody>${R.map(s=>{const df=s.avg&&s.last?Math.round((s.last-s.avg)*1000/s.avg)/10:0;return `<tr><td><b>${E.esc(s.code)}</b> <span class="muted">${E.esc(s.name)}</span></td><td class="r">${q3(s.q)} ${E.esc(s.unit)}</td><td class="r"><b>${s.avg?E.m(s.avg):'—'}</b></td><td class="r">${E.m(s.v)}</td><td class="r">${s.last?E.m(s.last):'—'}</td><td>${s.ld}</td><td class="r">${s.n?E.m(s.lo):'—'}</td><td class="r">${s.n?E.m(s.hi):'—'}</td><td class="r ${df>0?'bad':df<0?'ok':''}">${s.avg&&s.last?(df>0?'+':'')+df+'%':'—'}</td></tr>`}).join('')||'<tr><td colspan="9" class="muted">No materials</td></tr>'}</tbody></table></div><p class="muted">Every purchase at a new price re-averages the stock (weighted average). Materials issued to a job are valued at the average on the issue date and that value stays on the job; later price changes only affect future issues.</p>`}
 /* ---------- daily usage register ---------- */
 function day(){const R=E.rows('stockMoves').filter(x=>(x.type==='issue'||x.type==='return')&&x.date>=F.from&&x.date<=F.to&&(!F.job||x.job===F.job)).sort((a,b)=>b.date.localeCompare(a.date)),by={};
  R.forEach(x=>{const d=by[x.date]||(by[x.date]={q:0,v:0,rows:[]});d.v+=-x.value;d.rows.push(x)});
@@ -46,13 +54,35 @@ const started_=l=>l.started||0;
 function need(){const m={};document.querySelectorAll('#bomt tr[data-id]').forEach(tr=>{const q=parseFloat(tr.querySelector('.bq').value)||0;if(!q)return;const l=E.D.jobLines.find(x=>x.id===tr.dataset.id),i=it(l.itemId);((i&&i.bom)||[]).forEach(b=>{const k=b.itemId+'|'+(b.variantId||'');(m[k]=m[k]||{b,parts:[]}).parts.push({lineId:l.id,qty:q3(b.qty*q*((i&&i.pack)||1))})})});return m}
 function bomCalc(){const m=need(),keys=Object.keys(m),box=E.$('bomr');if(!box)return;if(!keys.length){box.innerHTML='Enter packs above.';return}
  box.innerHTML=`<div class="tw"><table><thead><tr><th>Material</th><th class="r">Needed</th><th class="r">In stock</th><th class="r">Cost (avg)</th><th></th></tr></thead><tbody>${keys.map(k=>{const s=E.skuList().find(x=>x.itemId===m[k].b.itemId&&x.variantId===(m[k].b.variantId||'')),n=m[k].parts.reduce((a,p)=>a+p.qty,0),st=E.stock(m[k].b.itemId,m[k].b.variantId),cost=st.qty?Math.round(st.value/st.qty*n):0;return `<tr><td>${E.esc(s?s.label:'?')}</td><td class="r">${q3(n)}</td><td class="r">${q3(st.qty)}</td><td class="r">${E.m(cost)}</td><td>${st.qty+1e-9<n?'<span class="bad">Short by '+q3(n-st.qty)+'</span>':'<span class="ok">OK</span>'}</td></tr>`}).join('')}</tbody></table></div>`}
-E.A.bomPost=async()=>{try{const m=need(),keys=Object.keys(m);if(!keys.length)throw new Error('Enter the packs you are starting');const d=E.val('bm_d'),jid=F.job,j=J(jid);
- for(const k of keys){const n=m[k].parts.reduce((a,p)=>a+p.qty,0),st=E.stock(m[k].b.itemId,m[k].b.variantId);if(st.qty+1e-9<n){const s=E.skuList().find(x=>x.itemId===m[k].b.itemId&&x.variantId===(m[k].b.variantId||''));throw new Error('Not enough '+(s?s.code:'material')+': need '+q3(n)+', have '+q3(st.qty))}}
- const no=await E.next('ISS');let tot=0;
- for(const k of keys)for(const p of m[k].parts){const b=m[k].b,s=E.skuList().find(x=>x.itemId===b.itemId&&x.variantId===(b.variantId||''));if(!(p.qty>0))continue;const val=E.outValue(b.itemId,b.variantId,p.qty);
-  await E.post({date:d,ref:no,narr:'Issue by BOM '+(s?s.code:'')+' ×'+p.qty+' to '+j.no,source:'issue',lines:[{acc:'1310',dr:val,job:jid,cat:'Material',art:p.lineId,head:'5000'},{acc:'1300',cr:val}]});
-  await E.stockOut({date:d,itemId:b.itemId,variantId:b.variantId,qty:p.qty,type:'issue',ref:no,job:jid});await E.save('issues',{no,date:d,jobId:jid,itemId:b.itemId,variantId:b.variantId,code:s?s.code:'',qty:p.qty,value:val,art:p.lineId});tot+=val}
- for(const tr of document.querySelectorAll('#bomt tr[data-id]')){const q=parseFloat(tr.querySelector('.bq').value)||0;if(!q)continue;const l=E.D.jobLines.find(x=>x.id===tr.dataset.id),bf=JSON.parse(JSON.stringify(l));l.started=(l.started||0)+q;await E.save('jobLines',l,bf)}
- E.go();E.toast(no+' — materials issued, '+E.m(tot)+' charged to '+j.no,'success')}catch(e){E.toast(e.message,'error')}};
+/* ONE shared engine for issuing materials by BOM (used by Materials > Issue by BOM AND by New Job).
+   packs = {jobLineId: packsStarting}. One journal entry (Dr WIP per article / Cr Raw Material Stock), stock moves at weighted-average cost,
+   all-or-nothing: if anything fails the ledger entry is reversed and stock moves are put back. */
+E.bomNeeds=packs=>{const m={};Object.keys(packs).forEach(lid=>{const q=packs[lid];if(!(q>0))return;const l=E.D.jobLines.find(x=>x.id===lid),i=l&&it(l.itemId);((i&&i.bom)||[]).forEach(b=>{const k=b.itemId+'|'+(b.variantId||'');const n=q3(b.qty*q*((i&&i.pack)||1));(m[k]=m[k]||{itemId:b.itemId,variantId:b.variantId||'',parts:[]}).parts.push({lineId:lid,qty:n})})});return m};
+E.bomShort=m=>Object.keys(m).map(k=>{const n=m[k].parts.reduce((a,p)=>a+p.qty,0),st=E.stock(m[k].itemId,m[k].variantId),s=E.skuList().find(x=>x.itemId===m[k].itemId&&x.variantId===m[k].variantId);return n>st.qty+1e-9?{code:s?s.code:'material',need:n,have:st.qty}:null}).filter(Boolean);
+E.issueByBom=async({jobId,date,packs})=>{
+ const j=E.D.jobs.find(x=>x.id===jobId);if(!j)throw new Error('Job not found');if(j.status!=='In Progress')throw new Error('Job is not in progress');
+ const m=E.bomNeeds(packs),keys=Object.keys(m);if(!keys.length)throw new Error('Nothing to issue: enter packs and make sure the article has a BOM');
+ const sh=E.bomShort(m);if(sh.length)throw new Error('Not enough stock: '+sh.map(x=>x.code+' need '+q3(x.need)+' have '+q3(x.have)).join('; '));
+ const no=await E.next('ISS'),jl=[],cr=[],recs=[];let tot=0;
+ for(const k of keys){const g=m[k],n=g.parts.reduce((a,p)=>a+p.qty,0);if(!(n>0))continue;const val=E.outValue(g.itemId,g.variantId,n),s=E.skuList().find(x=>x.itemId===g.itemId&&x.variantId===g.variantId);
+  let left=val;g.parts.forEach((p,ix)=>{const v=ix===g.parts.length-1?left:Math.round(val*p.qty/n);left-=v;p.val=v;jl.push({acc:'1310',dr:v,job:jobId,cat:'Material',art:p.lineId,head:'5000'})});
+  cr.push({acc:'1300',cr:val});tot+=val;recs.push({g,n,val,code:s?s.code:''})}
+ const done=[],saved=[];
+ await E.postThen({date,ref:no,narr:'Issue by BOM to '+j.no,source:'issue',lines:jl.concat(cr)},async()=>{
+  try{for(const r of recs){await E.stockOut({date,itemId:r.g.itemId,variantId:r.g.variantId,qty:r.n,type:'issue',ref:no,job:jobId});done.push(r);
+    for(const p of r.g.parts){const rec=await E.save('issues',{no,date,jobId,itemId:r.g.itemId,variantId:r.g.variantId,code:r.code,qty:p.qty,value:p.val,art:p.lineId,bom:true});saved.push(rec)}}
+   for(const lid of Object.keys(packs)){const q=packs[lid];if(!(q>0))continue;const l=E.D.jobLines.find(x=>x.id===lid),bf=JSON.parse(JSON.stringify(l));l.started=(l.started||0)+q;await E.save('jobLines',l,bf)}
+  }catch(err){for(const r of done)try{await E.stockIn({date,itemId:r.g.itemId,variantId:r.g.variantId,qty:r.n,value:r.val,type:'cancel',ref:no,job:jobId})}catch(x){console.error(x)}
+   for(const s of saved)try{await E.del('issues',s.id)}catch(x){}throw err}});
+ return {no,total:tot}};
+E.A.bomPost=async()=>{try{
+ /* read the screen FIRST — the screen can redraw while we save */
+ const packs={};document.querySelectorAll('#bomt tr[data-id]').forEach(tr=>{const q=parseFloat(tr.querySelector('.bq').value)||0;if(q>0)packs[tr.dataset.id]=q});
+ if(!Object.keys(packs).length)throw new Error('Enter the packs you are starting');
+ const d=E.val('bm_d')||E.today(),jid=F.job,j=J(jid);
+ const over=Object.keys(packs).map(id=>{const l=E.D.jobLines.find(x=>x.id===id);return l&&(l.started||0)+packs[id]>l.target+1e-9?l.code+' (target '+q3(l.target)+', already started '+q3(l.started||0)+', now '+q3(packs[id])+')':null}).filter(Boolean);
+ if(over.length&&!confirm('This is MORE than the job target:\n'+over.join('\n')+'\n\nIssue anyway?'))return;
+ const r=await E.issueByBom({jobId:jid,date:d,packs});
+ E.go();E.toast(r.no+' — materials issued, '+E.m(r.total)+' charged to '+j.no,'success')}catch(e){E.toast(e.message,'error')}};
 E.A.bomIssue=id=>{F.tab='bom';F.job=id;location.hash='#/matledger';E.go()};
 })(window.ERP);
