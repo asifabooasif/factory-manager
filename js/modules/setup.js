@@ -102,7 +102,7 @@
         if (op > 0) {
           await E.post({
             date: today, ref: 'OPEN', narr: 'Opening · ' + b.name, source: 'opening',
-            lines: [{ acc: code, dr: op }, { acc: '3000', cr: op }]
+            lines: [{ acc: code, dr: op }, { acc: '3200', cr: op }]
           });
         }
       }
@@ -121,7 +121,7 @@
           const no = await E.next('INV');
           await E.post({
             date: today, ref: no, narr: 'Opening · ' + c.name, source: 'opening',
-            lines: [{ acc: '1200', dr: op }, { acc: '3000', cr: op }]
+            lines: [{ acc: '1200', dr: op }, { acc: '3200', cr: op }]
           });
           await E.save('invoices', {
             no, date: today, partyId: p.id, dnIds: [], gross: op, disc: 0,
@@ -144,7 +144,7 @@
           const no = await E.next('PUR');
           await E.post({
             date: today, ref: no, narr: 'Opening · ' + s.name, source: 'opening',
-            lines: [{ acc: '3000', dr: op }, { acc: '2000', cr: op }]
+            lines: [{ acc: '3200', dr: op }, { acc: '2000', cr: op }]
           });
           await E.save('purchases', {
             no, date: today, partyId: p.id, invNo: 'Opening', lines: [],
@@ -246,7 +246,7 @@
           const no = await E.next('ADV');
           await E.post({
             date: today, ref: no, narr: 'Opening advance · ' + e.name, source: 'opening',
-            lines: [{ acc: '1250', dr: adv }, { acc: '3000', cr: adv }]
+            lines: [{ acc: '1250', dr: adv }, { acc: '3200', cr: adv }]
           });
           await E.save('wageRuns', {
             no, kind: 'advance', empId: emp.id, date: today,

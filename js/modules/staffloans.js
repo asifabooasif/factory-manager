@@ -206,7 +206,7 @@
       if (myLoans(empId).some(l => l.date === date && l.principal === amount) && !confirm('This employee already has a loan of ' + E.m(amount) + ' on ' + date + '. Create another?')) return;
       if (!opening && E.bal(bank) < amount && !confirm('The account balance (' + E.m(E.bal(bank)) + ') is less than the loan. Continue?')) return;
       const no = await E.next('SL');
-      const lines = [{ acc: '1250', dr: amount }, { acc: opening ? '3000' : bank, cr: amount }];
+      const lines = [{ acc: '1250', dr: amount }, { acc: opening ? '3200' : bank, cr: amount }];
       await E.postThen({ date, ref: no, narr: (opening ? 'Opening staff loan · ' : 'Staff loan · ') + e.name + (notes ? ' · ' + notes : ''), source: opening ? 'opening' : 'loan', lines }, async je => {
         await E.save('staffLoans', { no, v2: true, empId, empName: e.name, empCode: e.code || '', principal: amount, date, bankAcc: opening ? '' : bank, opening, deduct, notes, jeId: je.id, cancelled: false, entries: [], createdBy: E.user || '' });
       });

@@ -53,6 +53,8 @@
     : `<div class="f">Received into *<select id="st_s"><option value="">— select cash / bank account —</option>${E.opts(a => a.bank)}</select></div>`;
   function rcvBills() { const p = E.val('st_p'); E.$('st_b').innerHTML = allocTable('in', p, 'stal') + heldNote('cust', p); rcvFifo(); }
   function rcvFifo() { fifo('in', 'stal', E.c(E.val('st_a'))); summary('in', 'stal', E.c(E.val('st_a')), 'st_sum'); }
+  /* ledger entry + invoice/bill allocation + the receipt/payment/cheque record are ONE unit: any failure reverses the entry and puts the allocations back */
+  const unit = (args, coll, al, mk) => E.postThen(args, async je => { const done = []; try { for (const x of al) { await bump(coll, x.id, x.a); done.push(x); } await mk(je); } catch (err) { for (const x of done) { try { await bump(coll, x.id, -x.a); } catch (z) { console.error(z); } } throw err; } });
   E.A.recv = () => {
     const ps = E.rows('parties').filter(p => p.active !== false && p.type !== 'Supplier').sort((a, b) => a.name.localeCompare(b.name));
     if (!ps.length) return E.toast('Add a customer first', 'error');
@@ -78,16 +80,18 @@
         if (E.rows('cheques').some(c => c.dir === 'in' && norm(c.chqNo) === norm(cn) && norm(c.bank) === norm(bank) && !VOID.includes(c.status))) throw new Error('Cheque ' + cn + ' on ' + bank + ' is already recorded');
         const bn = E.rows('cheques').filter(c => c.partyId === pid && c.status === 'Bounced').length;
         if (bn && !confirm(pn(pid) + ' has ' + bn + ' returned cheque(s) on record. Accept this cheque anyway?')) return;
-        const no = await E.next('CHQ'), je = await E.post({ date: d, ref: no, narr: 'Cheque received ' + cn + ' · ' + pn(pid) + (adv ? ' (advance ' + E.m(adv) + ')' : ''), source: 'cheque', lines: [{ acc: '1110', dr: amt }, alT ? { acc: '1200', cr: alT } : null, adv ? { acc: '2400', cr: adv } : null].filter(Boolean) });
-        for (const x of al) await bump('invoices', x.id, x.a);
-        const c = { no, dir: 'in', chqNo: cn, bank, bankAcc: '', partyId: pid, date: dt, origDate: dt, recvDate: d, amount: amt, allocs: al, applied: [], status: 'Pending', jeId: je.id, note, postponed: 0 };
-        logIt(c, 'Received', adv ? 'Advance ' + E.m(adv) : ''); await E.save('cheques', c);
+        const no = await E.next('CHQ');
+        await unit({ date: d, ref: no, narr: 'Cheque received ' + cn + ' · ' + pn(pid) + (adv ? ' (advance ' + E.m(adv) + ')' : ''), source: 'cheque', lines: [{ acc: '1110', dr: amt }, alT ? { acc: '1200', cr: alT } : null, adv ? { acc: '2400', cr: adv } : null].filter(Boolean) }, 'invoices', al, async je => {
+          const c = { no, dir: 'in', chqNo: cn, bank, bankAcc: '', partyId: pid, date: dt, origDate: dt, recvDate: d, amount: amt, allocs: al, applied: [], status: 'Pending', jeId: je.id, note, postponed: 0 };
+          logIt(c, 'Received', adv ? 'Advance ' + E.m(adv) : ''); await E.save('cheques', c);
+        });
         E.closeM(); E.go(); return E.toast(no + ' saved in Cheques in Hand' + (adv ? ' · advance ' + E.m(adv) : ''), 'success');
       }
       const s = E.val('st_s'); if (!s) throw new Error('Select the account the money was received into');
-      const no = await E.next('RCT'), je = await E.post({ date: d, ref: no, narr: (note || 'Receipt') + ' · ' + pn(pid) + (adv ? ' (advance ' + E.m(adv) + ')' : ''), source: 'receipt', lines: [{ acc: s, dr: amt }, alT ? { acc: '1200', cr: alT } : null, adv ? { acc: '2400', cr: adv } : null].filter(Boolean) });
-      for (const x of al) await bump('invoices', x.id, x.a);
-      await E.save('receipts', { no, date: d, partyId: pid, acc: s, amount: amt, allocs: al, jeId: je.id, advance: adv, advApplied: [] });
+      const no = await E.next('RCT');
+      await unit({ date: d, ref: no, narr: (note || 'Receipt') + ' · ' + pn(pid) + (adv ? ' (advance ' + E.m(adv) + ')' : ''), source: 'receipt', lines: [{ acc: s, dr: amt }, alT ? { acc: '1200', cr: alT } : null, adv ? { acc: '2400', cr: adv } : null].filter(Boolean) }, 'invoices', al, async je => {
+        await E.save('receipts', { no, date: d, partyId: pid, acc: s, amount: amt, allocs: al, jeId: je.id, advance: adv, advApplied: [] });
+      });
       E.closeM(); E.go(); E.toast(no + ' posted' + (adv ? ' · advance ' + E.m(adv) + ' held' : ''), 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
@@ -143,16 +147,18 @@
         const cn = E.val('st_cn').trim(), dt = E.val('st_cd'); if (!cn || !dt) throw new Error('Fill the cheque number and cheque date');
         const bank = (E.acct(s) || {}).name || s;
         if (E.rows('cheques').some(c => c.dir === 'out' && norm(c.chqNo) === norm(cn) && norm(c.bank) === norm(bank) && !VOID.includes(c.status))) throw new Error('Cheque ' + cn + ' on ' + bank + ' is already recorded');
-        const no = await E.next('CHQ'), je = await E.post({ date: d, ref: no, narr: 'Cheque issued ' + cn + ' · ' + pn(pid) + (adv ? ' (advance ' + E.m(adv) + ')' : ''), source: 'cheque', lines: [alT ? { acc: '2000', dr: alT } : null, adv ? { acc: '1260', dr: adv } : null, { acc: '2150', cr: amt }].filter(Boolean) });
-        for (const x of al) await bump('purchases', x.id, x.a);
-        const c = { no, dir: 'out', chqNo: cn, bank, bankAcc: s, partyId: pid, date: dt, origDate: dt, recvDate: d, amount: amt, allocs: al, applied: [], status: 'Pending', jeId: je.id, note, postponed: 0 };
-        logIt(c, 'Issued', adv ? 'Advance ' + E.m(adv) : ''); await E.save('cheques', c);
+        const no = await E.next('CHQ');
+        await unit({ date: d, ref: no, narr: 'Cheque issued ' + cn + ' · ' + pn(pid) + (adv ? ' (advance ' + E.m(adv) + ')' : ''), source: 'cheque', lines: [alT ? { acc: '2000', dr: alT } : null, adv ? { acc: '1260', dr: adv } : null, { acc: '2150', cr: amt }].filter(Boolean) }, 'purchases', al, async je => {
+          const c = { no, dir: 'out', chqNo: cn, bank, bankAcc: s, partyId: pid, date: dt, origDate: dt, recvDate: d, amount: amt, allocs: al, applied: [], status: 'Pending', jeId: je.id, note, postponed: 0 };
+          logIt(c, 'Issued', adv ? 'Advance ' + E.m(adv) : ''); await E.save('cheques', c);
+        });
         E.closeM(); E.go(); return E.toast(no + ' recorded in the Cheque Desk' + (adv ? ' · advance ' + E.m(adv) : ''), 'success');
       }
       if (E.bal(s) < amt && !confirm('The selected account balance (' + E.m(E.bal(s)) + ') is lower than this payment. Continue?')) return;
-      const no = await E.next('PAY'), je = await E.post({ date: d, ref: no, narr: (note || 'Payment') + ' · ' + pn(pid) + (adv ? ' (advance ' + E.m(adv) + ')' : ''), source: 'payment', lines: [alT ? { acc: '2000', dr: alT } : null, adv ? { acc: '1260', dr: adv } : null, { acc: s, cr: amt }].filter(Boolean) });
-      for (const x of al) await bump('purchases', x.id, x.a);
-      await E.save('payments', { no, date: d, partyId: pid, acc: s, amount: amt, allocs: al, jeId: je.id, advance: adv, advApplied: [] });
+      const no = await E.next('PAY');
+      await unit({ date: d, ref: no, narr: (note || 'Payment') + ' · ' + pn(pid) + (adv ? ' (advance ' + E.m(adv) + ')' : ''), source: 'payment', lines: [alT ? { acc: '2000', dr: alT } : null, adv ? { acc: '1260', dr: adv } : null, { acc: s, cr: amt }].filter(Boolean) }, 'purchases', al, async je => {
+        await E.save('payments', { no, date: d, partyId: pid, acc: s, amount: amt, allocs: al, jeId: je.id, advance: adv, advApplied: [] });
+      });
       E.closeM(); E.go(); E.toast(no + ' posted' + (adv ? ' · advance ' + E.m(adv) + ' held' : ''), 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };

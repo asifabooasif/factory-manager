@@ -122,10 +122,10 @@ E.route('printsetup','Print & Documents',()=>{LOGO=S('pr_logo')||'';setTimeout(p
  <div class="f">Text size${sel('pr_font',[['Normal','Normal'],['Large','Large']],S('pr_font')||'Normal')}</div>
  <div class="f">Copy label (top right)${sel('pr_copy',[['',' None'],['ORIGINAL','ORIGINAL'],['DUPLICATE','DUPLICATE'],['CUSTOMER COPY','CUSTOMER COPY'],['OFFICE COPY','OFFICE COPY']],S('pr_copy'))}</div>
  <div class="f">Delivery note${sel('pr_dnPrices',[['','Quantities only (no prices)'],['1','Show rates and amounts']],S('pr_dnPrices')?'1':'')}</div></div>
- <div class="bar"><button class="btn p" data-a="prSave">Save for all devices</button></div></div>
+ <div class="bar"><button class="btn p" data-a="pdSave">Save for all devices</button></div></div>
  <div class="card"><h3>Live preview (sample invoice)</h3><iframe id="pr_prev" style="width:100%;height:640px;border:1px solid var(--bd);border-radius:8px;background:#fff"></iframe></div>
  <div class="card"><h3>How to print</h3><ol class="muted"><li>Sales &amp; Receivables: press 🖨 on a delivery note or invoice. Receipts: Sales &gt; Receipts &gt; 🖨. Credit notes: Sales Returns &gt; 🖨.</li><li>Choose your printer, or <b>Save as PDF</b> to email it.</li><li>Works in the browser and the Windows app. On Android use Chrome, then menu &gt; Print.</li></ol></div>`});
-E.A.prSave=async()=>{try{const o=formVals();if(!o.pr_logo)o.pr_logo='';await E.setSetting(o);E.toast('Saved for all devices','success')}catch(e){E.toast(e.message,'error')}};
+E.A.pdSave=async()=>{try{const o=formVals();if(!o.pr_logo)o.pr_logo='';await E.setSetting(o);E.toast('Saved for all devices','success')}catch(e){E.toast(e.message,'error')}};
 E.A.prLogoDel=()=>{LOGO='';E.$('pr_lg').innerHTML='<span class="muted">No logo</span>';const f=E.$('pr_file');if(f)f.value='';preview()};
 /* resize the chosen picture so it stays small (it is stored with your settings and sent to every device) */
 function shrink(file){return new Promise((ok,no)=>{const fr=new FileReader();fr.onerror=()=>no(new Error('Cannot read the file'));fr.onload=()=>{

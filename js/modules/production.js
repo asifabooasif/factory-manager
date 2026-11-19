@@ -386,22 +386,26 @@
       if (!d) throw new Error('Choose date');
       const no = await E.next('PL');
       const tot = L.reduce((s, x) => s + x.amount, 0);
-      const je = await E.post({
+      await E.postThen({
         date: d, ref: no, narr: 'Production ' + d + ' · ' + L.length + ' entries', source: 'production',
         lines: L.map(x => ({ acc: '1310', dr: x.amount, job: x.j.id, cat: 'Labour', art: x.l.id, head: '5110' })).concat([{ acc: '2210', cr: tot }])
+      }, async je => {
+        const savedLogs = [];
+        try {
+          let k = 0;
+          for (const x of L) {
+            savedLogs.push(await E.save('prodLogs', {
+              no: no + '-' + (++k), batch: no, date: d,
+              empId: x.e.id, jobId: x.j.id, lineId: x.l.id, itemId: x.l.itemId, variantId: x.l.variantId,
+              code: x.l.code, opId: x.o.id, opName: x.o.name, size: x.size,
+              qty: x.packs, pairs: x.pairs, pairsPerPack: x.pairsPerPack, 
+              rateUnit: x.info.rateUnit, piecesPerPair: x.info.piecesPerPair,
+              convertedQty: x.convertedQty, rate: x.rt, amount: x.amount,
+              status: 'accrued', jeId: je.id, jeNo: je.no, runId: '', runNo: ''
+            }));
+          }
+        } catch (err) { for (const g of savedLogs) try { await E.del('prodLogs', g.id); } catch (z) { console.error(z); } throw err; }
       });
-      let k = 0;
-      for (const x of L) {
-        await E.save('prodLogs', {
-          no: no + '-' + (++k), batch: no, date: d,
-          empId: x.e.id, jobId: x.j.id, lineId: x.l.id, itemId: x.l.itemId, variantId: x.l.variantId,
-          code: x.l.code, opId: x.o.id, opName: x.o.name, size: x.size,
-          qty: x.packs, pairs: x.pairs, pairsPerPack: x.pairsPerPack, 
-          rateUnit: x.info.rateUnit, piecesPerPair: x.info.piecesPerPair,
-          convertedQty: x.convertedQty, rate: x.rt, amount: x.amount,
-          status: 'accrued', jeId: je.id, jeNo: je.no, runId: '', runNo: ''
-        });
-      }
       F.date = d; E.go();
       E.toast(L.length + ' entries · ' + E.m(tot), 'success');
     } catch (e) { E.toast(e.message, 'error'); }
@@ -413,11 +417,12 @@
       const ll = E.D.jobLines.find(x => x.id === l.lineId);
       if (ll) { const fl = E.jobFlow(ll), st = fl.stages.find(s => s.opId === l.opId); if (st) { const nm = Math.min(...fl.stages.map(s => s.opId === l.opId ? R2(s.logged - pairsOf(l, fl.pp)) : s.logged)); if (nm < fl.released - 0.001) throw new Error('Cannot cancel: ' + fl.released + ' pairs of ' + ll.code + ' are already released to stock and depend on this entry.'); } }
       if (!confirm('Cancel ' + l.no + '?')) return;
-      await E.post({ date: E.today(), ref: l.no, narr: 'Cancel ' + l.no, source: 'production',
-        lines: [{ acc: '2210', dr: l.amount }, { acc: '1310', cr: l.amount, job: l.jobId, cat: 'Labour', art: l.lineId, head: '5110' }] });
-      const b = JSON.parse(JSON.stringify(l));
-      l.status = 'cancelled';
-      await E.save('prodLogs', l, b);
+      await E.postThen({ date: E.today(), ref: l.no, narr: 'Cancel ' + l.no, source: 'production',
+        lines: [{ acc: '2210', dr: l.amount }, { acc: '1310', cr: l.amount, job: l.jobId, cat: 'Labour', art: l.lineId, head: '5110' }] }, async () => {
+        const b = JSON.parse(JSON.stringify(l));
+        l.status = 'cancelled';
+        await E.save('prodLogs', l, b);
+      });
       E.go(); E.toast('Cancelled', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };

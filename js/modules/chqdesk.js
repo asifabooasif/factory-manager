@@ -304,11 +304,15 @@
       if (dir === 'in') { const s = analyse().score.find(x => x.id === pid); if (s && s.bn && !confirm(pn(pid) + ' has ' + s.bn + ' bounced cheque(s) on record. Accept this cheque anyway?')) return; }
       const adv = amt - alT, no = await E.next('CHQ'), n = (dir === 'in' ? 'Cheque received ' : 'Cheque issued ') + cn + ' · ' + pn(pid) + (adv ? ' (advance ' + E.m(adv) + ')' : '');
       const lines = dir === 'in' ? [{ acc: '1110', dr: amt }, alT ? { acc: '1200', cr: alT } : null, adv ? { acc: '2400', cr: adv } : null] : [alT ? { acc: '2000', dr: alT } : null, adv ? { acc: '1260', dr: adv } : null, { acc: '2150', cr: amt }];
-      const je = await E.post({ date: rd, ref: no, narr: n, source: 'cheque', lines: lines.filter(Boolean) });
-      for (const x of al) await bump(docCol(dir), x.id, x.a);
-      const c = { no, dir, chqNo: cn, bank, bankAcc: dir === 'out' ? k : '', partyId: pid, date: dt, origDate: dt, recvDate: rd, amount: amt, allocs: al, applied: [], status: 'Pending', jeId: je.id, note: E.val('cq_note'), postponed: 0 };
-      logIt(c, dir === 'in' ? 'Received' : 'Issued', adv ? 'Advance ' + E.m(adv) : '');
-      await E.save('cheques', c);
+      await E.postThen({ date: rd, ref: no, narr: n, source: 'cheque', lines: lines.filter(Boolean) }, async je => {
+        const done = [];
+        try {
+          for (const x of al) { await bump(docCol(dir), x.id, x.a); done.push(x); }
+          const c = { no, dir, chqNo: cn, bank, bankAcc: dir === 'out' ? k : '', partyId: pid, date: dt, origDate: dt, recvDate: rd, amount: amt, allocs: al, applied: [], status: 'Pending', jeId: je.id, note: E.val('cq_note'), postponed: 0 };
+          logIt(c, dir === 'in' ? 'Received' : 'Issued', adv ? 'Advance ' + E.m(adv) : '');
+          await E.save('cheques', c);
+        } catch (err) { for (const x of done) try { await bump(docCol(dir), x.id, -x.a); } catch (z) { console.error(z); } throw err; }
+      });
       E.closeM(); E.go(); E.toast(no + ' saved' + (adv ? ' — advance ' + E.m(adv) + ' held on account' : ''), 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };

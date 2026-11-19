@@ -20,12 +20,12 @@ E.route('opening','Opening Balances',()=>{const ps=E.rows('parties').filter(p=>p
  <div class="card"><h3>3. Amounts customers owe you</h3><div class="g2"><div class="f">Customer<select id="oc_p">${cp.map(p=>`<option value="${p.id}">${E.esc(p.name)}</option>`).join('')}</select></div><div class="f">Invoice / reference<input id="oc_r"></div><div class="f">Invoice date<input id="oc_d" type="date" value="${E.today()}"></div><div class="f">Amount owed (Rs)<input id="oc_a" type="number" step="0.01"></div></div><button class="btn p" data-a="obCus">Add customer opening invoice</button></div>
  <div class="card"><h3>4. Opening stock</h3><p class="muted">Use Inventory → "Opening stock / Adjustment" for each item and SKU.</p></div>`});
 E.A.obBank=async()=>{try{const L=[...document.querySelectorAll('.ob')].map(i=>({acc:i.dataset.acc,dr:E.c(i.value)})).filter(x=>x.dr>0),t=L.reduce((s,x)=>s+x.dr,0);if(!L.length)throw new Error('Enter at least one balance');
- await E.post({date:E.val('o_d'),ref:'OPEN',narr:'Opening cash & bank balances',source:'opening',lines:L.concat([{acc:'3000',cr:t}])});E.go();E.toast('Posted','success')}catch(e){E.toast(e.message,'error')}};
+ await E.post({date:E.val('o_d'),ref:'OPEN',narr:'Opening cash & bank balances',source:'opening',lines:L.concat([{acc:'3200',cr:t}])});E.go();E.toast('Posted','success')}catch(e){E.toast(e.message,'error')}};
 E.A.obSup=async()=>{try{const a=E.c(E.val('os_a')),p=pty(E.val('os_p'));if(!p||a<=0)throw new Error('Select a supplier and enter the amount');const no=await E.next('PUR'),d=E.val('os_d');
- const je=await E.post({date:d,ref:no,narr:'Opening balance · '+p.name,source:'opening',lines:[{acc:'3000',dr:a},{acc:'2000',cr:a}]});
+ const je=await E.post({date:d,ref:no,narr:'Opening balance · '+p.name,source:'opening',lines:[{acc:'3200',dr:a},{acc:'2000',cr:a}]});
  await E.save('purchases',{no,date:d,partyId:p.id,invNo:E.val('os_r')||'Opening',lines:[],total:a,paid:0,jeId:je.id,cancelled:false,opening:true});E.go();E.toast(no+' added','success')}catch(e){E.toast(e.message,'error')}};
 E.A.obCus=async()=>{try{const a=E.c(E.val('oc_a')),p=pty(E.val('oc_p'));if(!p||a<=0)throw new Error('Select a customer and enter the amount');const no=await E.next('INV'),d=E.val('oc_d');
- const je=await E.post({date:d,ref:no,narr:'Opening balance · '+p.name,source:'opening',lines:[{acc:'1200',dr:a},{acc:'3000',cr:a}]});
+ const je=await E.post({date:d,ref:no,narr:'Opening balance · '+p.name,source:'opening',lines:[{acc:'1200',dr:a},{acc:'3200',cr:a}]});
  await E.save('invoices',{no,date:d,partyId:p.id,dnIds:[],gross:a,disc:0,total:a,paid:0,jeId:je.id,cancelled:false,opening:true,ref:E.val('oc_r')});E.go();E.toast(no+' added','success')}catch(e){E.toast(e.message,'error')}};
 /* ---- Statements ---- */
 E.A.stmt=id=>{const p=pty(id),ev=[],R=E.rows.bind(E);
