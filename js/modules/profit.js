@@ -16,7 +16,7 @@ function calc(){const A={},C={},J={};let rev=0,cost=0,unBill=0,unCost=0,ret=0,re
   (x.lines||[]).forEach(l=>{const t=itm(l.itemId);add(A,l.itemId,(t.art||'?')+' - '+(t.name||''),-l.qty,-l.value,-(l.cost||0))});if(inv)add(C,inv.partyId,pty(inv.partyId),0,-x.amount,-(x.cost||0))});
  E.rows('deliveries').filter(d=>d.status==='Delivered'&&!d.unbilled&&inR(d.date)).forEach(d=>{unBill+=d.total;unCost+=d.cogs});
  /* ledger check */
- let led=0;E.rows('journalEntries').filter(j=>inR(j.date)).forEach(j=>j.lines.filter(l=>l.acc==='4000').forEach(l=>led+=l.cr-l.dr));
+ let led=0;E.rows('journalEntries').filter(j=>inR(j.date)).forEach(j=>j.lines.filter(l=>l.acc==='4000'||l.acc==='4010').forEach(l=>led+=l.cr-l.dr));
  const net=Math.round(rev-ret);return {A,C,J,rev:Math.round(rev),cost,ret,retCost,retRows,net,led,unBill,unCost,jobsRet:ret}}
 const tbl=(M,extra)=>{const rows=Object.values(M).map(a=>Object.assign(a,{p:a.r-a.c})).sort((a,b)=>b.p-a.p);
  return `<div class="tw"><table><thead><tr><th>Name</th><th class="r">Packs</th><th class="r">Revenue</th><th class="r">Cost</th><th class="r">Profit</th><th class="r">Margin</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${E.esc(a.n)}</td><td class="r">${a.q}</td><td class="r">${E.m(Math.round(a.r))}</td><td class="r">${E.m(Math.round(a.c))}</td><td class="r ${a.p<0?'bad':'ok'}"><b>${E.m(Math.round(a.p))}</b></td><td class="r ${a.p<0?'bad':''}">${a.r?(a.p/a.r*100).toFixed(1)+'%':'-'}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">No invoiced sales in this period</td></tr>'}${extra||''}</tbody></table></div>`};

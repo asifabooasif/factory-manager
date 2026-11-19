@@ -6,7 +6,12 @@
   [['ledger', '📖', 'Ledger Search'], ['reports', '📈', 'Financial Reports'], ['health', '🩺', 'Health Check']].forEach((x, i) => E.N.splice(at + i, 0, { g: 'Reports', id: x[0], ico: x[1], label: x[2] }));
   const rt = (f, t) => { const m = {}; E.rows('journalEntries').forEach(j => { if ((f && j.date < f) || (t && j.date > t)) return; j.lines.forEach(l => { const x = m[l.acc] || (m[l.acc] = { dr: 0, cr: 0 }); x.dr += l.dr; x.cr += l.cr }) }); return m };
   const nat = (a, x) => x ? ((a.type === 'asset' || a.type === 'expense') ? x.dr - x.cr : x.cr - x.dr) : 0, cs = (a, b) => a.code.localeCompare(b.code);
-  const L = { acc: '', q: '', from: '', to: '' }, F = { tab: 'pl', from: E.today().slice(0, 4) + '-01-01', to: E.today() };
+  const L = { acc: '', q: '', from: '', to: '' }, F = { tab: 'pl', from: '', to: E.today() };
+  /* Financial year: start month is a per-factory setting (1 = January; Sri Lanka companies often use 4 = April) */
+  const fyM = () => Math.min(12, Math.max(1, parseInt(E.setting('fyMonth')) || 1));
+  const iso = (y, m, d) => y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  const fyStart = (off) => { const t = E.today(), y = +t.slice(0, 4), m = +t.slice(5, 7), fm = fyM(); const sy = (m >= fm ? y : y - 1) + (off || 0); return iso(sy, fm, 1); };
+  const fyEnd = (off) => { const st = fyStart(off), y = +st.slice(0, 4), fm = fyM(); const ey = fm === 1 ? y : y + 1, em = fm === 1 ? 12 : fm - 1; return iso(ey, em, new Date(ey, em, 0).getDate()); };
 
   function ltbl() {
     const q = L.q.toLowerCase(), a = E.acct(L.acc), dn = a && (a.type === 'asset' || a.type === 'expense');
@@ -31,14 +36,50 @@
   const sum = (ac, m, f) => ac.filter(f).reduce((s, a) => s + nat(a, m[a.code]), 0),
     lst = (ac, m, f) => ac.filter(a => f(a) && nat(a, m[a.code])).sort(cs).map(a => R(a.code + ' · ' + E.esc(a.name), nat(a, m[a.code]))).join('');
 
+  const SEC = ['dm', 'dl', 'oh', 'contra', 'loss', 'adm', 'sel', 'fin', 'oth', ''];
+  const SECN = { dm: 'Direct material', dl: 'Direct labour', oh: 'Factory overheads', contra: 'Factory overheads absorbed into jobs (contra)', loss: 'Factory losses (wastage / damage / stock loss)', adm: 'Administrative expenses', sel: 'Selling & distribution expenses', fin: 'Finance costs', oth: 'Other expenses', '': 'Unclassified expenses' };
+  const stockAcc = ['1300', '1310', '1320'];
+  const stockBal = (m) => stockAcc.reduce((s, c) => s + (m[c] ? m[c].dr - m[c].cr : 0), 0);
+  function dayBefore(d) { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() - 1); return x.toISOString().slice(0, 10); }
+  /* TRADING ACCOUNT (Busy style): Opening stock + purchases + direct costs - closing stock = cost of sales; every figure comes from the ledger.
+     The cost of sales worked out this way is CHECKED against the Cost of Goods Sold account (5400). */
+  function trading() {
+    const A = E.rows('coa'), m = rt(F.from, F.to), op = rt('', dayBefore(F.from)), cl = rt('', F.to);
+    const sales = sum(A, m, a => a.code === '4000'), disc = sum(A, m, a => a.code === '4010');
+    const by = {};
+    E.rows('journalEntries').forEach(j => { if (j.date < F.from || j.date > F.to) return; j.lines.forEach(l => { if (stockAcc.includes(l.acc)) by[j.source] = (by[j.source] || 0) + l.dr - l.cr; }); });
+    const known = ['purchase', 'issue', 'release', 'sale', 'adjust', 'opening', 'reversal'];
+    const purchases = by.purchase || 0, adj = (by.adjust || 0) + (by.opening || 0), rev = by.reversal || 0, internal = (by.issue || 0) + (by.release || 0);
+    const direct = Object.keys(by).filter(k => !known.includes(k)).reduce((s, k) => s + by[k], 0);
+    const opening = stockBal(op), closing = stockBal(cl);
+    const cogs = opening + purchases + direct + adj + rev + internal - closing, booked = sum(A, m, a => a.code === '5400'), gp = sales + disc - cogs;
+    const diff = cogs - booked;
+    const stockRows = lst(A, m, a => ['4000', '4010'].includes(a.code));
+    return T(H('Sales') + stockRows + R('Net sales', sales + disc, 1) + H('Cost of sales') + R('Opening stock (materials + WIP + finished goods)', opening) + R('Add: purchases of materials & accessories (net of returns)', purchases) + R('Add: direct labour & expenses charged to production', direct) + (adj || rev || internal ? R('Add / (less): stock adjustments, cancellations & transfers', adj + rev + internal) : '') + R('Less: closing stock (materials + WIP + finished goods)', -closing) + R('COST OF SALES', cogs, 1) + R('GROSS PROFIT / (LOSS)', gp, 1) + R('Gross profit %', 0).replace('Rs 0.00', (sales + disc ? (gp * 100 / (sales + disc)).toFixed(1) : '0.0') + ' %')) + `<p class="${diff === 0 ? 'ok' : 'bad'}">${diff === 0 ? '✓ Agrees with the Cost of Goods Sold account (5400)' : '✗ Differs from Cost of Goods Sold account (5400) by ' + E.m(diff) + ' - check manual journals posted to stock accounts'}</p><p class="muted">Stock losses written off (wastage, stock-take shortages) are NOT in cost of sales; they appear under factory losses in the Profit & Loss.</p>`;
+  }
   function pl() {
     const m = rt(F.from, F.to), A = E.rows('coa');
-    const inc = sum(A, m, a => a.type === 'income'), cg = sum(A, m, a => a.code === '5400'), ex = sum(A, m, a => a.type === 'expense' && a.code !== '5400');
-    return T(H('Income') + lst(A, m, a => a.type === 'income') + R('Total income', inc, 1) + H('Cost of goods sold') + lst(A, m, a => a.code === '5400') + R('Gross profit', inc - cg, 1) + H('Expenses') + lst(A, m, a => a.type === 'expense' && a.code !== '5400') + R('Total expenses', ex, 1) + R('NET PROFIT / (LOSS)', inc - cg - ex, 1));
+    const inc = sum(A, m, a => a.type === 'income'), cg = sum(A, m, a => a.code === '5400');
+    let body = H('Income') + lst(A, m, a => a.type === 'income') + R('Net income (sales less discounts)', inc, 1) + H('Cost of goods sold') + lst(A, m, a => a.code === '5400') + R('GROSS PROFIT', inc - cg, 1);
+    let ex = 0;
+    SEC.forEach(n => {
+      const f = a => a.type === 'expense' && a.code !== '5400' && (a.nature || '') === n, v = sum(A, m, f);
+      if (!v && !A.some(a => f(a) && nat(a, m[a.code]))) return;
+      body += H(SECN[n]) + lst(A, m, f) + R('Total ' + SECN[n].toLowerCase(), v, 1); ex += v;
+    });
+    return T(body + R('Total expenses', ex, 1) + R('NET PROFIT / (LOSS)', inc - cg - ex, 1));
   }
   function bs() {
-    const m = rt('', F.to), A = E.rows('coa'), as = sum(A, m, a => a.type === 'asset'), li = sum(A, m, a => a.type === 'liability'), eq = sum(A, m, a => a.type === 'equity'), pr = sum(A, m, a => a.type === 'income') - sum(A, m, a => a.type === 'expense');
-    return `<p class="muted">As at ${F.to}</p>` + T(H('Assets') + lst(A, m, a => a.type === 'asset') + R('Total assets', as, 1) + H('Liabilities') + lst(A, m, a => a.type === 'liability') + R('Total liabilities', li, 1) + H('Equity') + lst(A, m, a => a.type === 'equity') + R('Profit / (loss) to date', pr) + R('Total equity', eq + pr, 1) + R('Liabilities + equity', li + eq + pr, 1)) + `<p class="${as === li + eq + pr ? 'ok' : 'bad'}">${as === li + eq + pr ? '✓ Balance sheet balances' : '✗ Out of balance'}</p>`;
+    const m = rt('', F.to), A = E.rows('coa'), pr = sum(A, m, a => a.type === 'income') - sum(A, m, a => a.type === 'expense');
+    const isFixed = a => a.code === '1400' || a.code === '1410', isLoan = a => /^24(0[1-9]|[1-9]\d)$/.test(a.code);
+    const cash = a => a.type === 'asset' && (a.bank || a.code === '1000' || a.code === '1010'), inv = a => a.type === 'asset' && /^13/.test(a.code), fixed = a => a.type === 'asset' && isFixed(a);
+    const recv = a => a.type === 'asset' && !cash(a) && !inv(a) && !fixed(a);
+    const g = (title, f) => { const v = sum(A, m, f); return { v, html: lst(A, m, f) ? H(title) + lst(A, m, f) + R('Total ' + title.toLowerCase(), v, 1) : '' }; };
+    const fa = g('Fixed assets (cost less accumulated depreciation)', fixed), ca1 = g('Cash & bank', cash), ca2 = g('Receivables, cheques & advances', recv), ca3 = g('Inventories (materials, WIP, finished goods)', inv);
+    const ca = ca1.v + ca2.v + ca3.v, as = fa.v + ca;
+    const cl = g('Current liabilities', a => a.type === 'liability' && !isLoan(a)), nl = g('Loans & borrowings (long-term and instalments)', a => a.type === 'liability' && isLoan(a));
+    const eq = sum(A, m, a => a.type === 'equity'), li = cl.v + nl.v, tl = li + eq + pr;
+    return `<p class="muted">As at ${F.to}</p>` + T(H('ASSETS') + fa.html + H('Current assets') + ca1.html + ca2.html + ca3.html + R('Total current assets', ca, 1) + R('TOTAL ASSETS', as, 1) + H('EQUITY & LIABILITIES') + H('Equity') + lst(A, m, a => a.type === 'equity') + R('Profit / (loss) to date (not yet closed to retained earnings)', pr) + R('Total equity', eq + pr, 1) + nl.html + cl.html + R('Total liabilities', li, 1) + R('TOTAL EQUITY & LIABILITIES', tl, 1)) + `<p class="${as === tl ? 'ok' : 'bad'}">${as === tl ? '✓ Balance sheet balances' : '✗ Out of balance by ' + E.m(as - tl)}</p><p class="muted">Loan balances are shown in full; the portion due within 12 months is not split out.</p>`;
   }
   function prod() {
     const j = E.rows('journalEntries').filter(x => x.date >= F.from && x.date <= F.to), m = rt(F.from, F.to), A = E.rows('coa'), jr = {};
@@ -62,10 +103,13 @@
     return T(R('Opening cash & bank', open, 1) + ks.map(k => R(N[k] || k, by[k])).join('') + R('Net movement', net, 1) + R('Closing cash & bank', open + net, 1));
   }
   E.route('reports', 'Financial Reports', () => {
-    const tabs = [['pl', 'Profit & Loss'], ['bs', 'Balance Sheet'], ['pa', 'Production Account'], ['cf', 'Cash Flow']];
-    return `<div class="bar">${tabs.map(t => `<button class="btn ${F.tab === t[0] ? 'p' : ''}" data-a="rtab" data-id="${t[0]}">${t[1]}</button>`).join('')}<span class="gap"></span>${F.tab === 'bs' ? '' : '<input id="r_f" type="date" class="fs" value="' + F.from + '">'}<input id="r_t" type="date" class="fs" value="${F.to}"><button class="btn" data-a="rapply">Apply</button><button class="btn" data-a="rprint">Print</button></div><div id="rep">${({ pl, bs, pa: prod, cf })[F.tab]()}</div>`;
+    if (!F.from) F.from = fyStart(0);
+    const tabs = [['tr', 'Trading A/c'], ['pl', 'Profit & Loss'], ['bs', 'Balance Sheet'], ['pa', 'Production Account'], ['cf', 'Cash Flow']];
+    return `<div class="bar">${tabs.map(t => `<button class="btn ${F.tab === t[0] ? 'p' : ''}" data-a="rtab" data-id="${t[0]}">${t[1]}</button>`).join('')}<span class="gap"></span><select class="fs" id="r_fy" title="Period"><option value="">Period…</option><option value="c">This financial year</option><option value="p">Last financial year</option><option value="m">This month</option></select><select class="fs" id="r_fm" title="Financial year starts in">${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((n, i) => `<option value="${i + 1}" ${fyM() === i + 1 ? 'selected' : ''}>FY starts ${n}</option>`).join('')}</select>${F.tab === 'bs' ? '' : '<input id="r_f" type="date" class="fs" value="' + F.from + '">'}<input id="r_t" type="date" class="fs" value="${F.to}"><button class="btn" data-a="rapply">Apply</button><button class="btn" data-a="rprint">Print</button></div><div id="rep">${({ tr: trading, pl, bs, pa: prod, cf })[F.tab]()}</div>`;
   });
   E.A.rtab = t => { F.tab = t; E.go(); };
+  E.hooks.push(e => { if (!e.target) return; if (e.target.id === 'r_fy') { const v = e.target.value; if (v === 'c') { F.from = fyStart(0); F.to = E.today(); } else if (v === 'p') { F.from = fyStart(-1); F.to = fyEnd(-1); } else if (v === 'm') { F.from = E.today().slice(0, 8) + '01'; F.to = E.today(); } else return; E.go(); }
+    if (e.target.id === 'r_fm') { E.setSetting({ fyMonth: +e.target.value }).then(() => { F.from = fyStart(0); E.go(); }); } });
   E.A.rapply = () => { F.from = E.val('r_f') || F.from; F.to = E.val('r_t') || F.to; E.go(); };
   E.A.rprint = () => { const w = window.open('', '_blank'); if (!w) return; w.document.write('<html><head><title>Report</title><style>body{font:13px Arial;padding:20px}table{width:100%;border-collapse:collapse}td{padding:5px;border-bottom:1px solid #ccc}.r{text-align:right}</style></head><body><h2>' + E.esc(E.factory().name) + '</h2>' + E.$('rep').innerHTML + '</body></html>'); w.document.close(); setTimeout(() => w.print(), 300) };
 

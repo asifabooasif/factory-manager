@@ -15,8 +15,8 @@
     ['2200', 'Wages Payable', 'liability', 0], ['2210', 'Accrued Piece-Rate Wages', 'liability', 0],
     ['2230', 'Staff Deductions Payable', 'liability', 0], ['2300', 'Accrued Expenses', 'liability', 0], ['2400', 'Customer Advances & Overpayments', 'liability', 0],
     ['3000', 'Owner Capital', 'equity', 0], ['3100', 'Retained Earnings', 'equity', 0],
-    ['3200', 'Opening Balance Equity', 'equity', 0],
-    ['4000', 'Sales Revenue', 'income', 0],
+    ['3200', 'Opening Balance Equity', 'equity', 0], ['3300', 'Owner Drawings', 'equity', 0],
+    ['4000', 'Sales Revenue', 'income', 0], ['4010', 'Sales Discounts (contra-sales)', 'income', 0],
     ['4100', 'Interest & Other Income', 'income', 0],
     ['5000', 'Direct Material Cost', 'expense', 0, 'dm', 'variable'],
     ['5100', 'Direct Labour', 'expense', 0, 'dl', 'variable'],
@@ -57,7 +57,8 @@
     ['6160', 'Sales Commission', 'expense', 0, 'sel', 'variable'],
     ['6170', 'Security', 'expense', 0, 'adm', 'fixed'],
     ['6180', 'Miscellaneous Expenses', 'expense', 0, 'oth', 'variable'],
-    ['6190', 'Loss / (Gain) on Asset Disposal', 'expense', 0, 'oth', 'variable']
+    ['6190', 'Loss / (Gain) on Asset Disposal', 'expense', 0, 'oth', 'variable'],
+    ['6195', 'Cash Over / Short', 'expense', 0, 'oth', 'variable']
   ];
 
   E.NATURE = {

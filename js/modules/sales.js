@@ -210,6 +210,7 @@
       const p = cu(pid), out = E.rows('invoices').filter(i => i.partyId === pid && !i.cancelled).reduce((s, i) => s + ib(i), 0);
       const credit = E.custCredit ? E.custCredit(pid) : 0;
       if (p.limit && out - credit + total > p.limit && !confirm('Exceeds credit limit ' + E.m(p.limit) + '. Continue?')) return;
+      if (disc > 0 && !E.acct('4010')) await E.ensureCoa();
       const no = await E.next('INV'), d = E.val('n_d');
       const je = await E.post({ date: d, ref: no, narr: 'Invoice ' + no, source: 'sale',
         lines: invLines(sel, g, disc, total) });
@@ -227,7 +228,7 @@
      Old delivery notes posted before revenue-at-delivery have no 'unbilled' flag, so their revenue is still credited here. */
   function invLines(sel, g, disc, total) {
     const gNew = sel.filter(x => x.unbilled).reduce((s, x) => s + x.total, 0), gOld = g - gNew, lines = [{ acc: '1200', dr: total }];
-    if (disc > 0) lines.push({ acc: '4000', dr: disc });
+    if (disc > 0) lines.push({ acc: '4010', dr: disc });
     if (gNew > 0) lines.push({ acc: '1210', cr: gNew });
     if (gOld > 0) lines.push({ acc: '4000', cr: gOld });
     return lines;
