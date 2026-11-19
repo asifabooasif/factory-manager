@@ -49,13 +49,13 @@ E.A.lnSave=async()=>{try{const s=rd(),lender=E.val('ln_l'),d=E.val('ln_d'),ex=E.
  if(!lender)throw new Error('Enter the lender');if(!(s.principal>0))throw new Error('Enter the loan amount');if(s.rate<0||s.rate>100)throw new Error('Interest rate must be between 0 and 100');if(s.n<1||s.n>360)throw new Error('Instalments must be 1 to 360');
  if(!DT.test(d)||!DT.test(s.first))throw new Error('Enter the dates');if(s.first<d)throw new Error('First instalment cannot be before the loan date');
  if(ex){if(!DT.test(od))throw new Error('Enter the opening date');if(pd<0||pd>=s.n)throw new Error('Instalments already paid must be fewer than the total ('+s.n+')')}else if(!bank)throw new Error('Choose the account that received the money');
- if(!E.acct(INT))throw new Error('Account '+INT+' Finance Charges is missing');if(!E.acct('3000')&&ex)throw new Error('Account 3000 Owner Capital is missing');
+ if(!E.acct(INT))throw new Error('Account '+INT+' Finance Charges is missing');if(!E.acct('3200')&&ex)throw new Error('Account 3200 Opening Balance Equity is missing');
  const pdate=ex?od:d;if(E.locked(pdate))throw new Error('Period is locked up to '+E.setting('lockedUntil'));
  let code='';for(let c=2401;c<2500;c++)if(!E.acct(String(c))){code=String(c);break}if(!code)throw new Error('No free loan account code (2400-2499)');
  const x=E.loanSchedule(s),rows=x.rows;rows.slice(0,pd).forEach(r=>{r.paid=true;r.prepaid=true;r.paidDate=r.due;r.paidPrincipal=r.principal;r.paidInterest=r.interest});
  const owing=pd?rows[pd].opening:s.principal,no=await E.next('LN');
  await E.save('coa',{id:E.fid+'-'+code,code,name:'Loan - '+lender+' ('+no+')',type:'liability',bank:0,kind:'liability',custom:true});
- const je=await E.post({date:pdate,ref:no,narr:(ex?'Opening balance of loan · ':'Loan received · ')+lender,source:ex?'opening':'loan',lines:ex?[{acc:'3000',dr:owing},{acc:code,cr:owing}]:[{acc:bank,dr:s.principal},{acc:code,cr:s.principal}]});
+ const je=await E.post({date:pdate,ref:no,narr:(ex?'Opening balance of loan · ':'Loan received · ')+lender,source:ex?'opening':'loan',lines:ex?[{acc:'3200',dr:owing},{acc:code,cr:owing}]:[{acc:bank,dr:s.principal},{acc:code,cr:s.principal}]});
  await E.save('loans',{no,lender,type:E.val('ln_t'),ref:E.val('ln_ref'),notes:E.val('ln_nt'),principal:s.principal,rate:s.rate,method:s.method,n:s.n,date:d,first:s.first,emi:x.emi,rows,bankAcc:ex?'':bank,loanAcc:code,existing:ex,openDate:ex?od:'',disbJe:je.id,cancelled:false,settled:null});
  E.closeM();E.go();E.toast(no+' saved'+(ex?' · opening balance '+E.m(owing)+' posted':''),'success')}catch(e){E.toast(e.message,'error')}};
 /* ---------- view / schedule ---------- */

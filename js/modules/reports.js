@@ -71,6 +71,9 @@
   }
   function bs() {
     const m = rt('', F.to), A = E.rows('coa'), pr = sum(A, m, a => a.type === 'income') - sum(A, m, a => a.type === 'expense');
+    /* split cumulative profit into prior financial years (retained) and the financial year that contains the report date */
+    const fm = fyM(), ty = +F.to.slice(0, 4), tm = +F.to.slice(5, 7), fys = iso(tm >= fm ? ty : ty - 1, fm, 1), m0 = rt('', dayBefore(fys));
+    const prPrior = sum(A, m0, a => a.type === 'income') - sum(A, m0, a => a.type === 'expense'), prCur = pr - prPrior;
     const isFixed = a => a.code === '1400' || a.code === '1410', isLoan = a => /^24(0[1-9]|[1-9]\d)$/.test(a.code);
     const cash = a => a.type === 'asset' && (a.bank || a.code === '1000' || a.code === '1010'), inv = a => a.type === 'asset' && /^13/.test(a.code), fixed = a => a.type === 'asset' && isFixed(a);
     const recv = a => a.type === 'asset' && !cash(a) && !inv(a) && !fixed(a);
@@ -79,7 +82,7 @@
     const ca = ca1.v + ca2.v + ca3.v, as = fa.v + ca;
     const cl = g('Current liabilities', a => a.type === 'liability' && !isLoan(a)), nl = g('Loans & borrowings (long-term and instalments)', a => a.type === 'liability' && isLoan(a));
     const eq = sum(A, m, a => a.type === 'equity'), li = cl.v + nl.v, tl = li + eq + pr;
-    return `<p class="muted">As at ${F.to}</p>` + T(H('ASSETS') + fa.html + H('Current assets') + ca1.html + ca2.html + ca3.html + R('Total current assets', ca, 1) + R('TOTAL ASSETS', as, 1) + H('EQUITY & LIABILITIES') + H('Equity') + lst(A, m, a => a.type === 'equity') + R('Profit / (loss) to date (not yet closed to retained earnings)', pr) + R('Total equity', eq + pr, 1) + nl.html + cl.html + R('Total liabilities', li, 1) + R('TOTAL EQUITY & LIABILITIES', tl, 1)) + `<p class="${as === tl ? 'ok' : 'bad'}">${as === tl ? '✓ Balance sheet balances' : '✗ Out of balance by ' + E.m(as - tl)}</p><p class="muted">Loan balances are shown in full; the portion due within 12 months is not split out.</p>`;
+    return `<p class="muted">As at ${F.to}</p>` + T(H('ASSETS') + fa.html + H('Current assets') + ca1.html + ca2.html + ca3.html + R('Total current assets', ca, 1) + R('TOTAL ASSETS', as, 1) + H('EQUITY & LIABILITIES') + H('Equity') + lst(A, m, a => a.type === 'equity') + (prPrior ? R('Retained profit / (loss) of earlier financial years', prPrior) : '') + R('Profit / (loss) for the financial year from ' + fys, prCur) + R('Total equity', eq + pr, 1) + nl.html + cl.html + R('Total liabilities', li, 1) + R('TOTAL EQUITY & LIABILITIES', tl, 1)) + `<p class="${as === tl ? 'ok' : 'bad'}">${as === tl ? '✓ Balance sheet balances' : '✗ Out of balance by ' + E.m(as - tl)}</p><p class="muted">Loan balances are shown in full; the portion due within 12 months is not split out.</p>`;
   }
   function prod() {
     const j = E.rows('journalEntries').filter(x => x.date >= F.from && x.date <= F.to), m = rt(F.from, F.to), A = E.rows('coa'), jr = {};

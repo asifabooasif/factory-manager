@@ -738,8 +738,9 @@
       const c = chk();
       if (c.a !== r.net) throw new Error('Pay full net ' + E.m(r.net));
       const no = await E.next('WP');
-      const je = await E.post({ date: c.d, ref: no, narr: 'Pay ' + r.no, source: 'payroll', lines: [{ acc: '2200', dr: c.a }, { acc: c.s, cr: c.a }] });
-      const b = JSON.parse(JSON.stringify(r)); r.paid = true; r.payJe = je.no; await E.save('wageRuns', r, b);
+      await E.postThen({ date: c.d, ref: no, narr: 'Pay ' + r.no, source: 'payroll', lines: [{ acc: '2200', dr: c.a }, { acc: c.s, cr: c.a }] }, async je => {
+        const b = JSON.parse(JSON.stringify(r)); r.paid = true; r.payJe = je.no; await E.save('wageRuns', r, b);
+      });
       E.closeM(); E.go(); E.toast('Paid', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
