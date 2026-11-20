@@ -117,7 +117,8 @@
   E.A.rprint = () => { const w = window.open('', '_blank'); if (!w) return; w.document.write('<html><head><title>Report</title><style>body{font:13px Arial;padding:20px}table{width:100%;border-collapse:collapse}td{padding:5px;border-bottom:1px solid #ccc}.r{text-align:right}</style></head><body><h2>' + E.esc(E.factory().name) + '</h2>' + E.$('rep').innerHTML + '</body></html>'); w.document.close(); setTimeout(() => w.print(), 300) };
 
   /* Health check — FIX 1250 with staff loans */
-  E.route('health', 'Health Check', () => {
+  /* the checks live in a function so the Guardian (guardian.js) can run exactly the same controls */
+  E.healthChecks = () => {
     const t = E.totals(), sm = E.stockMap(), it = id => E.D.items.find(x => x.id === id), C = [];
     let rm = 0, fg = 0, neg = 0;
     for (const k in sm) { const i = it(k.split('|')[0]); if (i) i.cat === 'Finished Good' ? fg += sm[k].value : rm += sm[k].value; if (sm[k].qty < 0) neg++ }
@@ -157,6 +158,10 @@
     const nb = emps.filter(e => E.advBal && E.advBal(e.id) < 0); C.push([!nb.length, 'No worker has recovered more advance than given', nb.length ? nb.map(e => e.name).join(', ') : 'OK']);
     const dup = ['invoices', 'deliveries', 'purchases', 'quotes', 'jobs', 'receipts', 'wageRuns'].filter(c => { const n = E.rows(c).map(x => x.no).filter(Boolean); return n.length !== new Set(n).size }); C.push([!dup.length, 'No duplicate document numbers', dup.length ? 'Duplicates in: ' + dup.join(', ') : 'OK']);
     const ov = E.rows('invoices').filter(i => !i.cancelled && i.paid > i.total).length + E.rows('purchases').filter(p => !p.cancelled && p.paid > p.total).length; C.push([!ov, 'No invoice or bill paid more than its total', ov ? ov + ' document(s) overpaid' : 'OK']);
+    return C;
+  };
+  E.route('health', 'Health Check', () => {
+    const C = E.healthChecks();
     const bad = C.filter(c => !c[0]).length;
     return `<div class="kp">${E.kpi('Status', bad ? '<span class="bad">' + bad + ' issue(s)</span>' : '<span class="ok">All checks passed</span>', C.length + ' checks')}</div><div class="tw"><table><thead><tr><th></th><th>Check</th><th>Result</th></tr></thead><tbody>${C.map(c => `<tr><td>${c[0] ? '<span class="ok">✓</span>' : '<span class="bad">✗</span>'}</td><td>${c[1]}</td><td>${c[2]}</td></tr>`).join('')}</tbody></table></div><p class="muted">A difference on supplier or customer checks can come from manual journal entries posted straight to Payables / Receivables.</p>`;
   });
