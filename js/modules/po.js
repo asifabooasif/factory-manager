@@ -28,7 +28,7 @@ E.A.recvPO=id=>{const p=E.D.purchaseOrders.find(x=>x.id===id);
 E.A.poSaveRecv=async id=>{try{const p=E.D.purchaseOrders.find(x=>x.id===id),d=E.val('rc_d');if(!d)throw new Error('Enter the receipt date');
  const X=[...document.querySelectorAll('#rcb tr[data-i]')].map(tr=>({i:+tr.dataset.i,q:parseFloat(tr.querySelector('.rq').value)||0,rate:E.c(tr.querySelector('.rr').value)})).filter(x=>x.q>0);if(!X.length)throw new Error('Enter a quantity to receive');
  const lines=X.map(x=>{const l=p.lines[x.i];if(x.q>+(l.qty-l.received).toFixed(3)+1e-9)throw new Error(l.code+': more than pending. Edit the order or receive up to the pending quantity.');if(!(x.rate>0))throw new Error(l.code+': enter the rate');return{itemId:l.itemId,variantId:l.variantId,code:l.code,qty:x.q,rate:x.rate,amount:Math.round(x.q*x.rate),poLine:x.i}}),
- total=lines.reduce((s,l)=>s+l.amount,0),no=await E.next('PUR'),grn=await E.next('GRN'),inv=E.val('rc_i');
+ total=lines.reduce((s,l)=>s+l.amount,0),inv=E.val('rc_i'),no=await E.next('PUR'),grn=await E.next('GRN');
  let pu,bp;await E.postThen({date:d,ref:no,narr:'Purchase '+no+' · GRN '+grn+' · '+p.no+' · '+sup(p.partyId).name,source:'purchase',lines:[{acc:'1300',dr:total},{acc:'2000',cr:total}]},async je=>{
  for(const l of lines)await E.stockIn({date:d,itemId:l.itemId,variantId:l.variantId,qty:l.qty,value:l.amount,type:'purchase',ref:no});
  pu=await E.save('purchases',{no,date:d,partyId:p.partyId,invNo:inv||grn,lines,total,paid:0,jeId:je.id,cancelled:false,poId:p.id,poNo:p.no,grnNo:grn});bp=JSON.parse(JSON.stringify(p));

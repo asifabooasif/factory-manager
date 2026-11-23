@@ -234,18 +234,22 @@
         lines.push({ acc: a.code, dr: amt });
       }
       lines.push({ acc: cr, cr: amt });
-      const je = await E.post({ date: d, ref: no, narr, source: 'expense', lines });
-      await E.save('expenses', {
-        kind: 'voucher', no, date: d, head: a.code, headName: a.name, nature: a.nature, treatment: tr, amount: amt,
-        pay: pm, payee, ref: E.val('ex_r'), narr: E.val('ex_n'), jobs,
-        jeId: je.id, jeNo: je.no, cancelled: false, paid: false, closedVarCount: closedVar.length
+      await E.postThen({ date: d, ref: no, narr, source: 'expense', lines }, async je => {
+        const savedCv = [];
+        try {
+          await E.save('expenses', {
+            kind: 'voucher', no, date: d, head: a.code, headName: a.name, nature: a.nature, treatment: tr, amount: amt,
+            pay: pm, payee, ref: E.val('ex_r'), narr: E.val('ex_n'), jobs,
+            jeId: je.id, jeNo: je.no, cancelled: false, paid: false, closedVarCount: closedVar.length
+          });
+          for (const cv of closedVar) {
+            savedCv.push(await E.save('closedJobVariances', {
+              factoryId: E.fid, jobId: cv.jobId, jobNo: cv.jobNo, type: 'late-expense', amount: cv.amount, date: d,
+              closedDate: cv.closedDate, notes: a.name + ' · ' + no, sourceJeId: je.id, createdAt: new Date().toISOString()
+            }));
+          }
+        } catch (err) { for (const x of savedCv) try { await E.del('closedJobVariances', x.id); } catch (z) { } throw err; }
       });
-      for (const cv of closedVar) {
-        await E.save('closedJobVariances', {
-          factoryId: E.fid, jobId: cv.jobId, jobNo: cv.jobNo, type: 'late-expense', amount: cv.amount, date: d,
-          closedDate: cv.closedDate, notes: a.name + ' · ' + no, sourceJeId: je.id, createdAt: new Date().toISOString()
-        });
-      }
       E.closeM(); E.go();
       const msg = no + ' posted' + (closedVar.length ? ' · ' + closedVar.length + ' to 5390 (completed job)' : tr === 'job' ? ' → ' + jobs.length + ' job(s)' : '');
       E.toast(msg, closedVar.length ? 'warning' : 'success');
@@ -288,10 +292,10 @@
     } catch (e) { E.toast(e.message, 'error'); }
   };
 
-  /* ─── FIX: Exclude 5290/5295/5390 from overhead pool ─── */
+  /* ─── Exclude 5290/5295/5390 from the overhead pool. 5260 (factory machinery depreciation) is a PERIOD expense by owner's decision: it is never absorbed into product cost ─── */
   const poolAccts = () => E.rows('coa').filter(a =>
     a.type === 'expense' && a.nature === 'oh' &&
-    !['5290', '5295', '5390'].includes(a.code) && !a.inactive
+    !['5290', '5295', '5390', '5260'].includes(a.code) && !a.inactive
   );
   E.unabsorbed = () => unabsorbed();
   function unabsorbed() {
@@ -361,7 +365,7 @@
     try {
       const s = split();
       if (s.amt <= 0) throw new Error('Enter amount');
-      const no = await E.next('ABS'), d = E.val('ab_d');
+      const d = E.val('ab_d'), no = await E.next('ABS');
       const je = await E.post({ date: d, ref: no, narr: 'Absorb (' + E.val('ab_b') + ')', source: 'expense',
         lines: s.rows.map(r => ({ acc: '1310', dr: r.amount, job: r.jobId, cat: 'Overhead', head: '5290' })).concat([{ acc: '5290', cr: s.amt }]) });
       await E.save('costRuns', { no, kind: 'absorb', date: d, basis: E.val('ab_b'), amount: s.amt, jobs: s.rows.map(r => ({ jobId: r.jobId, amount: r.amount })), jeId: je.id, cancelled: false });

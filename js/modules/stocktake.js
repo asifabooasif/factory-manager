@@ -27,8 +27,7 @@ E.A.postST=async()=>{try{const st=E.D.stockTakes.find(x=>x.id===E.stId),b=JSON.p
  else if(!confirm('Post adjustments?\n\nLosses written off: '+E.m(loss)+' ('+P.filter(x=>x.d<0).length+' items)\nGains added: '+E.m(gain)+' ('+P.filter(x=>x.d>0).length+' items)\n\nThis cannot be edited afterwards.'))return;
  let ref='',jeId='';
  if(P.length){ref=await E.next('ADJ');const lines=[];for(const k in A){if(A[k].g)lines.push({acc:k,dr:A[k].g});if(A[k].l)lines.push({acc:k,cr:A[k].l})}if(loss)lines.push({acc:'5300',dr:loss});if(gain)lines.push({acc:'5300',cr:gain});
-  const je=await E.post({date:st.date,ref,narr:'Stock take '+st.no+' · '+st.scope,source:'adjust',lines});jeId=je.id;
-  for(const x of P)await E.stockIn({date:st.date,itemId:x.l.itemId,variantId:x.l.variantId,qty:x.d,value:x.d<0?-x.val:x.val,type:x.d<0?'loss':'gain',ref})}
+  await E.postThen({date:st.date,ref,narr:'Stock take '+st.no+' · '+st.scope,source:'adjust',lines},async je=>{jeId=je.id;for(const x of P)await E.stockIn({date:st.date,itemId:x.l.itemId,variantId:x.l.variantId,qty:x.d,value:x.d<0?-x.val:x.val,type:x.d<0?'loss':'gain',ref})})}
  st.status='Posted';st.result={loss,gain,ref,jeId};await E.save('stockTakes',st,b);E.go();E.toast('Stock take posted'+(ref?' · '+ref:''),'success')}catch(e){E.toast(e.message,'error')}};
 E.A.prST=m=>{const st=E.D.stockTakes.find(x=>x.id===E.stId),w=window.open('','_blank');if(!w)return E.toast('Allow pop-ups to print','error');const done=st.status==='Posted',q=m==='var'?st.lines.filter(l=>l.diff):st.lines;
  const head=m==='var'?'<th>Code</th><th>Item</th><th class="r">System</th><th class="r">Counted</th><th class="r">Variance</th><th class="r">Value</th>':'<th>Code</th><th>Item</th><th>Unit</th>'+(m==='sys'?'<th class="r">System qty</th>':'')+'<th style="width:110px">Counted</th><th style="width:140px">Remarks</th>';

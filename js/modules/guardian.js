@@ -208,6 +208,15 @@
     return out;
   });
 
+  rule('pool', 'Costing', 'Factory overhead not absorbed', 'Factory overhead sitting in the pool and not yet charged to jobs at month-end.', ctx => {
+    const un = E.unabsorbed ? E.unabsorbed() : 0; if (un < 500000) return [];
+    const last = R('costRuns').filter(r => !r.cancelled && r.kind === 'absorb').reduce((m, r) => r.date > m ? r.date : m, '');
+    if (last && ago(last, ctx.today) <= 35) return [];
+    return [{ id: 'pool', sev: 'warn', area: 'Costing', title: money(un) + ' of factory overhead has not been charged to jobs', detail: last ? 'Last absorption ' + last : 'No absorption has been posted yet',
+      why: 'Until overhead is absorbed, finished goods and job costs show only material and labour, so product cost and margin look better than they are, and the overhead hits profit in the month it was spent.',
+      fix: 'Open Expenses & Costs > Overhead pool and post the month-end absorption (choose packs, labour or material as the basis). If you prefer to treat overhead as a period expense, snooze this notice.', route: 'expenses' }];
+  });
+
   rule('close', 'Compliance', 'Month-end discipline', 'Months that were never locked.', ctx => {
     const lk = E.setting('lockedUntil') || '', first = ctx.JL.reduce((m, l) => !m || l.date < m ? l.date : m, '');
     if (!first) return [];

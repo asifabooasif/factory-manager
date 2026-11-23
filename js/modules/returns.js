@@ -181,7 +181,7 @@
       const lines = L.map(({ v, x, val }) => { const k = x.k, cst = Math.round(del[k].amt * x.q / dq[k].amt); tot += val; cost += cst; return { itemId: v.itemId, variantId: v.variantId, code: v.code, qty: x.q, rate: v.rate, value: val, cost: cst }; });
       const rf = E.val('rt_s');
       if (!rf && tot > ib(inv)) throw new Error('This credit (' + E.m(tot) + ') is more than the invoice balance (' + E.m(ib(inv)) + '). Choose the account the refund is paid from.');
-      const no = await E.next('CN'), d = E.val('rt_d'), ls = [{ acc: '4000', dr: tot }, { acc: rf || '1200', cr: tot }];
+      const d = E.val('rt_d'), no = await E.next('CN'), ls = [{ acc: '4000', dr: tot }, { acc: rf || '1200', cr: tot }];
       if (cost > 0) { ls.push({ acc: '1320', dr: cost }, { acc: '5400', cr: cost }); }
       await E.postThen({ date: d, ref: no, narr: 'Sales return ' + no + ' · ' + inv.no, source: 'sale', lines: ls }, async () => {
         for (const l of lines) await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: l.qty, value: l.cost, type: 'sreturn', ref: no });
@@ -200,7 +200,7 @@
       const lines = R.map(x => { const v = a[x.k]; if (x.q > v.qty + 1e-9) throw new Error(v.code + ': only ' + v.qty + ' can be returned'); if (E.stock(v.itemId, v.variantId).qty < x.q - 1e-9) throw new Error(v.code + ': not enough stock on hand to return'); const orig = bl.lines.filter(l => l.itemId === v.itemId && l.variantId === v.variantId), oq = orig.reduce((s, l) => s + l.qty, 0), val = Math.round(x.q * orig.reduce((s, l) => s + l.amount, 0) / oq); tot += val; return { itemId: v.itemId, variantId: v.variantId, code: v.code, qty: x.q, value: val }; });
       const rf = E.val('rt_s');
       if (!rf && tot > ib(bl)) throw new Error('This return (' + E.m(tot) + ') is more than the bill balance (' + E.m(ib(bl)) + '). Choose the account the supplier refunds into.');
-      const no = await E.next('DBN'), d = E.val('rt_d');
+      const d = E.val('rt_d'), no = await E.next('DBN');
       await E.postThen({ date: d, ref: no, narr: 'Purchase return ' + no + ' · ' + bl.no, source: 'purchase', lines: [{ acc: rf || '2000', dr: tot }, { acc: '1300', cr: tot }] }, async () => {
         for (const l of lines) await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: -l.qty, value: -l.value, type: 'preturn', ref: no });
         if (!rf) { const b = JSON.parse(JSON.stringify(bl)); bl.paid += tot; await E.save('purchases', bl, b); }

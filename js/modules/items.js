@@ -18,6 +18,40 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
     return b + ((10 - s % 10) % 10);
   };
 
+  /* ── ITEM PHOTO: shrunk in the browser (max 420px, JPEG) so it stays ~20-45 KB and syncs fast ── */
+  let PHOTO; // undefined = leave unchanged, '' = remove, data-URL = new photo
+  const MAXPHOTO = 90000; // characters of data-URL (~65 KB)
+  function shrinkPhoto(file) {
+    return new Promise((ok, no) => {
+      if (!file || !/^image\//.test(file.type)) return no(new Error('Please choose a picture file (JPG, PNG or WebP)'));
+      const fr = new FileReader();
+      fr.onerror = () => no(new Error('Cannot read the file'));
+      fr.onload = () => {
+        const im = new Image();
+        im.onerror = () => no(new Error('This is not a valid picture'));
+        im.onload = () => {
+          let max = 420, q = 0.78, u = '';
+          for (let tries = 0; tries < 6; tries++) {
+            const sc = Math.min(1, max / im.width, max / im.height);
+            const w = Math.max(1, Math.round(im.width * sc)), h = Math.max(1, Math.round(im.height * sc));
+            const c = document.createElement('canvas'); c.width = w; c.height = h;
+            const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(im, 0, 0, w, h);
+            u = c.toDataURL('image/jpeg', q);
+            if (u.length <= MAXPHOTO) return ok(u);
+            max = Math.round(max * 0.85); q = Math.max(0.5, q - 0.06);
+          }
+          no(new Error('The picture is too detailed. Try another photo.'));
+        };
+        im.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+  E.A.photoView = id => {
+    const it = E.D.items.find(x => x.id === id); if (!it || !it.photo) return;
+    E.modal(it.art + ' — ' + it.name, `<div style="text-align:center"><img src="${it.photo}" alt="" style="max-width:100%;max-height:70vh;border-radius:10px"></div>`, '<button class="btn" data-a="close">Close</button>', 0);
+  };
+
   async function genPacks(it, colours) {
     let made = 0;
     const ex = vs(it.id);
@@ -73,7 +107,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
         const fgI = i.cat === 'Finished Good', v = vs(i.id).filter(x => x.active);
         const hasBom = i.bom && i.bom.length > 0;
         return `<tr style="${i.active ? '' : 'opacity:.5'}">
-          <td><b style="font-size:15px">${E.esc(i.art)}</b></td>
+          <td style="white-space:nowrap">${i.photo ? `<img src="${i.photo}" data-a="photoView" data-id="${i.id}" alt="" title="Click to enlarge" style="width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--bd);cursor:zoom-in;vertical-align:middle;margin-right:8px">` : `<span title="No photo" style="display:inline-block;width:44px;height:44px;line-height:44px;text-align:center;border-radius:8px;border:1px dashed var(--bd);color:var(--t3);vertical-align:middle;margin-right:8px;font-size:18px">📷</span>`}<b style="font-size:15px">${E.esc(i.art)}</b></td>
           <td>${E.esc(i.name)}</td>
           <td><span class="tag">${fgI ? E.esc(i.sub || 'Finished Good') : i.cat}</span></td>
           <td>${fgI ? (i.sizeRun ? `<b>${E.esc(i.sizeRun.split(',').map(x => x.trim()).join(' · '))}</b><div class="muted">${i.pack} pairs/pack</div>` : '<span class="muted">not set</span>') : `<b>${i.unit}</b>`}</td>
@@ -103,6 +137,14 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
     if (t.id === 'i_cons_m') toggleConsMode();
   });
 
+  E.hooks.push(async e => {
+    const t = e.target;
+    if (t && t.id === 'i_photo' && t.files && t.files[0]) {
+      try { PHOTO = await shrinkPhoto(t.files[0]); const b = E.$('i_ph'); if (b) b.innerHTML = `<img src="${PHOTO}" alt="" style="width:100%;height:100%;object-fit:cover">`; }
+      catch (x) { PHOTO = undefined; t.value = ''; E.toast(x.message, 'error'); }
+    }
+  });
+
   function toggleCategoryFields() {
     const cat = E.val('i_cat');
     const fgI = cat === 'Finished Good';
@@ -125,6 +167,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
   function toggleConsMode() { const m = E.val('i_cons_m'), g = E.$('i_bottle_grp'); if (g) g.style.display = (m === 'bottle') ? '' : 'none'; }
 
   const form = id => {
+    PHOTO = undefined;
     const it = id ? E.D.items.find(x => x.id === id) : null;
     const fgI = !it || it.cat === 'Finished Good';
     const cons = it && it.consumable, consMode = (it && it.consumableMode) || 'bom';
@@ -136,6 +179,14 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
       </div>
       
       <div class="f">Item Name *<input id="i_name" value="${E.esc(it && it.name)}" placeholder="e.g., Ladies Flat Slipper or Kiri Gum"></div>
+
+      <div class="f">Photo (optional)
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <div id="i_ph" style="width:84px;height:84px;border:1px dashed var(--bd);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--s);color:var(--t3)">${it && it.photo ? `<img src="${it.photo}" alt="" style="width:100%;height:100%;object-fit:cover">` : '📷'}</div>
+          <div><input type="file" id="i_photo" accept="image/*" style="max-width:240px"> <button class="btn sm" type="button" data-a="itPhotoDel">Remove photo</button>
+          <div class="muted" style="font-size:11px;margin-top:4px">Take a picture with the phone camera or choose a file. It is resized automatically.</div></div>
+        </div>
+      </div>
 
       <!-- ═══════════ FINISHED GOODS ONLY ═══════════ -->
       <div class="fg-only" style="${fgI ? '' : 'display:none'}">
@@ -213,6 +264,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
     }, 50);
   };
   
+  E.A.itPhotoDel = () => { PHOTO = ''; const b = E.$('i_ph'); if (b) b.innerHTML = '📷'; const f = E.$('i_photo'); if (f) f.value = ''; };
   E.A.newItem = () => form();
   E.A.editItem = id => form(id);
 
@@ -247,6 +299,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
       bottleUnit: cons && E.val('i_cons_m') === 'bottle' ? (E.val('i_bunit') || 'g') : ''
     });
     
+    if (PHOTO !== undefined) { if (PHOTO) it.photo = PHOTO; else delete it.photo; }
     await E.save('items', it, b);
     
     // Handle Variant Generation & Opening Stock for NEW items

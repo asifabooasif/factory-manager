@@ -528,7 +528,7 @@
         return v;
       });
       
-      const no = await E.next('REL'), d = E.val('r_d');
+      const d = E.val('r_d'), no = await E.next('REL');
       
       await E.postThen({ 
         date: d, ref: no, narr: 'Release ' + totalPairsToRelease + ' pairs', source: 'release',
@@ -623,6 +623,39 @@
       if (!L.some(l => l.released > 0)) throw new Error('Release goods first');
       let frozen = null;
       if (E.dailyAllocation && E.dailyAllocation.freezeJobShadow) { try { frozen = await E.dailyAllocation.freezeJobShadow(id); } catch (e) { console.warn('Freeze failed:', e); } }
+      /* Material issued for pairs that were never made must not silently inflate the cost of the pairs that were made.
+         Excess = net material issued to the job (issues less returns) minus what the BOM needs for the packs RELEASED,
+         limited to what the BOM needs for the packs STARTED but not released. Material already returned to stock is not counted again. */
+      const unusedBy = {}; let unusedTot = 0; const unusedTxt = [];
+      {
+        const need = {}, unusedNeed = {};
+        L.forEach(l => {
+          const it = E.D.items.find(x => x.id === l.itemId), pk = (it && it.pack) || 1, st = l.started || 0, un = Math.max(0, st - (l.released || 0));
+          ((it && it.bom) || []).forEach(bm => {
+            const k = bm.itemId + '|' + (bm.variantId || '');
+            need[k] = (need[k] || 0) + bm.qty * (l.released || 0) * pk;
+            if (un > 1e-9) { const u = bm.qty * un * pk; (unusedNeed[k] = unusedNeed[k] || { tot: 0, by: {} }); unusedNeed[k].tot += u; unusedNeed[k].by[l.id] = (unusedNeed[k].by[l.id] || 0) + u; }
+          });
+        });
+        Object.keys(unusedNeed).forEach(k => {
+          const [iid, vid] = k.split('|'), mv = E.rows('issues').filter(x => x.jobId === id && x.itemId === iid && (x.variantId || '') === vid);
+          const q = mv.reduce((a1, x) => a1 + x.qty, 0), v = mv.reduce((a1, x) => a1 + x.value, 0);
+          if (!(q > 1e-9)) return;
+          const exQty = Math.min(Math.max(0, q - (need[k] || 0)), unusedNeed[k].tot), val = Math.round(v * exQty / q);
+          if (!(val > 0)) return;
+          let left = val; const ids = Object.keys(unusedNeed[k].by);
+          ids.forEach((lid, ix) => { const part = ix === ids.length - 1 ? left : Math.round(val * unusedNeed[k].by[lid] / unusedNeed[k].tot); left -= part; unusedBy[lid] = (unusedBy[lid] || 0) + part; });
+          unusedTot += val;
+        });
+        Object.keys(unusedBy).forEach(lid => { const l = L.find(x => x.id === lid); unusedTxt.push(l.code); });
+      }
+      /* Settings > Wastage rule: ask (default) / always factory loss / always add to product cost */
+      const wRule = E.setting('wastage') || 'ask';
+      if (unusedTot > 0 && wRule !== 'cost') {
+        if (wRule !== 'loss' && !confirm('Material worth ' + E.m(unusedTot) + ' was issued for pairs that were never made (' + unusedTxt.join(', ') + ').\n\nOK = write it off to Factory Loss (5300) so it does not inflate the cost of the pairs made.\nCancel = stop; first return any unused material that is still in stock (Job > Issue / return) and complete again.')) return;
+        const nu = await E.next('LOSS');
+        await E.post({ date: E.today(), ref: nu, narr: 'Unused job material written off · ' + j.no, source: 'release', lines: Object.keys(unusedBy).map(lid => ({ acc: '1310', cr: unusedBy[lid], job: id, cat: 'Material', art: lid })).concat([{ acc: '5300', dr: unusedTot }]) });
+      }
       const { R } = sheet(j);
       const d = R.map(r => r.total - (r.l.fgValue || 0));
       const sum = d.reduce((a, b) => a + b, 0);

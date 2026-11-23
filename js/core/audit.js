@@ -1,2 +1,3 @@
 (E=>{E.user='Local User';
-E.audit=(action,col,rid,before,after)=>E.put('auditLog',{action,col,rid,before:before?JSON.stringify(before).slice(0,2000):null,after:after?JSON.stringify(after).slice(0,2000):null,at:new Date().toISOString(),user:E.user,factoryId:E.fid||''});})(window.ERP);
+const slim=o=>JSON.stringify(o,(k,v)=>k==='photo'&&typeof v==='string'&&v.length>200?'[photo]':v).slice(0,2000);
+E.audit=(action,col,rid,before,after)=>E.put('auditLog',{action,col,rid,before:before?slim(before):null,after:after?slim(after):null,at:new Date().toISOString(),user:E.user,factoryId:E.fid||''});})(window.ERP);

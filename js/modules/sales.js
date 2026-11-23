@@ -211,7 +211,7 @@
       const credit = E.custCredit ? E.custCredit(pid) : 0;
       if (p.limit && out - credit + total > p.limit && !confirm('Exceeds credit limit ' + E.m(p.limit) + '. Continue?')) return;
       if (disc > 0 && !E.acct('4010')) await E.ensureCoa();
-      const no = await E.next('INV'), d = E.val('n_d');
+      const d = E.val('n_d'), no = await E.next('INV');
       const je = await E.post({ date: d, ref: no, narr: 'Invoice ' + no, source: 'sale',
         lines: invLines(sel, g, disc, total) });
       const inv = await E.save('invoices', { no, date: d, partyId: pid, dnIds: sel.map(x => x.id), gross: g, disc, total, paid: 0, jeId: je.id, cancelled: false });
