@@ -265,6 +265,20 @@ Then do bank reconciliation, print reports, take a **backup**, and **Lock the pe
 
 Interest is charged to Finance Charges when it is paid, not accrued month by month. Do not post loan repayments through a manual payment voucher; use the register so the schedule stays correct.
 
+## 19. Report Suite
+
+Open **Reports -> Report Suite**. Find a report by typing in the search box, or pick from the nine groups (Financial statements, Receivables & payables, Inventory, Sales, Purchases, Production & costing, People & payroll, Expenses/assets/funding, Control & audit).
+
+1. Choose the **period** (this month, last financial year, custom dates ...). Reports that show a position on a date have an **As at** date instead.
+2. Use the filters at the top (customer, item, job, category ...) and **Group by** to change how the figures are summed - for example Sales Analysis by article/colour, category, customer or month.
+3. Tick **Compare with** to see a second period beside the first with the change.
+4. **Customize** lets you hide columns; click a column heading to sort; type in **Search** to find lines; set **Show only top** to list the biggest few.
+5. **Views** saves your settings under a name. **Pin** keeps a favourite at the top.
+6. Click a line to **drill down**: an account opens its ledger, a customer opens the statement, an item opens its stock card, a job opens its cost sheet. Use **Back** to return.
+7. **Print / PDF**, **Excel** and **CSV** export exactly what is on screen.
+
+Look at the green ticks and red crosses under a report: each one proves the report against the ledger (for example stock valuation against accounts 1300 and 1320). A red cross means the books and the records disagree - open **Master Reconciliation** to see where. The complete list of reports and what each is proved against is in docs/REPORT-SUITE.md.
+
 ## 18. Recommended next features
 
 These are natural next steps to make the system even stronger:

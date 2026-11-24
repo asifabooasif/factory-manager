@@ -43,6 +43,7 @@ function ledgerFor(pid,from,to){
   const dr=rows.reduce((s,t)=>s+t.dr,0),cr=rows.reduce((s,t)=>s+t.cr,0);
   return {open,rows,dr,cr,close:open+dr-cr};
 }
+E.partyLedger=ledgerFor; /* shared with the Report Suite */
 const drcr=v=>v>0?'Dr':(v<0?'Cr':'');
 const bal=v=>({n:Math.abs(v),suf:drcr(v)});
 function party(){
