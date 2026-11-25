@@ -1,0 +1,29 @@
+/* Grouped dropdown menu: animated sidebar sections, menu filter box and breadcrumb dropdowns (ported from the Gem ERP menu). */
+.sbf{padding:0 2px 10px}.sbf input{width:100%;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#fff;font-size:12.5px}
+.sbf input::placeholder{color:var(--st2)}.sbf input:focus{border-color:var(--ac);box-shadow:none;background:rgba(255,255,255,.11)}
+.mg{margin-bottom:2px}
+.mgh{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border:0;border-radius:10px;background:none;color:var(--st);font:600 12.5px var(--font);cursor:pointer;text-align:left}
+.mgh:hover{background:var(--sh);color:#fff}.mgh:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
+.mgh .gi{width:22px;text-align:center;flex:none;font-size:15px}.mgh .gn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mgh em{font-style:normal;font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;background:rgba(255,255,255,.12)}
+.mgh .cv{font-style:normal;font-size:11px;opacity:.7;transition:transform .2s}
+.mg.open>.mgh{color:#fff}.mg.open>.mgh .cv{transform:rotate(90deg)}
+.mgl{display:grid;grid-template-rows:0fr;transition:grid-template-rows .22s ease}.mg.open>.mgl{grid-template-rows:1fr}
+.mgl>div{overflow:hidden;min-height:0;visibility:hidden;margin-left:20px;padding-left:4px;border-left:1px solid rgba(255,255,255,.12);transition:visibility 0s .22s}
+.mg.open>.mgl>div{visibility:visible;transition-delay:0s}
+.mgl .ni{padding:7px 10px;font-size:12.5px}
+.nomatch{padding:12px;color:var(--st2);font-size:12px}
+@media(prefers-reduced-motion:reduce){.mgl,.mgh .cv,.nmdd{transition:none}}
+/* breadcrumb in the top bar */
+.crumb{display:flex;align-items:center;gap:2px;min-width:0}.crumb .sl{color:var(--t3)}
+.cr{display:inline-flex;align-items:center;gap:7px;border:0;background:none;color:var(--t);padding:7px 10px;border-radius:10px;font:600 14px var(--font);cursor:pointer;max-width:46vw;white-space:nowrap}
+.cr span{overflow:hidden;text-overflow:ellipsis}.cr:hover,.cr[aria-expanded=true]{background:var(--s2)}.cr.g{color:var(--t3);font-weight:500}.cr .cv{font-size:10px;opacity:.6;font-style:normal}
+.top.hascrumb #pt{display:none}
+@media(max-width:560px){.crumb .cr.g,.crumb .sl{display:none}}
+/* dropdown panel */
+.nmdd{position:fixed;z-index:120;min-width:250px;max-width:min(340px,94vw);max-height:min(78vh,640px);overflow:auto;padding:6px;background:var(--s);border:1px solid var(--bd);border-radius:16px;box-shadow:0 24px 60px -18px rgba(0,0,0,.45);opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top;transition:opacity .15s,transform .15s}
+.nmdd.on{opacity:1;transform:none}
+.ddi{display:flex;align-items:center;gap:12px;width:100%;padding:9px 10px;border:0;background:none;color:var(--t);text-align:left;border-radius:11px;cursor:pointer;font:500 13.5px var(--font)}
+.ddi:hover,.ddi:focus-visible{background:var(--s2);outline:none}.ddi.on{background:var(--acs);color:var(--ac);font-weight:600}.ddi.soon{opacity:.5}
+.ddi .ic{width:22px;text-align:center;flex:none}.ddi small{margin-left:auto;color:var(--t3)}
+.ddl{font:700 10.5px var(--font);letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 10px 3px}
