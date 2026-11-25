@@ -119,14 +119,13 @@
         const op = E.c(c.opening);
         if (op > 0) {
           const no = await E.next('INV');
-          await E.post({
+          await E.postThen({
             date: today, ref: no, narr: 'Opening · ' + c.name, source: 'opening',
             lines: [{ acc: '1200', dr: op }, { acc: '3200', cr: op }]
-          });
-          await E.save('invoices', {
+          }, je => E.save('invoices', {
             no, date: today, partyId: p.id, dnIds: [], gross: op, disc: 0,
-            total: op, paid: 0, cancelled: false, opening: true, ref: 'Opening'
-          });
+            total: op, paid: 0, jeId: je.id, cancelled: false, opening: true, ref: 'Opening'
+          }));
         }
       }
 
@@ -142,14 +141,13 @@
         const op = E.c(s.opening);
         if (op > 0) {
           const no = await E.next('PUR');
-          await E.post({
+          await E.postThen({
             date: today, ref: no, narr: 'Opening · ' + s.name, source: 'opening',
             lines: [{ acc: '3200', dr: op }, { acc: '2000', cr: op }]
-          });
-          await E.save('purchases', {
+          }, je => E.save('purchases', {
             no, date: today, partyId: p.id, invNo: 'Opening', lines: [],
-            total: op, paid: 0, cancelled: false, opening: true
-          });
+            total: op, paid: 0, jeId: je.id, cancelled: false, opening: true
+          }));
         }
       }
 
@@ -178,11 +176,10 @@
           for (const v of variants) {
             const val = Math.round(openingPacks * valPerPack);
             const no = await E.next('ADJ');
-            await E.post({
+            await E.postThen({
               date: today, ref: no, narr: 'Opening stock · ' + art + ' ' + (v.color || ''), source: 'opening',
               lines: [{ acc: '1320', dr: val }, { acc: '3200', cr: val }]
-            });
-            await E.stockIn({ date: today, itemId: it.id, variantId: v.id, qty: openingPacks, value: val, type: 'opening', ref: no });
+            }, () => E.stockIn({ date: today, itemId: it.id, variantId: v.id, qty: openingPacks, value: val, type: 'opening', ref: no }));
           }
         }
       }
@@ -210,11 +207,10 @@
         if (openingQty > 0 && E.c(m.buy) > 0) {
           const val = Math.round(openingQty * E.c(m.buy));
           const no = await E.next('ADJ');
-          await E.post({
+          await E.postThen({
             date: today, ref: no, narr: 'Opening stock · ' + code, source: 'opening',
             lines: [{ acc: '1300', dr: val }, { acc: '3200', cr: val }]
-          });
-          await E.stockIn({ date: today, itemId: it.id, variantId: '', qty: openingQty, value: val, type: 'opening', ref: no });
+          }, () => E.stockIn({ date: today, itemId: it.id, variantId: '', qty: openingQty, value: val, type: 'opening', ref: no }));
         }
       }
 
@@ -244,14 +240,13 @@
         const adv = E.c(e.advance);
         if (adv > 0) {
           const no = await E.next('ADV');
-          await E.post({
+          await E.postThen({
             date: today, ref: no, narr: 'Opening advance · ' + e.name, source: 'opening',
             lines: [{ acc: '1250', dr: adv }, { acc: '3200', cr: adv }]
-          });
-          await E.save('wageRuns', {
+          }, je => E.save('wageRuns', {
             no, kind: 'advance', empId: emp.id, date: today,
-            amount: adv, note: 'Opening advance', cancelled: false
-          });
+            amount: adv, note: 'Opening advance', jeId: je.id, opening: true, cancelled: false
+          }));
         }
       }
 
@@ -286,7 +281,24 @@
     } catch (e) { E.toast(e.message, 'error'); }
   };
 
+  /* One-time repair for data created by older wizard versions: link opening invoices / bills / advances to their ledger entry (jeId). */
+  E.repairOpeningLinks = async () => {
+    try {
+      if (E.role === 'viewer') return;
+      const fix = async col => {
+        for (const r of E.rows(col)) {
+          if (!r.opening || r.jeId) continue;
+          const j = E.D.journalEntries.find(x => x.source === 'opening' && x.ref === r.no);
+          if (!j) continue;
+          const b = JSON.parse(JSON.stringify(r)); r.jeId = j.id; await E.save(col, r, b);
+        }
+      };
+      await fix('invoices'); await fix('purchases'); await fix('wageRuns');
+    } catch (e) { console.warn('repairOpeningLinks', e); }
+  };
+
   E.maybeSetup = () => {
+    if (E.repairOpeningLinks) E.repairOpeningLinks();
     if ((E.role === 'owner' || E.role === 'accountant') && !E.setting('setupDone') && !E.rows('items').length && location.hash !== '#/setup') {
       location.hash = '#/setup';
       E.toast('New factory', 'success');

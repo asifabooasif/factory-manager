@@ -20,6 +20,8 @@ E.postThen=async(args,fn)=>{const je=await E.post(args);
  try{return await fn(je)}
  catch(err){let note='';try{await E.reverse(je.id)}catch(x){console.error('auto-rollback failed',x);note=' WARNING: ledger entry '+je.no+' could not be rolled back automatically. Reverse it in the Journal.'}
   err.message=(err.message||'Failed')+(note||' (nothing was saved)');throw err}};
+/* Find the ledger entry that belongs to a record. Uses rec.jeId; for opening records made by the Setup Wizard (older data had no jeId) it falls back to the opening entry with the same reference number. */
+E.jeOf=r=>{if(!r)return '';if(r.jeId&&E.D.journalEntries.some(j=>j.id===r.jeId))return r.jeId;const j=E.D.journalEntries.find(x=>x.source==='opening'&&x.ref===r.no&&!x.reversedBy);return j?j.id:(r.jeId||'')};
 E.totals=()=>{const t={};E.rows('journalEntries').forEach(j=>j.lines.forEach(l=>{const x=t[l.acc]||(t[l.acc]={dr:0,cr:0});x.dr+=l.dr;x.cr+=l.cr}));return t};
 E.bal=(code,t)=>{t=t||E.totals();const x=t[code]||{dr:0,cr:0},a=E.acct(code);return a&&(a.type==='asset'||a.type==='expense')?x.dr-x.cr:x.cr-x.dr};
 E.opts=(f,sel)=>E.rows('coa').filter(a=>!a.inactive).filter(f||(()=>1)).sort((a,b)=>a.code.localeCompare(b.code)).map(a=>`<option value="${a.code}" ${a.code===sel?'selected':''}>${a.code} · ${E.esc(a.name)}</option>`).join('');})(window.ERP);

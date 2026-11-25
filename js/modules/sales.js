@@ -254,8 +254,10 @@
       const i = E.D.invoices.find(x => x.id === id);
       if (i.paid) throw new Error('Payments exist');
       if (!confirm('Cancel ' + i.no + '?')) return;
-      await E.reverse(i.jeId);
-      for (const k of i.dnIds) { const x = E.D.deliveries.find(q => q.id === k), b = JSON.parse(JSON.stringify(x)); x.status = 'Delivered'; x.invId = ''; await E.save('deliveries', x, b); }
+      const jid = E.jeOf(i);
+      if (!jid) throw new Error('Ledger entry for ' + i.no + ' not found');
+      await E.reverse(jid);
+      for (const k of (i.dnIds || [])) { const x = E.D.deliveries.find(q => q.id === k), b = JSON.parse(JSON.stringify(x)); x.status = 'Delivered'; x.invId = ''; await E.save('deliveries', x, b); }
       const b = JSON.parse(JSON.stringify(i));
       i.cancelled = true;
       await E.save('invoices', i, b);

@@ -33,7 +33,7 @@ E.A.viewPur=id=>{const p=E.D.purchases.find(x=>x.id===id);E.modal(p.no+' · '+E.
 E.A.cancelPur=async id=>{const p=E.D.purchases.find(x=>x.id===id);try{if(p.paid)throw new Error('Payments exist; cannot cancel');
  for(const l of p.lines)if(E.stock(l.itemId,l.variantId).qty<l.qty-1e-9)throw new Error(l.code+' has already been used; cannot cancel');
  if(!confirm('Cancel '+p.no+'? Stock and ledger will be reversed.'))return;
- await E.reverse(p.jeId);for(const l of p.lines)await E.stockIn({date:E.today(),itemId:l.itemId,variantId:l.variantId,qty:-l.qty,value:-l.amount,type:'cancel',ref:p.no});
+ const jid=E.jeOf(p);if(!jid)throw new Error('Ledger entry for '+p.no+' not found');await E.reverse(jid);for(const l of (p.lines||[]))await E.stockIn({date:E.today(),itemId:l.itemId,variantId:l.variantId,qty:-l.qty,value:-l.amount,type:'cancel',ref:p.no});
  const b=JSON.parse(JSON.stringify(p));p.cancelled=true;await E.save('purchases',p,b);E.go();E.toast('Cancelled','success')}catch(e){E.toast(e.message,'error')}};
 /* Supplier payment: source account is mandatory; allocation must equal the amount. */
 const openB=pid=>E.rows('purchases').filter(p=>p.partyId===pid&&!p.cancelled&&bal(p)>0).sort((a,b)=>a.date.localeCompare(b.date));
