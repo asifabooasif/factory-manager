@@ -200,6 +200,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
             <div class="f">Selling price PER PAIR (Rs)<input id="i_price" type="number" step="0.01" value="${it && it.price ? (it.price / 100) : ''}"></div>
             <div class="f">Pairs per pack (auto)<input id="i_pack" type="number" readonly style="background:var(--s2);color:var(--t3)" value="${it ? (it.pack || '') : (E.setting('packSize') || 6)}"></div>
           </div>
+          <div class="f">Cost per PAIR (Rs) — used for stock value<input id="i_cost" type="number" step="0.01" value="${it && it.cost ? (it.cost / 100).toFixed(2) : ''}"></div>
           ${!it ? `<div class="f">Initial Colours (comma separated) — one barcode each<input id="i_cols" placeholder="Black, Brown, Navy"></div>` : ''}
         </div>
       </div>
@@ -240,17 +241,15 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
         </div>
       </div>
 
-      <!-- ═══════════ OPENING STOCK (NEW ITEMS ONLY) ═══════════ -->
-      ${!it ? `
-      <div class="card" style="background:#f0fdf4;border:1px solid #bbf7d0;margin-top:16px">
-        <h4 style="margin:0 0 10px;color:#166534;font-size:14px">📦 Opening Stock (Optional)</h4>
+      <!-- ═══════════ OPENING STOCK (new and existing items) ═══════════ -->
+      <div class="card" style="background:var(--acs);border:1px solid var(--bd);margin-top:16px">
+        <h4 style="margin:0 0 10px;color:var(--ac);font-size:14px">📦 ${it ? 'Add Opening Stock' : 'Opening Stock (Optional)'}</h4>
         <div class="g2">
-          <div class="f"><span id="i_open_lbl">${fgI ? 'Opening Packs per colour' : 'Opening Quantity (' + (it ? it.unit : 'Units') + ')'}</span><input id="i_open_qty" type="number" step="0.01" value="0"></div>
-          <div class="f"><span id="i_open_cost_lbl">${fgI ? 'Cost per PAIR (Rs)' : 'Cost per Unit (Rs)'}</span><input id="i_open_cost" type="number" step="0.01" value="0"></div>
+          <div class="f"><span id="i_open_lbl">${fgI ? 'Opening Packs per colour' : 'Opening Quantity (' + (it ? it.unit : 'Units') + ')'}</span><input id="i_open_qty" type="number" step="0.01" min="0" value="0"></div>
+          <div class="f"><span id="i_open_cost_lbl">Unit cost used (from the cost above)</span><input id="i_open_cost" readonly style="background:var(--s2);color:var(--t3)" value=""></div>
         </div>
-        <p class="muted" style="font-size:11px;margin:0">If you enter a quantity > 0, the system will automatically post the opening stock value to the ledger.</p>
+        <p class="muted" id="i_open_note" style="font-size:11px;margin:0">Enter a quantity and the stock value is posted to the ledger using the cost entered above. ${it ? 'This ADDS to the stock already on hand.' : ''}</p>
       </div>
-      ` : ''}
 
     `, `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="saveItem" data-id="${id || ''}">Save Item</button>`, 1);
     
@@ -260,6 +259,15 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
       if (c) c.onchange = () => { const g = E.$('i_cons_grp'); if (g) g.style.display = c.checked ? '' : 'none'; }; 
       const unit = E.$('i_unit');
       if (unit) unit.onchange = () => { if (E.$('i_open_lbl') && E.val('i_cat') !== 'Finished Good') E.$('i_open_lbl').textContent = 'Opening Quantity (' + unit.value + ')'; };
+      const syncOpen = () => {
+        const fg = E.val('i_cat') === 'Finished Good', pairs = fg ? (E.expandSizes(E.val('i_run')).length || 0) : 1;
+        const unit = fg ? E.c(E.val('i_cost')) : E.c(E.val('i_buy')), q = parseFloat(E.val('i_open_qty')) || 0;
+        const oc = E.$('i_open_cost'), nt = E.$('i_open_note');
+        if (oc) oc.value = unit ? (unit / 100).toFixed(2) + (fg ? ' per pair' : '') : 'enter the cost above';
+        if (nt && q > 0 && unit) nt.textContent = 'Opening value: ' + E.m(Math.round(q * unit * pairs)) + (fg ? ' per colour' : '') + ' — posted to the ledger and stock.';
+      };
+      ['i_cost', 'i_buy', 'i_open_qty', 'i_run', 'i_cat'].forEach(k => { const el = E.$(k); if (el) { el.addEventListener('input', syncOpen); el.addEventListener('change', syncOpen); } });
+      syncOpen();
       toggleCategoryFields();
     }, 50);
   };
@@ -267,6 +275,22 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
   E.A.itPhotoDel = () => { PHOTO = ''; const b = E.$('i_ph'); if (b) b.innerHTML = '📷'; const f = E.$('i_photo'); if (f) f.value = ''; };
   E.A.newItem = () => form();
   E.A.editItem = id => form(id);
+
+  /* Opening stock: one ledger entry + stock line per colour (finished goods) or one for the item (materials). Each pair is atomic: if the stock line fails the ledger entry is reversed. */
+  async function postOpening(it, qty) {
+    const fgI = it.cat === 'Finished Good';
+    const targets = fgI ? E.rows('variants').filter(v => v.itemId === it.id && v.active) : [{ id: '', color: '' }];
+    if (!targets.length) throw new Error('add at least one colour first');
+    const unit = fgI ? Math.round((it.cost || 0) * (it.pack || 1)) : (it.buyPrice || 0);
+    if (!(unit > 0)) throw new Error('the unit cost is missing');
+    const val = Math.round(qty * unit);
+    for (const v of targets) {
+      const ref = await E.next('ADJ');
+      await E.postThen({ date: E.today(), ref, narr: 'Opening stock · ' + it.art + (v.color ? ' ' + v.color : ''), source: 'opening', lines: [{ acc: fgI ? '1320' : '1300', dr: val }, { acc: '3200', cr: val }] },
+        () => E.stockIn({ date: E.today(), itemId: it.id, variantId: v.id, qty, value: val, type: 'opening', ref }));
+    }
+    return targets.length;
+  }
 
   E.A.saveItem = async id => {
     const art = E.val('i_art').toUpperCase(), name = E.val('i_name');
@@ -282,6 +306,9 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
     if (fgI && !run.length) return E.toast('Enter size run (e.g., 36-41)', 'error');
     if (!fgI && !(E.c(E.val('i_buy')) > 0)) return E.toast('Enter a valid purchase price', 'error');
 
+    const openQty = parseFloat(E.val('i_open_qty')) || 0;
+    if (openQty < 0) return E.toast('Opening quantity cannot be negative', 'error');
+    if (openQty > 0 && !((fgI ? E.c(E.val('i_cost')) : E.c(E.val('i_buy'))) > 0)) return E.toast(fgI ? 'Enter the Cost per PAIR to post opening stock' : 'Enter the purchase price to post opening stock', 'error');
     const it = id ? E.D.items.find(x => x.id === id) : { art, active: true };
     const b = id ? JSON.parse(JSON.stringify(it)) : null;
     const cons = !fgI && E.$('i_cons') && E.$('i_cons').checked;
@@ -291,6 +318,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
       pack: fgI ? run.length : 0,
       sizeRun: fgI ? run.join(',') : '', sub: fgI ? E.val('i_sub') : '',
       price: fgI ? E.c(E.val('i_price')) : 0,
+      cost: fgI ? E.c(E.val('i_cost')) : (it.cost || 0),
       buyPrice: fgI ? (it.buyPrice || 0) : E.c(E.val('i_buy')),
       supId: fgI ? '' : E.val('i_sup'), spec: fgI ? '' : E.val('i_spec'),
       min: fgI ? 0 : (parseFloat(E.val('i_min')) || 0),
@@ -302,42 +330,14 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
     if (PHOTO !== undefined) { if (PHOTO) it.photo = PHOTO; else delete it.photo; }
     await E.save('items', it, b);
     
-    // Handle Variant Generation & Opening Stock for NEW items
-    if (!id) {
-      const openQty = parseFloat(E.val('i_open_qty')) || 0;
-      const openCost = E.c(E.val('i_open_cost'));
-      
-      if (fgI) {
-        const made = await genPacks(it, list(E.val('i_cols')));
-        E.toast('Item saved · ' + made + ' colour pack(s)', 'success');
-        
-        // Post Opening Stock for FG (per variant)
-        if (openQty > 0 && openCost > 0) {
-          const variants = E.rows('variants').filter(v => v.itemId === it.id);
-          const packCost = openCost * run.length;
-          for (const v of variants) {
-            const val = Math.round(openQty * packCost);
-            const no = await E.next('ADJ');
-            await E.post({ date: E.today(), ref: no, narr: 'Opening stock · ' + art + ' ' + (v.color || ''), source: 'opening', lines: [{ acc: '1320', dr: val }, { acc: '3200', cr: val }] });
-            await E.stockIn({ date: E.today(), itemId: it.id, variantId: v.id, qty: openQty, value: val, type: 'opening', ref: no });
-          }
-          E.toast('Opening stock posted for ' + variants.length + ' variants', 'success');
-        }
-      } else {
-        // RM has no variants
-        E.toast('Raw Material saved', 'success');
-        if (openQty > 0 && openCost > 0) {
-          const val = Math.round(openQty * openCost);
-          const no = await E.next('ADJ');
-          await E.post({ date: E.today(), ref: no, narr: 'Opening stock · ' + art, source: 'opening', lines: [{ acc: '1300', dr: val }, { acc: '3200', cr: val }] });
-          await E.stockIn({ date: E.today(), itemId: it.id, variantId: '', qty: openQty, value: val, type: 'opening', ref: no });
-          E.toast('Opening stock posted', 'success');
-        }
-      }
-    } else {
-      E.toast('Item updated', 'success');
+    let made = 0;
+    if (!id && fgI) made = await genPacks(it, list(E.val('i_cols')));
+    let msg = id ? 'Item updated' : fgI ? 'Item saved · ' + made + ' colour pack(s)' : 'Raw Material saved';
+    if (openQty > 0) {
+      try { const n = await postOpening(it, openQty); msg += ' · opening stock posted' + (n > 1 ? ' for ' + n + ' colours' : ''); }
+      catch (err) { E.toast('Item saved, but opening stock was NOT posted: ' + err.message, 'error'); E.closeM(); E.go(); return; }
     }
-    
+    E.toast(msg, 'success');
     E.closeM(); E.go();
   };
   

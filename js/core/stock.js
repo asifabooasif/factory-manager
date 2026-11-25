@@ -12,5 +12,11 @@ E.skuFind=(t,f)=>{t=(t||'').trim();const l=t.toLowerCase();return E.skuList(f).f
 /* options for the searchable picker (js/core/picker.js): group = category, badge = stock on hand */
 E.skuOpts=f=>{const m=E.stockMap();return E.skuList(f).map(s=>{const q=(m[s.itemId+'|'+s.variantId]||{qty:0}).qty;return `<option value="${E.esc(s.label)}" data-g="${E.esc(s.group)}" data-a="${E.esc(s.art)}" data-c="${E.esc(s.color)}" data-s="${E.esc(s.run||s.size||'')}" data-b="${q} ${s.unit==='Pack'?'packs':E.esc(s.unit)}" data-k="${E.esc(s.code+' '+s.barcode+' '+s.name+' '+s.group)}">`}).join('')};
 E.stockIn=({date,itemId,variantId,qty,value,type,ref,job})=>E.put('stockMoves',{date,itemId,variantId:variantId||'',qty,value,type,ref,job:job||'',factoryId:E.fid});
+/* Unit cost for display: average cost of what is in stock; if nothing is in stock yet, the cost typed in the Items screen (materials: purchase price; finished goods: cost per pair x pairs in the pack). */
+E.unitCost=(itemId,variantId)=>{const s=E.stock(itemId,variantId),i=E.D.items.find(x=>x.id===itemId);
+ if(s.qty>0&&s.value>0)return{cost:Math.round(s.value/s.qty),src:'avg'};
+ if(!i)return{cost:0,src:''};
+ const c=i.cat==='Finished Good'?Math.round((i.cost||0)*(i.pack||E.packPairs(itemId)||1)):(i.buyPrice||0);
+ return c>0?{cost:c,src:'item'}:{cost:0,src:''}};
 E.outValue=(i,v,qty)=>{const s=E.stock(i,v);if(qty>s.qty+1e-9)throw new Error('Insufficient stock: only '+s.qty+' available');return qty>=s.qty-1e-9?s.value:Math.round(s.value*qty/s.qty)};
 E.stockOut=async({date,itemId,variantId,qty,type,ref,job})=>{const value=E.outValue(itemId,variantId,qty);await E.put('stockMoves',{date,itemId,variantId:variantId||'',qty:-qty,value:-value,type,ref,job:job||'',factoryId:E.fid});return value};})(window.ERP);

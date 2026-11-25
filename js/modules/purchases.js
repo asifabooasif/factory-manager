@@ -31,9 +31,10 @@ E.A.savePur=async()=>{try{const L=plRead().filter(l=>l.q||l.rate||l.c[0].value);
  E.closeM();E.go();E.toast(no+' posted','success')}catch(e){E.toast(e.message,'error')}};
 E.A.viewPur=id=>{const p=E.D.purchases.find(x=>x.id===id);E.modal(p.no+' · '+E.esc(sup(p.partyId)?.name),`<div class="tw"><table><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th></tr></thead><tbody>${p.lines.map(l=>`<tr><td>${E.esc(l.code)}</td><td class="r">${l.qty}</td><td class="r">${E.m(l.rate)}</td><td class="r">${E.m(l.amount)}</td></tr>`).join('')}<tr><td colspan="3"><b>Total</b></td><td class="r"><b>${E.m(p.total)}</b></td></tr></tbody></table></div>`,`<button class="btn" data-a="close">Close</button>`)};
 E.A.cancelPur=async id=>{const p=E.D.purchases.find(x=>x.id===id);try{if(p.paid)throw new Error('Payments exist; cannot cancel');
- for(const l of p.lines)if(E.stock(l.itemId,l.variantId).qty<l.qty-1e-9)throw new Error(l.code+' has already been used; cannot cancel');
+ const jid0=E.jeOf(p),half=!!jid0&&E.isReversed(jid0);
+ if(!half)for(const l of (p.lines||[]))if(E.stock(l.itemId,l.variantId).qty<l.qty-1e-9)throw new Error(l.code+' has already been used; cannot cancel');
  if(!confirm('Cancel '+p.no+'? Stock and ledger will be reversed.'))return;
- const jid=E.jeOf(p);if(!jid)throw new Error('Ledger entry for '+p.no+' not found');await E.reverse(jid);for(const l of (p.lines||[]))await E.stockIn({date:E.today(),itemId:l.itemId,variantId:l.variantId,qty:-l.qty,value:-l.amount,type:'cancel',ref:p.no});
+ const jid=jid0;if(!jid)throw new Error('Ledger entry for '+p.no+' not found');if(!half)await E.reverse(jid);for(const l of (p.lines||[])){if(E.rows('stockMoves').some(m=>m.ref===p.no&&m.type==='cancel'&&m.itemId===l.itemId&&(m.variantId||'')===(l.variantId||'')))continue;await E.stockIn({date:E.today(),itemId:l.itemId,variantId:l.variantId,qty:-l.qty,value:-l.amount,type:'cancel',ref:p.no})}
  const b=JSON.parse(JSON.stringify(p));p.cancelled=true;await E.save('purchases',p,b);E.go();E.toast('Cancelled','success')}catch(e){E.toast(e.message,'error')}};
 /* Supplier payment: source account is mandatory; allocation must equal the amount. */
 const openB=pid=>E.rows('purchases').filter(p=>p.partyId===pid&&!p.cancelled&&bal(p)>0).sort((a,b)=>a.date.localeCompare(b.date));

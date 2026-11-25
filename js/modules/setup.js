@@ -162,7 +162,7 @@
         const it = await E.save('items', {
           art, name: (a.name || art).trim(), cat: 'Finished Good',
           sub: a.cat || cats()[0], sizeRun: run.join(','), unit: 'Pack',
-          pack: run.length, price: E.c(a.price), min: 0, active: true
+          pack: run.length, price: E.c(a.price), cost: E.c(a.cost), min: 0, active: true
         });
         const colours = (a.cols || '').split(',').map(x => x.trim()).filter(Boolean);
         if (colours.length) await E.genPacks(it, colours);
