@@ -221,7 +221,8 @@
     const kp = (m.kpis || []).length ? `<div class="kp">${m.kpis.map(k => E.kpi(E.esc(k[0]), k[1], k[2] || '')).join('')}</div>` : '';
     const checks = (m.checks || []).length ? `<div class="card" style="padding:12px 16px">${m.checks.map(c => `<div style="margin:3px 0">${c[0] ? '<span class="ok">✓</span>' : '<span class="bad">✗</span>'} <b>${E.esc(c[1])}</b> <span class="muted">${E.esc(c[2] || '')}</span></div>`).join('')}</div>` : '';
     const notes = (m.notes || []).map(n => `<p class="muted" style="margin:4px 0">${n}</p>`).join('');
-    return `${m.title ? `<div class="rsttl"><b>${E.esc(m.title)}</b><span class="muted"> ${E.esc(m.sub || '')}</span></div>` : ''}${kp}${tableHtml(m, P)}${checks}${notes}`;
+    const warn = E.sentinel && E.sentinel.banner ? E.sentinel.banner(id, spec.g) : '';
+    return `${warn}${m.title ? `<div class="rsttl"><b>${E.esc(m.title)}</b><span class="muted"> ${E.esc(m.sub || '')}</span></div>` : ''}${kp}${tableHtml(m, P)}${checks}${notes}`;
   }
   function customize(spec, P, m) {
     const cols = m ? m.cols.filter(c => !c.always) : [];
