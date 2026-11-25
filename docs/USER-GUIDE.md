@@ -279,6 +279,19 @@ Open **Reports -> Report Suite**. Find a report by typing in the search box, or 
 
 Look at the green ticks and red crosses under a report: each one proves the report against the ledger (for example stock valuation against accounts 1300 and 1320). A red cross means the books and the records disagree - open **Master Reconciliation** to see where. The complete list of reports and what each is proved against is in docs/REPORT-SUITE.md.
 
+## 20. Factory Agent (the orb)
+
+A glowing orb floats on the screen. It is your factory's watchman and guide.
+
+1. **Click the orb** to open it. **Do now** lists what needs you, with steps and a button that opens the right screen.
+2. **Drag the orb anywhere.** It snaps to an edge and remembers. Double-click it to send it home.
+3. Press **No expenses on those days** (or **Nobody worked**, **Already handled**) when a notice is wrong - it learns and stops asking.
+4. **Insights** shows how ready your start-up data is (opening stock, balances) and which days have missing entries.
+5. **Ask** answers questions such as "what is missing?" or "who owes us?".
+6. **Controls** turns the orb, the Guardian chip, the AI button, sound, pop-ups and animations on or off.
+
+While opening stock is incomplete, stock and profit reports show a warning that figures are not final. The agent only advises - it never posts entries by itself. Details: docs/FACTORY-AGENT.md.
+
 ## 18. Recommended next features
 
 These are natural next steps to make the system even stronger:
