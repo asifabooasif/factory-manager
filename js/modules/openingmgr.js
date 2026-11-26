@@ -11,6 +11,14 @@
   const flush = async () => { try { await firebase.firestore().waitForPendingWrites(); } catch (x) { } };
   const clone = o => JSON.parse(JSON.stringify(o));
 
+  /* unit cost already entered in Items: materials = purchase price; finished goods = cost per pair x pairs in the pack (cost per pack) */
+  const itemUnit = iid => { const it = E.D.items.find(x => x.id === iid); if (!it) return 0; return it.cat === 'Finished Good' ? Math.round((it.cost || 0) * (it.pack || 1)) : (it.buyPrice || 0); };
+  E.A.opCalc = () => { const q = parseFloat(E.val('oe_q')) || 0, u = E.c(E.val('oe_u')), a = E.$('oe_a'); if (a) a.value = (Math.round(q * u) / 100).toFixed(2); };
+  E.A.obStockCalc = fromItem => {
+    const s = E.skuFind(E.val('ost_i'));
+    if (fromItem && s) { const u = itemUnit(s.itemId); if (u && E.$('ost_c')) E.$('ost_c').value = (u / 100).toFixed(2); }
+    const q = parseFloat(E.val('ost_q')) || 0, c = E.c(E.val('ost_c')), v = E.$('ost_v'); if (v) v.value = (Math.round(q * c) / 100).toFixed(2);
+  };
   function classify(j) {
     const has = c => j.lines.some(l => l.acc === c);
     const moves = E.rows('stockMoves').filter(m => m.type === 'opening' && m.ref === j.ref);
@@ -37,7 +45,7 @@
     <div class="card"><h3>1 · Cash & bank balances</h3><div class="f">As at date<input id="o_d" type="date" value="${d0}"></div>${ba.map(a => `<div class="f">${a.code} · ${E.esc(a.name)} (Rs)<input class="ob" data-acc="${a.code}" type="number" step="0.01"></div>`).join('')}<button class="btn p" data-a="obBank">Post cash & bank opening</button><p class="muted">Dr each account / Cr Owner Capital. To change a balance later, edit or delete the line above.</p></div>
     <div class="card"><h3>2 · Amounts you owe suppliers</h3><div class="g2"><div class="f">Supplier<select id="os_p">${pick(sp)}</select></div><div class="f">Bill / reference<input id="os_r"></div><div class="f">Bill date<input id="os_d" type="date" value="${d0}"></div><div class="f">Amount owing (Rs)<input id="os_a" type="number" step="0.01"></div></div><button class="btn p" data-a="obSup">Add supplier opening bill</button></div>
     <div class="card"><h3>3 · Amounts customers owe you</h3><div class="g2"><div class="f">Customer<select id="oc_p">${pick(cp)}</select></div><div class="f">Invoice / reference<input id="oc_r"></div><div class="f">Invoice date<input id="oc_d" type="date" value="${d0}"></div><div class="f">Amount owed (Rs)<input id="oc_a" type="number" step="0.01"></div></div><button class="btn p" data-a="obCus">Add customer opening invoice</button></div>
-    <div class="card"><h3>4 · Opening stock</h3><datalist id="sk">${E.skuOpts()}</datalist><div class="g2"><div class="f">Item / colour<input id="ost_i" list="sk" placeholder="Search item"></div><div class="f">Date<input id="ost_d" type="date" value="${d0}"></div><div class="f">Quantity (packs for finished goods)<input id="ost_q" type="number" step="0.01"></div><div class="f">Cost per unit (Rs; per PACK for finished goods)<input id="ost_c" type="number" step="0.01"></div></div><button class="btn p" data-a="obStock">Add opening stock</button></div>
+    <div class="card"><h3>4 · Opening stock</h3><datalist id="sk">${E.skuOpts()}</datalist><div class="g2"><div class="f">Item / colour<input id="ost_i" list="sk" placeholder="Search item" oninput="E.A.obStockCalc(1)"></div><div class="f">Date<input id="ost_d" type="date" value="${d0}"></div><div class="f">Quantity (packs for finished goods)<input id="ost_q" type="number" step="0.01" oninput="E.A.obStockCalc()"></div><div class="f">Cost per unit (Rs; per PACK for finished goods) — filled from Items<input id="ost_c" type="number" step="0.01" oninput="E.A.obStockCalc()"></div><div class="f">Total value (Rs)<input id="ost_v" readonly style="background:var(--s2)"></div></div><button class="btn p" data-a="obStock">Add opening stock</button></div>
     <div class="card"><h3>5 · Employee advances</h3><div class="g2"><div class="f">Employee<select id="oa_e">${E.rows('employees').filter(e => e.active !== false).map(e => `<option value="${e.id}">${E.esc(e.name)}</option>`).join('')}</select></div><div class="f">Date<input id="oa_d" type="date" value="${d0}"></div><div class="f">Advance outstanding (Rs)<input id="oa_a" type="number" step="0.01"></div></div><button class="btn p" data-a="obAdv">Add opening advance</button></div>`;
   });
 
@@ -71,7 +79,10 @@
     const f = find(id); if (!f) return E.toast('Entry not found', 'error');
     const { j, c } = f; let body = `<div class="f">Date<input id="oe_d" type="date" value="${j.date}"></div>`;
     if (c.k === 'bank') body += j.lines.filter(l => l.acc !== '3200').map(l => `<div class="f">${l.acc} · ${E.esc((E.acct(l.acc) || {}).name || '')} (Rs)<input class="oeb" data-acc="${l.acc}" type="number" step="0.01" value="${(l.dr / 100).toFixed(2)}"></div>`).join('');
-    else if (c.k === 'stock') body += `<div class="g2"><div class="f">Quantity<input id="oe_q" type="number" step="0.01" value="${Math.round(c.qty * 1000) / 1000}"></div><div class="f">Total value (Rs)<input id="oe_a" type="number" step="0.01" value="${(c.amt / 100).toFixed(2)}"></div></div><p class="muted">${E.esc(c.name)}</p>`;
+    else if (c.k === 'stock') {
+      const m0 = c.moves[0], fgI = (E.D.items.find(x => x.id === m0.itemId) || {}).cat === 'Finished Good', u0 = itemUnit(m0.itemId) || Math.round(c.amt / (c.qty || 1));
+      body += `<div class="g2"><div class="f">Quantity${fgI ? ' (packs)' : ''}<input id="oe_q" type="number" step="0.01" value="${Math.round(c.qty * 1000) / 1000}" oninput="E.A.opCalc()"></div><div class="f">Unit cost (Rs${fgI ? ' per pack' : ''}) — from Items<input id="oe_u" type="number" step="0.01" value="${(u0 / 100).toFixed(2)}" oninput="E.A.opCalc()"></div></div><div class="f">Total value (Rs) = quantity × unit cost<input id="oe_a" readonly style="background:var(--s2)" value="${(c.amt / 100).toFixed(2)}"></div><p class="muted">${E.esc(c.name)}. The value follows the quantity automatically, using the cost already entered in Items.</p>`;
+    }
     else body += `<div class="f">Amount (Rs)<input id="oe_a" type="number" step="0.01" value="${(c.amt / 100).toFixed(2)}"></div><p class="muted">${E.esc(c.t)}${c.name ? ' · ' + E.esc(c.name) : ''} · ${E.esc(j.ref || '')}</p>`;
     E.modal('Edit opening · ' + c.t, body, `<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="opEditSave" data-id="${id}">Save correction</button>`);
   };
@@ -97,7 +108,7 @@
         const a = E.c(E.val('oe_a')); if (!(a > 0)) throw new Error('Enter the amount');
         await swap(j, [{ acc: '1250', dr: a }, { acc: '3200', cr: a }], async nje => { if (!c.rec) return; const b = clone(c.rec); c.rec.date = d; c.rec.amount = a; c.rec.jeId = nje.id; await E.save('wageRuns', c.rec, b); });
       } else if (c.k === 'stock') {
-        const q = parseFloat(E.val('oe_q')) || 0, a = E.c(E.val('oe_a')); if (!(q > 0) || !(a > 0)) throw new Error('Enter quantity and value');
+        const q = parseFloat(E.val('oe_q')) || 0, u = E.c(E.val('oe_u')), a = Math.round(q * u); if (!(q > 0) || !(u > 0)) throw new Error('Enter the quantity and the unit cost');
         if (c.moves.length !== 1) throw new Error('This entry has several stock lines. Delete it and add again.');
         const m = c.moves[0]; if (E.stock(m.itemId, m.variantId).qty - m.qty + q < -1e-9) throw new Error('Stock was already used; the quantity cannot go below what has been issued.');
         const acc = j.lines.find(l => l.acc !== '3200').acc;

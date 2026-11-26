@@ -19,7 +19,7 @@
         const st = E.stock(b.itemId, b.variantId), sk = E.skuList().find(x => x.itemId === b.itemId && x.variantId === (b.variantId || ''));
         return { k: b.itemId + '|' + (b.variantId || ''), iid: b.itemId, vid: b.variantId || '', label: sk ? sk.label : 'Material', unit: sk ? sk.unit : '', per: b.qty, std: q3(b.qty * pairs), st, avg: st.qty > 0 ? st.value / st.qty : 0, lat: latest(b.itemId, b.variantId) };
       });
-      return { g, gi, it, pairs, mats, misc: (it.bomMisc || []).map(m => ({ name: m.name, acc: m.acc, per: m.amt || 0 })) };
+      return { g, gi, it, pairs, mats, misc: E.miscLines(it).map(m => ({ name: m.name, acc: m.acc, per: m.amt || 0, src: m.src })) };
     });
   }
   const aEl = id => document.getElementById(id);
@@ -101,7 +101,11 @@
     for (const e of edits) {
       const it = item(e.x.g.itemId); if (!it || !(e.x.pairs > 0)) continue; if (!done.has(it.id)) { done.add(it.id); it._b = JSON.parse(JSON.stringify(it)); }
       if (e.m) { const b = (it.bom || []).find(z => z.itemId + '|' + (z.variantId || '') === e.m.k); if (b) b.qty = Math.round(e.q / e.x.pairs * 1e6) / 1e6; }
-      else if (it.bomMisc && it.bomMisc[e.misc]) it.bomMisc[e.misc].amt = e.per;
+      else {
+        const lines = E.miscLines(it), ln = lines[e.misc];
+        if (ln && ln.src !== 'old') it.miscPair = e.per;
+        else { const k = e.misc - lines.filter(z => z.src !== 'old').length; if (it.bomMisc && it.bomMisc[k]) it.bomMisc[k].amt = e.per; }
+      }
     }
     for (const id of done) { const it = item(id), b = it._b; delete it._b; await E.save('items', it, b); }
   }
