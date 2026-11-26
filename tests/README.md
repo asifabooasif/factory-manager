@@ -8,6 +8,7 @@ and deliberately break individual steps to prove nothing is left half-done.
     python3 -m http.server 8765        # in the project folder, in one terminal
     node tests/accounting-suite-1.js   # in another
     node tests/accounting-suite-2.js
+    node tests/accounting-suite-3.js   # WIP absorption, provisional cost, progress tab
 
 Every line must start with PASS. Each step also checks: trial balance, all Health Check controls,
 and (at the end) every built-in check of every report in the Report Suite.

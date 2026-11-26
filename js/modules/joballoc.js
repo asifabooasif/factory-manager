@@ -1,6 +1,8 @@
 /* JOB COST ALLOCATION — for COSTING ONLY.
    Every expense, wage, salary, transport or petty-cash entry posts to the ledger exactly like a normal accounting system:
-   Dr the expense account, Cr cash / bank / payable. Nothing about the job changes the accounts.
+   Dr the expense account, Cr cash / bank / payable. The expense always stays in its own ledger account.
+   A production cost (direct material / labour / factory overhead) tagged to an in-progress job is ALSO absorbed into that job's WIP as it is incurred
+   (Dr 1310 / Cr 5291, see syncAbsorb below), exactly like absorption costing in professional manufacturing systems.
    Separately, the person can say "this cost belongs to job X (or all jobs)". That is saved as a plain costing record
    (collection costAllocations) and is read ONLY by the job cost sheet and the costing reports.
    A costing record is valid only while its ledger entry is live: when the entry is cancelled / reversed / deleted, the costing record stops counting by itself. */
@@ -72,6 +74,38 @@
     guardRemoval(E.rows(COL).filter(x => !x.cancelled && match(x) && E.allocAlive(x)), []);
     for (const a of E.rows(COL).filter(x => !x.cancelled && match(x))) { const b = JSON.parse(JSON.stringify(a)); a.cancelled = true; await E.save(COL, a, b); }
   };
+  /* ---------- WIP absorption: a production cost tagged to a job builds the job's WIP as it is incurred ----------
+     Dr 1310 Work in Progress (job, article) / Cr 5291 Wages & Overheads Absorbed (contra to the expense).
+     The expense itself stays in its own ledger account; this entry only moves the production share into the job's WIP, so the balance sheet,
+     the profit and loss and the job cost sheet always agree. It follows the costing record: when the record is removed, or the source entry is
+     cancelled / reversed / deleted, the absorption entry is reversed automatically. Settings > "Finished goods are valued at" = Materials only switches this off. */
+  const absRun = async () => {
+    if (E.setting('stockBasis') === 'materials') return;
+    E._syncing = true;
+    try {
+      const jes = E.rows('journalEntries'), jm = new Map(jes.map(j => [j.id, j]));
+      const alive = a => !a.cancelled && (!a.jeId || (jm.get(a.jeId) && !jm.get(a.jeId).reversedBy));
+      const rows = E.rows(COL), byId = new Map(rows.map(a => [a.id, a])), have = new Set();
+      for (const j of jes.filter(x => x.absOf && !x.reversedBy)) {
+        const a = byId.get(j.absOf);
+        if (a && alive(a)) have.add(a.id);
+        else { try { await E.reverse(j.id); } catch (e) { console.warn('absorption reverse failed', j.no, e.message); } }
+      }
+      for (const a of rows) {
+        if (have.has(a.id) || !alive(a) || !E.allocProd(a) || !(a.amount > 0)) continue;
+        const job = J(a.jobId); if (!job || job.status !== 'In Progress') continue;
+        const lines = [{ acc: '1310', dr: a.amount, job: a.jobId, cat: 'Absorbed', art: a.art || '' }, { acc: '5291', cr: a.amount, job: a.jobId, cat: 'Absorbed', art: a.art || '' }];
+        try { await E.post({ date: E.locked(a.date) ? E.today() : a.date, ref: a.jeNo || a.logNo || '', narr: 'Absorbed into WIP · ' + job.no + ' · ' + (a.headName || a.head) + (a.narr ? ' · ' + a.narr : ''), lines, source: 'release', absOf: a.id }); }
+        catch (e) { console.warn('absorption failed', a.id, e.message); }
+      }
+    } finally { E._syncing = false; }
+  };
+  E.syncAbsorb = () => { E._absP = (E._absP || Promise.resolve()).then(absRun, absRun); return E._absP; };
+  const _put = E.allocPut, _raw = E.allocRaw, _void = E.allocVoid;
+  E.allocPut = async (je, rows) => { const r = await _put(je, rows); await E.syncAbsorb(); return r; };
+  E.allocRaw = async rec => { const r = await _raw(rec); await E.syncAbsorb(); return r; };
+  E.allocVoid = async m => { const r = await _void(m); await E.syncAbsorb(); return r; };
+
   /* total allocated to one job split by article: {artId: amount, '': job-level / shared} */
   E.allocByArt = jobId => { const m = {}; E.allocRows(jobId).forEach(a => { m[a.art || ''] = (m[a.art || ''] || 0) + a.amount; }); return m; };
   /* allocated to one job by cost type and by head */

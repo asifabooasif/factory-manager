@@ -89,8 +89,10 @@ const { start } = require('./lib.js');
     // ========== I. TRUE-DOWN: cost tag cancelled before completion ==========
     const Bj = await mkJob(1);
     await tag('5120', 200); const exB = E.D.expenses.filter(x => !x.cancelled).slice(-1)[0];
-    await logPairs(Bj.job, Bj.jl, 6); await release(Bj.job, 3);
-    const abs1 = E.jobAbsorbed(Bj.job.id); T('I1 wages absorbed on partial release (tag 200 + piece wages 120, half released = 160)', abs1 === 16000, 'absorbed ' + abs1);
+    await logPairs(Bj.job, Bj.jl, 6);
+    { const matIss = E.D.journalEntries.flatMap(j => j.lines).filter(l => l.job === Bj.job.id && l.acc === '1310' && l.cat === 'Material').reduce((a, l) => a + l.dr - l.cr, 0), wipPre = E.jobWip(Bj.job.id); T('I0 WIP carries materials + tagged wages as they are incurred (tag 200 + piece wages 120)', wipPre === matIss + 32000, 'WIP ' + wipPre + ' materials ' + matIss); }
+    await release(Bj.job, 3);
+    const abs1 = E.jobAbsorbed(Bj.job.id); T('I1 tagged wages were absorbed into WIP when incurred (200 + 120 = 320); release moves half of the whole WIP to stock', abs1 === 32000, 'absorbed ' + abs1);
     const mx = await run(() => E.A.exCancel(exB.id)); T('I2 cancelling the tag while the job is still open is allowed', /Cancelled/.test(mx), mx);
     await release(Bj.job, 3);
     const mI = await run(() => E.A.complete(Bj.job.id));

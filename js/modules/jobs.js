@@ -15,9 +15,9 @@
      through contra account 5291 as the pairs are released, so stock is valued at the exact full cost. */
   const ABS = '5291';
   const absorbed = id => lines(id).filter(l => l.acc === ABS).reduce((s, l) => s + (l.cr || 0) - (l.dr || 0), 0);
-  /* STOCK BASIS. 'materials' (default): WIP and finished goods hold materials only; wages and overheads stay normal expenses in their own ledgers and the job allocation is a costing record only (cost per pair).
+  /* STOCK BASIS. 'materials' (owner choice in Settings): WIP and finished goods hold materials only; wages and overheads stay normal expenses in their own ledgers and the job allocation is a costing record only (cost per pair).
      'full': wages and overheads are absorbed into finished goods through 5291. A job that has ALREADY absorbed amounts always finishes on the full basis so its books stay consistent. */
-  const fullFor = id => E.setting('stockBasis') === 'full' || absorbed(id) > 0;
+  const fullFor = id => E.setting('stockBasis') !== 'materials' || absorbed(id) > 0;
   E.jobStockFull = fullFor;
   const stockOf = (id, r) => fullFor(id) ? r.full : r.total;
   /* standard BOM-misc amounts (kind 'bommisc') have no ledger expense behind them, so they are never absorbed */
@@ -196,7 +196,7 @@
 
   E.route('jobs', 'Jobs & Costing', () => `<div class="kp">
     ${E.kpi('In progress', active().length)}
-    ${E.kpi('Materials in WIP', E.m(active().reduce((s, j) => s + wip(j.id), 0)), 'Ledger 1310: ' + E.m(E.bal('1310')))}
+    ${E.kpi('Work in progress', E.m(active().reduce((s, j) => s + wip(j.id), 0)), 'materials + tagged wages & overheads · Ledger 1310: ' + E.m(E.bal('1310')))}
   </div>
   <div class="bar">
     <input class="fs" style="max-width:300px" placeholder="Search…" data-f="jb.q" value="${E.esc(F.q)}">
@@ -234,13 +234,14 @@
       ['cost', '💰 Costing & Shadow'],
       ['mat', '📦 Material Consumption'],
       ['prod', '🧵 Labour & Operations'],
+      ['prog', '📈 Daily progress'],
       ['alloc', '🎯 Allocated costs'],
       ['ledger', '🧾 Ledger Transactions']
     ];
 
     const tabContent = F.tab === 'cost' ? tabCost(j, R, postedCost, shadowTotal, completeCost) :
                        F.tab === 'mat' ? tabMat(j) :
-                       F.tab === 'prod' ? tabProd(j) : F.tab === 'alloc' ? tabAlloc(j, L) : tabLedger(j, L, ls);
+                       F.tab === 'prod' ? tabProd(j) : F.tab === 'prog' ? tabProgress(j, L) : F.tab === 'alloc' ? tabAlloc(j, L) : tabLedger(j, L, ls);
 
     return `<div class="bar">
       <button class="btn" data-nav="jobs">← Jobs</button>
@@ -299,13 +300,14 @@
           <tr style="background:#faf5ff"><td><b style="font-size:14px">COMPLETE COST</b></td><td class="r">${E.m(postedCost)}</td><td class="r">${E.m(shadowTotal)}</td><td class="r"><b style="font-size:14px">${E.m(completeCost)}</b></td></tr>
         </tbody>
       </table></div>
-      <p class="muted" style="margin-top:10px">Posted = material cost held in job WIP (ledger). Shadow = every cost allocated to this job for costing only: piece-rate wages, daily salaries, wage runs, expenses, transport, petty cash, shared overhead (see the Allocated costs tab). All of these are already in the ledger as normal expenses, so they are never added to WIP twice. Complete = for pricing decisions. Jobs finished before this change may still hold labour in WIP.</p>
+      <p class="muted" style="margin-top:10px">Posted = materials held in job WIP (ledger). Wages and overheads tagged to this job are added to its WIP the moment they are incurred (Dr 1310 / Cr 5291) while the expense stays in its own ledger, so they appear below as allocated costs and are never counted twice. Allocated = every cost tagged to this job: piece-rate wages, daily salaries, wage runs, expenses, transport, petty cash, shared overhead (see the Allocated costs tab). All of these are already in the ledger as normal expenses, so they are never added to WIP twice. Complete = for pricing decisions. Jobs finished before this change may still hold labour in WIP.</p>
     </div>
 
     <div class="card">
       <h3>Per-article cost breakdown</h3>
+      ${j.status === 'Completed' ? '' : '<div class="muted" style="margin-bottom:8px">⏳ <b>Provisional.</b> Pairs finished and released before the job is completed are in finished stock at a provisional cost (materials issued so far + wages and overheads tagged so far, shared by pairs). The <b>final cost</b> of every article is fixed when you complete the job; the small difference is then trued up automatically.</div>'}
       <div class="tw"><table>
-        <thead><tr><th>Article</th><th class="r">Packs</th><th class="r">Pairs</th><th class="r">Posted cost</th><th class="r">Allocated (costing)</th><th class="r">Total cost</th><th class="r">Per pair</th><th class="r">Per pack</th></tr></thead>
+        <thead><tr><th>Article</th><th class="r">Packs</th><th class="r">Pairs</th><th class="r">Posted cost</th><th class="r">Allocated (costing)</th><th class="r">Total cost</th><th class="r">Per pair</th><th class="r">Per pack</th><th class="r">In finished stock</th><th>Cost status</th></tr></thead>
         <tbody>${(() => { const A = E.allocByArt ? E.allocByArt(j.id) : {}, sharedAl = A[''] || 0, tp = R.reduce((s, r) => s + r.pairs, 0) || 0;
           return R.map(r => { const al = (A[r.l.id] || 0) + (tp ? Math.round(sharedAl * r.pairs / tp) : 0), tot = r.total + al; return `<tr>
           <td><b>${E.esc(r.l.code)}</b> ${E.esc(r.l.name)}</td>
@@ -314,9 +316,38 @@
           <td class="r"><b>${E.m(tot)}</b></td>
           <td class="r"><b>${E.m(r.pairs ? Math.round(tot / r.pairs) : 0)}</b></td>
           <td class="r">${E.m(r.packs ? Math.round(tot / r.packs) : 0)}</td>
+          <td class="r">${E.m(r.l.fgValue || 0)}</td>
+          <td>${j.status === 'Completed' ? '<span class="ok">✔ Final</span>' : r.pairs > 0 ? '<span class="tag" style="background:#fef3c7;color:#92400e">⏳ Provisional</span>' : '<span class="muted">— not finished yet</span>'}</td>
         </tr>`; }).join(''); })()}</tbody>
       </table></div>
     </div>`;
+  }
+
+  function tabProgress(j, L) {
+    const logs = E.rows('prodLogs').filter(x => x.jobId === j.id && x.status !== 'cancelled');
+    if (!L.length) return '<div class="card muted">No articles on this job.</div>';
+    const fl = {}; L.forEach(l => { fl[l.id] = E.jobFlow(l); });
+    const pp = l => pairsPerPack(l);
+    const lastOf = l => { const st = fl[l.id].stages; return st.length ? st[st.length - 1] : null; };
+    const firstOf = l => { const st = fl[l.id].stages; return st.length ? st[0] : null; };
+    const dayPairs = (l, opId, d) => logs.filter(x => x.lineId === l.id && x.opId === opId && x.date === d).reduce((s, x) => s + (x.pairs != null ? x.pairs : (x.convertedQty || (x.qty || 0) * pp(l))), 0);
+    const days = [...new Set(logs.map(x => x.date))].sort();
+    const rel = {}; E.rows('stockMoves').filter(m => m.type === 'release' && m.job === j.id).forEach(m => { const k = m.date; rel[k] = (rel[k] || 0) + 1; });
+    const cum = {}; L.forEach(l => { cum[l.id] = 0; });
+    const head = L.map(l => `<th class="r" colspan="2">${E.esc(l.code)}</th>`).join('');
+    const sub = L.map(() => '<th class="r">Finished</th><th class="r">Total</th>').join('');
+    const body = days.map(d => `<tr><td>${d}</td>${L.map(l => { const lo = lastOf(l); const v = lo ? dayPairs(l, lo.opId, d) : 0; cum[l.id] += v; return `<td class="r">${v || '—'}</td><td class="r">${cum[l.id]}</td>`; }).join('')}</tr>`).join('');
+    const sum = L.map(l => {
+      const f = fl[l.id], target = f.target, done = f.completed, rl = f.released, ready = f.ready, st = firstOf(l), started = st ? st.logged : 0;
+      const prov = l.fgValue || 0;
+      return `<tr><td><b>${E.esc(l.code)}</b> ${E.esc(l.name || '')}</td><td class="r">${target}</td><td class="r">${started}</td><td class="r"><b>${done}</b></td><td class="r">${ready}</td><td class="r">${rl}</td><td class="r">${Math.max(0, target - done)}</td><td class="r">${E.m(prov)}</td>
+        <td>${j.status === 'Completed' ? '<span class="ok">✔ Final cost</span>' : rl > 0 ? '<span class="tag" style="background:#fef3c7;color:#92400e">⏳ Provisional — final cost at job completion</span>' : done > 0 ? '<span class="muted">Finished, not released yet</span>' : '<span class="muted">—</span>'}</td></tr>`;
+    }).join('');
+    return `<div class="card"><h3>Progress by article (pairs)</h3>
+      <div class="tw"><table><thead><tr><th>Article</th><th class="r">Target</th><th class="r">Started (first operation)</th><th class="r">Finished (all operations)</th><th class="r">Ready to release</th><th class="r">Released to stock</th><th class="r">Still to finish</th><th class="r">Stock value booked</th><th>Cost status</th></tr></thead><tbody>${sum}</tbody></table></div>
+      <p class="muted" style="margin:8px 0 0">Finished pairs that are released go into finished goods at a <b>provisional cost</b>. Only when the job is completed is the exact cost sheet fixed and the stock value trued up.</p></div>
+    <div class="card"><h3>Day by day: pairs finished at the last operation</h3>
+      <div class="tw"><table><thead><tr><th rowspan="2">Date</th>${head}</tr><tr>${sub}</tr></thead><tbody>${body || '<tr><td class="muted">No production recorded yet</td></tr>'}</tbody></table></div></div>`;
   }
 
   function tabMat(j) {
