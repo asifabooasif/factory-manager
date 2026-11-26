@@ -15,6 +15,11 @@
      through contra account 5291 as the pairs are released, so stock is valued at the exact full cost. */
   const ABS = '5291';
   const absorbed = id => lines(id).filter(l => l.acc === ABS).reduce((s, l) => s + (l.cr || 0) - (l.dr || 0), 0);
+  /* STOCK BASIS. 'materials' (default): WIP and finished goods hold materials only; wages and overheads stay normal expenses in their own ledgers and the job allocation is a costing record only (cost per pair).
+     'full': wages and overheads are absorbed into finished goods through 5291. A job that has ALREADY absorbed amounts always finishes on the full basis so its books stay consistent. */
+  const fullFor = id => E.setting('stockBasis') === 'full' || absorbed(id) > 0;
+  E.jobStockFull = fullFor;
+  const stockOf = (id, r) => fullFor(id) ? r.full : r.total;
   /* standard BOM-misc amounts (kind 'bommisc') have no ledger expense behind them, so they are never absorbed */
   /* only PRODUCTION costs (direct material / direct labour / factory overhead, or a month-end overhead share) become product cost (IAS 2);
      administration, selling and finance costs stay period expenses even if someone tagged them to a job */
@@ -592,7 +597,7 @@
       });
 
       /* wages and overheads tagged to the job and not yet absorbed: same share of them moves into finished goods */
-      const remAbs = poolOf(id) - absorbed(id);
+      const remAbs = fullFor(id) ? poolOf(id) - absorbed(id) : 0;
       const absPart = remAbs > 0 ? Math.round(remAbs * (totalPairsToRelease / remPairs)) : 0;
       let leftAbs = absPart;
       const absVals = rq.map((x, i) => {
@@ -732,12 +737,12 @@
       const writeOff = unusedTot > 0 && wRule !== 'cost';
       /* 1) CHECK AND CONFIRM EVERYTHING FIRST - nothing is posted until the owner has agreed and every check has passed */
       {
-        const pre = sheet(j).R, remAbs0 = poolOf(id) - absorbed(id);
-        const sum0 = pre.reduce((x, r) => x + (r.full - (r.l.fgValue || 0)), 0);
+        const pre = sheet(j).R, remAbs0 = fullFor(id) ? poolOf(id) - absorbed(id) : 0;
+        const sum0 = pre.reduce((x, r) => x + (stockOf(id, r) - (r.l.fgValue || 0)), 0);
         if (Math.abs(sum0 - remAbs0 - wip(id)) > 1) throw new Error('Cost sheet vs WIP differ by ' + E.m(sum0 - remAbs0 - wip(id)) + '. Nothing was posted.');
         if (writeOff && wRule !== 'loss' && !confirm('Material worth ' + E.m(unusedTot) + ' was issued for pairs that were never made (' + unusedTxt.join(', ') + ').\n\nOK = write it off to Factory Loss (5300) so it does not inflate the cost of the pairs made.\nCancel = stop; first return any unused material that is still in stock (Job > Issue / return) and complete again.')) return;
         const projected = wip(id) - (writeOff ? unusedTot : 0);
-        if (!confirm('Complete ' + j.no + '? Remaining WIP ' + E.m(projected) + (remAbs0 ? ' + wages/overheads ' + E.m(remAbs0) : '') + ' → finished goods at full cost.')) return;
+        if (!confirm('Complete ' + j.no + '? Remaining WIP ' + E.m(projected) + (remAbs0 ? ' + wages/overheads ' + E.m(remAbs0) : '') + (fullFor(id) ? ' → finished goods at full cost.' : ' → finished goods at material cost. Wages and overheads stay as normal expenses (job allocation is for costing only).'))) return;
       }
       /* 2) POST AS ONE UNIT: every step registers how to undo itself; if any later step fails, all earlier steps are taken back */
       const undo = [];
@@ -749,8 +754,8 @@
           undo.push(() => E.reverse(w.id));
         }
         const { R } = sheet(j);
-        const remAbs = poolOf(id) - absorbed(id);
-        const d = R.map(r => r.full - (r.l.fgValue || 0));
+        const remAbs = fullFor(id) ? poolOf(id) - absorbed(id) : 0;
+        const d = R.map(r => stockOf(id, r) - (r.l.fgValue || 0));
         const sum = d.reduce((x, y) => x + y, 0);
         if (Math.abs(sum - remAbs - wip(id)) > 1) throw new Error('Cost sheet vs WIP differ by ' + E.m(sum - remAbs - wip(id)));
         const no = await E.next('CMP'), ls = [], dS = [], usedV = {};
@@ -774,7 +779,7 @@
         for (let i = 0; i < R.length; i++) {
           const r = R[i], l = r.l, b = JSON.parse(JSON.stringify(l));
           if (dS[i]) { const mv = await E.stockIn({ date: E.today(), itemId: l.itemId, variantId: l.variantId, qty: 0, value: dS[i], type: 'costing', ref: no, job: id }); undo.push(() => E.del('stockMoves', mv.id)); }
-          Object.assign(l, { alloc: r.full, unitCost: r.fullPack, unitCostPerPair: r.fullPair, fgValue: r.full });
+          Object.assign(l, { alloc: r.full, unitCost: r.fullPack, unitCostPerPair: r.fullPair, fgValue: stockOf(id, r) });
           try { await E.save('jobLines', l, b); } catch (err) { Object.assign(l, b); throw err; }
           undo.push(async () => { const cur = JSON.parse(JSON.stringify(l)); Object.assign(l, b); await E.save('jobLines', l, cur); });
         }

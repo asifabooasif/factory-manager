@@ -17,6 +17,7 @@
   <div class="g2">
     <div class="f">Pairs per pack (default for new articles)<input id="s_pack" type="number" value="${s('packSize')}"></div>
     <div class="f">Finished-goods categories (comma separated)<input id="s_fgc" value="${E.esc(E.fgCats().join(', '))}" placeholder="Flat, PU"></div>
+    <div class="f">Finished goods are valued at<select id="s_sb"><option value="materials" ${s('stockBasis')!=='full'?'selected':''}>Materials only (wages &amp; overheads stay normal expenses; job allocation is for costing only)</option><option value="full" ${s('stockBasis')==='full'?'selected':''}>Full cost (materials + wages + overheads absorbed into stock)</option></select><small class="muted">Applies to releases and job completions from now on. A job that already absorbed wages/overheads finishes on the full basis.</small></div>
     <div class="f">Wastage rule<select id="s_w"><option value="ask" ${s('wastage')==='ask'?'selected':''}>Ask each time</option><option value="loss" ${s('wastage')==='loss'?'selected':''}>Always factory loss</option><option value="cost" ${s('wastage')==='cost'?'selected':''}>Always add to product cost</option></select></div>
     <div class="f">EPF employee % <input id="s_ee" type="number" value="${s('epfEmp')}"></div>
     <div class="f">EPF employer % <input id="s_ec" type="number" value="${s('epfCo')}"></div>
@@ -35,7 +36,7 @@
   </tbody></table></div>
  </div>`});
 
-E.A.saveSet=async()=>{await E.setSetting({packSize:+E.val('s_pack')||6,fgCats:E.val('s_fgc').split(',').map(x=>x.trim()).filter(Boolean),wastage:E.val('s_w'),epfEmp:+E.val('s_ee')||0,epfCo:+E.val('s_ec')||0,etf:+E.val('s_etf')||0,lockedUntil:E.val('s_lock'),taxOn:E.$('s_tax').checked,epfOn:E.$('s_epf').checked,epfOtBonus:E.$('s_epfob').checked});E.toast('Options saved','success');E.go()};
+E.A.saveSet=async()=>{await E.setSetting({packSize:+E.val('s_pack')||6,fgCats:E.val('s_fgc').split(',').map(x=>x.trim()).filter(Boolean),wastage:E.val('s_w'),stockBasis:E.val('s_sb')==='full'?'full':'materials',epfEmp:+E.val('s_ee')||0,epfCo:+E.val('s_ec')||0,etf:+E.val('s_etf')||0,lockedUntil:E.val('s_lock'),taxOn:E.$('s_tax').checked,epfOn:E.$('s_epf').checked,epfOtBonus:E.$('s_epfob').checked});E.toast('Options saved','success');E.go()};
 E.A.addFactory=()=>E.isOwner()?E.modal('Add Factory',`<div class="f">Name *<input id="fn"></div><div class="f">Code *<input id="fc"></div>`,`<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="mkF2">Create</button>`):E.toast('Only an Owner can add a factory','error');
 E.A.useFac=id=>E.switchF(id);
 E.A.mkF2=async()=>{try{const n=E.val('fn'),c=E.val('fc').toUpperCase();if(!n||!c)return E.toast('Name and code required','error');const f=await E.newFactory(n,c);E.closeM();await E.switchF(f.id);E.toast('Factory created — it has its own empty database. Give staff access under Users & Access.','success')}catch(e){E.toast(e.message,'error')}};

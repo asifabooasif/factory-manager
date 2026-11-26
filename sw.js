@@ -1,5 +1,5 @@
 /* Lanka Slipper ERP — Service Worker (v94) */
-const V = 'lanka-erp-v95';
+const V = 'lanka-erp-v96';
 const CORE = [
   "./", "index.html", "manifest.json", "icons/icon.svg", "css/theme.css", "css/mobile.css", "css/navmenu.css", "js/mobile.js", "js/modules/syncstatus.js", "js/modules/printdocs.js", "js/modules/reportcenter.js", "js/modules/rs-engine.js", "js/modules/rs-data.js", "js/modules/rs-financial.js", "js/modules/rs-parties.js", "js/modules/rs-stock.js", "js/modules/rs-sales.js", "js/modules/rs-production.js", "js/modules/rs-people.js", "js/modules/sentinel-engine.js", "js/modules/sentinel-ui.js", "js/modules/localdb.js", "js/modules/labels.js", "js/modules/loginfx.js", "js/native.js", "js/app.js",
   "js/core/audit.js", "js/core/config.js", "js/core/db.js", "js/core/factory.js", "js/core/ledger.js", "js/core/money.js", "js/core/picker.js", "js/core/router.js", "js/core/sequence.js", "js/core/settings.js", "js/core/stock.js", "js/core/sync.js", "js/core/utils.js",
