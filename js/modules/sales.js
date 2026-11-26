@@ -3,7 +3,7 @@
 */
 (E => {
   const n = E.N.find(x => x.id === 'sales'); if (n) n.soon = 0;
-  const F = { q: '' };
+  const F = { q: '', sc: false };
   const cu = id => E.D.parties.find(x => x.id === id), ib = i => i.total - i.paid, fg = i => i.cat === 'Finished Good';
   const cname = id => E.esc((cu(id) || {}).name);
   const dst = d => d.status, ist = i => i.cancelled ? 'Cancelled' : i.paid >= i.total ? 'Paid' : i.paid > 0 ? 'Part paid' : 'Open';
@@ -12,8 +12,8 @@
   function tbl() {
     const s = F.q.toLowerCase();
     const ok = (n, p) => !s || (n + (cu(p) || {}).name).toLowerCase().includes(s);
-    const D = E.rows('deliveries').filter(d => ok(d.no, d.partyId)).sort((a, b) => b.no.localeCompare(a.no));
-    const I = E.rows('invoices').filter(i => ok(i.no, i.partyId)).sort((a, b) => b.no.localeCompare(a.no));
+    const D = E.rows('deliveries').filter(d => (F.sc || d.status !== 'Cancelled') && ok(d.no, d.partyId)).sort((a, b) => b.no.localeCompare(a.no));
+    const I = E.rows('invoices').filter(i => (F.sc || !i.cancelled) && ok(i.no, i.partyId)).sort((a, b) => b.no.localeCompare(a.no));
     return `<div class="card"><h3>Delivery notes</h3><div class="tw"><table>
       <thead><tr><th>D/N</th><th>Date</th><th>Customer</th><th class="r">Packs</th><th class="r">Pairs</th><th class="r">Value</th><th>Status</th><th></th></tr></thead>
       <tbody>${D.map(d => {
@@ -24,7 +24,7 @@
           <td class="r">${packs}</td><td class="r muted">${pairs}</td>
           <td class="r">${E.m(d.total)}</td>
           <td><span class="tag">${dst(d)}</span></td>
-          <td class="r"><button class="btn sm" data-a="prDN" data-id="${d.id}" title="Print delivery note">🖨</button> ${d.status === 'Delivered' ? `<button class="btn sm d" data-a="canDN" data-id="${d.id}">Cancel</button>` : ''}</td>
+          <td class="r"><button class="btn sm" data-a="prDN" data-id="${d.id}" title="Print delivery note">🖨</button> ${d.status === 'Delivered' ? `<button class="btn sm d" data-a="canDN" data-id="${d.id}">Cancel</button>` : ''}${d.status === 'Cancelled' ? `<button class="btn sm d" data-a="delDN" data-id="${d.id}">Delete</button>` : ''}</td>
         </tr>`;
       }).join('') || '<tr><td colspan="8" class="muted">No delivery notes</td></tr>'}</tbody>
     </table></div></div>
@@ -35,7 +35,7 @@
         <td class="r">${E.m(i.total)}</td><td class="r">${E.m(i.paid)}</td>
         <td class="r"><b>${i.cancelled ? '—' : E.m(ib(i))}</b></td>
         <td><span class="tag">${ist(i)}</span></td>
-        <td class="r"><button class="btn sm" data-a="prInv" data-id="${i.id}" title="Print invoice">🖨</button> ${!i.cancelled && !i.paid ? `<button class="btn sm d" data-a="canInv" data-id="${i.id}">Cancel</button>` : ''}</td>
+        <td class="r"><button class="btn sm" data-a="prInv" data-id="${i.id}" title="Print invoice">🖨</button> ${!i.cancelled && !i.paid ? `<button class="btn sm d" data-a="canInv" data-id="${i.id}">Cancel</button>` : ''}${i.cancelled ? `<button class="btn sm d" data-a="delInv" data-id="${i.id}">Delete</button>` : ''}</td>
       </tr>`).join('') || '<tr><td colspan="8" class="muted">No invoices</td></tr>'}</tbody>
     </table></div></div>`;
   }
@@ -51,7 +51,7 @@
     </div>
     ${legacyDN().length && (E.role === 'owner' || E.role === 'accountant') ? `<div class="card"><b>${legacyDN().length} old delivery note(s)</b> were posted before sales revenue was recognised at delivery. <button class="btn p" data-a="dnMigrate">Move to Unbilled Receivable</button></div>` : ''}
     <div class="bar">
-      <input class="fs" style="max-width:300px" placeholder="Search…" data-f="sl.q" value="${E.esc(F.q)}">
+      <input class="fs" style="max-width:300px" placeholder="Search…" data-f="sl.q" value="${E.esc(F.q)}"> <label class="muted" style="display:inline-flex;align-items:center;gap:6px"><input type="checkbox" data-f="sl.sc" ${F.sc ? 'checked' : ''}> Show cancelled</label>
       <span class="gap"></span>
       <button class="btn" data-a="cuList">Customer credit</button>
       <button class="btn" data-a="rcptList">Receipts</button>
@@ -61,7 +61,7 @@
     </div><div id="tbl">${tbl()}</div>`;
   });
 
-  E.hooks.push(e => { const f = e.target.dataset && e.target.dataset.f; if (f === 'sl.q') { F.q = e.target.value; E.$('tbl').innerHTML = tbl(); } });
+  E.hooks.push(e => { const f = e.target.dataset && e.target.dataset.f; if (f === 'sl.q') { F.q = e.target.value; E.$('tbl').innerHTML = tbl(); } if (f === 'sl.sc') { F.sc = e.target.checked; E.$('tbl').innerHTML = tbl(); } });
 
   /* Delivery note — price per pair */
   const dlRow = () => `<div class="jl dl" style="grid-template-columns:2.2fr .7fr 1fr .9fr .8fr 1fr 1fr 30px"><input list="fgs" placeholder="Article"><input type="number" placeholder="Packs"><input readonly placeholder="Pairs"><input readonly placeholder="Cost/pair"><input type="number" step="0.01" placeholder="Margin %"><input type="number" step="0.01" placeholder="Rate/pair"><input readonly placeholder="Amount"><button class="btn sm d" data-a="rmDl">✕</button></div>`;
@@ -258,6 +258,12 @@
     } catch (e) { E.toast(e.message, 'error'); }
   };
 
+  /* Permanently remove CANCELLED delivery notes / invoices. Ledger keeps the original + reversal pair (nets to zero; entries are never deleted). */
+  E.A.delDN = async id => { try { const d = E.D.deliveries.find(x => x.id === id); if (!d || d.status !== 'Cancelled') throw new Error('Only cancelled delivery notes can be deleted'); if (!confirm('Permanently delete ' + d.no + '? This cannot be undone.')) return;
+    for (const m of E.rows('stockMoves').filter(m => m.ref === d.no)) await E.del('stockMoves', m.id);
+    await E.audit('delete', 'deliveries', d.id, d, null); await E.del('deliveries', d.id); E.go(); E.toast('Deleted ' + d.no, 'success'); } catch (e) { E.toast(e.message, 'error'); } };
+  E.A.delInv = async id => { try { const i = E.D.invoices.find(x => x.id === id); if (!i || !i.cancelled) throw new Error('Only cancelled invoices can be deleted'); if (!confirm('Permanently delete ' + i.no + '? This cannot be undone.')) return;
+    await E.audit('delete', 'invoices', i.id, i, null); await E.del('invoices', i.id); E.go(); E.toast('Deleted ' + i.no, 'success'); } catch (e) { E.toast(e.message, 'error'); } };
   E.A.canInv = async id => {
     try {
       const i = E.D.invoices.find(x => x.id === id);
