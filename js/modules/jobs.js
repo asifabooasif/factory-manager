@@ -16,8 +16,15 @@
   const ABS = '5291';
   const absorbed = id => lines(id).filter(l => l.acc === ABS).reduce((s, l) => s + (l.cr || 0) - (l.dr || 0), 0);
   /* standard BOM-misc amounts (kind 'bommisc') have no ledger expense behind them, so they are never absorbed */
-  const poolOf = id => E.allocRows ? E.allocRows(id).filter(a => a.kind !== 'bommisc').reduce((s, a) => s + a.amount, 0) : 0;
+  /* only PRODUCTION costs (direct material / direct labour / factory overhead, or a month-end overhead share) become product cost (IAS 2);
+     administration, selling and finance costs stay period expenses even if someone tagged them to a job */
+  const isProd = a => { if (!a || a.kind === 'bommisc') return false; if (a.kind === 'absorb') return true; const ac = E.acct(a.head); return !!ac && E.natureTreat(ac.nature) !== 'period'; };
+  E.allocProd = isProd;
+  const poolOf = id => E.allocRows ? E.allocRows(id).filter(isProd).reduce((s, a) => s + a.amount, 0) : 0;
   E.jobAbsorbed = absorbed;
+  E.jobPool = poolOf;
+  /* true when taking `removed` out of a COMPLETED job's costs would leave more absorbed into stock than the job's costs */
+  E.jobOverAbsorbed = (id, removed) => { const j = E.D.jobs.find(x => x.id === id); return !!j && j.status === 'Completed' && poolOf(id) - (removed || 0) < absorbed(id) - 1; };
   const pairsPerPack = l => { const i = itemOf(l); return i.pack || E.setting('packSize') || 1; };
   const active = () => E.rows('jobs').filter(j => j.status === 'In Progress');
   const CATS = ['Material', 'Labour', 'Overhead', 'Consumable'];
@@ -54,7 +61,7 @@
       r.unitPair = r.pairs ? Math.round(r.total / r.pairs) : 0;
     });
     /* wages / overheads tagged to the job (costing records): by article, shared ones split by pairs */
-    const AB = {}; (E.allocRows ? E.allocRows(j.id) : []).filter(a => a.kind !== 'bommisc').forEach(a => { AB[a.art || ''] = (AB[a.art || ''] || 0) + a.amount; }); const shared = AB[''] || 0, tp = R.reduce((a, r) => a + r.pairs, 0);
+    const AB = {}; (E.allocRows ? E.allocRows(j.id) : []).filter(isProd).forEach(a => { AB[a.art || ''] = (AB[a.art || ''] || 0) + a.amount; }); const shared = AB[''] || 0, tp = R.reduce((a, r) => a + r.pairs, 0);
     let lastP = -1; R.forEach((r, i) => { if (r.pairs > 0) lastP = i; });
     let shLeft = tp ? shared : 0;
     R.forEach((r, i) => {
@@ -443,15 +450,24 @@
       let val;
       if (k === 'issue') {
         val = E.outValue(s.itemId, s.variantId, q);
-        await E.post({ date: d, ref: no, narr: 'Issue ' + s.code, source: 'issue', lines: [{ acc: '1310', dr: val, job: id, cat: 'Material', art }, { acc: '1300', cr: val }] });
-        await E.stockOut({ date: d, itemId: s.itemId, variantId: s.variantId, qty: q, type: 'issue', ref: no, job: id });
-        await E.save('issues', { no, date: d, jobId: id, itemId: s.itemId, variantId: s.variantId, code: s.code, qty: q, value: val, art });
+        /* ledger entry + stock movement + issue record are ONE unit */
+        await E.postThen({ date: d, ref: no, narr: 'Issue ' + s.code, source: 'issue', lines: [{ acc: '1310', dr: val, job: id, cat: 'Material', art }, { acc: '1300', cr: val }] }, async () => {
+          const u = E.undoStack();
+          try {
+            const mv = await E.put('stockMoves', { date: d, itemId: s.itemId, variantId: s.variantId || '', qty: -q, value: -val, type: 'issue', ref: no, job: id, factoryId: E.fid }); u.push(() => E.del('stockMoves', mv.id));
+            const is = await E.save('issues', { no, date: d, jobId: id, itemId: s.itemId, variantId: s.variantId, code: s.code, qty: q, value: val, art }); u.push(() => E.del('issues', is.id));
+          } catch (err) { await u.rollback(); throw err; }
+        });
       } else {
         if (q > nq + 1e-9) throw new Error('Only ' + nq + ' issued');
         val = q >= nq - 1e-9 ? nvl : Math.round(nvl * q / nq);
-        await E.post({ date: d, ref: no, narr: 'Return ' + s.code, source: 'issue', lines: [{ acc: '1300', dr: val }, { acc: '1310', cr: val, job: id, cat: 'Material', art }] });
-        await E.stockIn({ date: d, itemId: s.itemId, variantId: s.variantId, qty: q, value: val, type: 'return', ref: no, job: id });
-        await E.save('issues', { no, date: d, jobId: id, itemId: s.itemId, variantId: s.variantId, code: s.code, qty: -q, value: -val, art });
+        await E.postThen({ date: d, ref: no, narr: 'Return ' + s.code, source: 'issue', lines: [{ acc: '1300', dr: val }, { acc: '1310', cr: val, job: id, cat: 'Material', art }] }, async () => {
+          const u = E.undoStack();
+          try {
+            const mv = await E.stockIn({ date: d, itemId: s.itemId, variantId: s.variantId, qty: q, value: val, type: 'return', ref: no, job: id }); u.push(() => E.del('stockMoves', mv.id));
+            const is = await E.save('issues', { no, date: d, jobId: id, itemId: s.itemId, variantId: s.variantId, code: s.code, qty: -q, value: -val, art }); u.push(() => E.del('issues', is.id));
+          } catch (err) { await u.rollback(); throw err; }
+        });
       }
       E.closeM(); E.go(); E.toast(no + ' posted', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
@@ -713,39 +729,61 @@
       }
       /* Settings > Wastage rule: ask (default) / always factory loss / always add to product cost */
       const wRule = E.setting('wastage') || 'ask';
-      if (unusedTot > 0 && wRule !== 'cost') {
-        if (wRule !== 'loss' && !confirm('Material worth ' + E.m(unusedTot) + ' was issued for pairs that were never made (' + unusedTxt.join(', ') + ').\n\nOK = write it off to Factory Loss (5300) so it does not inflate the cost of the pairs made.\nCancel = stop; first return any unused material that is still in stock (Job > Issue / return) and complete again.')) return;
-        const nu = await E.next('LOSS');
-        await E.post({ date: E.today(), ref: nu, narr: 'Unused job material written off · ' + j.no, source: 'release', lines: Object.keys(unusedBy).map(lid => ({ acc: '1310', cr: unusedBy[lid], job: id, cat: 'Material', art: lid })).concat([{ acc: '5300', dr: unusedTot }]) });
+      const writeOff = unusedTot > 0 && wRule !== 'cost';
+      /* 1) CHECK AND CONFIRM EVERYTHING FIRST - nothing is posted until the owner has agreed and every check has passed */
+      {
+        const pre = sheet(j).R, remAbs0 = poolOf(id) - absorbed(id);
+        const sum0 = pre.reduce((x, r) => x + (r.full - (r.l.fgValue || 0)), 0);
+        if (Math.abs(sum0 - remAbs0 - wip(id)) > 1) throw new Error('Cost sheet vs WIP differ by ' + E.m(sum0 - remAbs0 - wip(id)) + '. Nothing was posted.');
+        if (writeOff && wRule !== 'loss' && !confirm('Material worth ' + E.m(unusedTot) + ' was issued for pairs that were never made (' + unusedTxt.join(', ') + ').\n\nOK = write it off to Factory Loss (5300) so it does not inflate the cost of the pairs made.\nCancel = stop; first return any unused material that is still in stock (Job > Issue / return) and complete again.')) return;
+        const projected = wip(id) - (writeOff ? unusedTot : 0);
+        if (!confirm('Complete ' + j.no + '? Remaining WIP ' + E.m(projected) + (remAbs0 ? ' + wages/overheads ' + E.m(remAbs0) : '') + ' → finished goods at full cost.')) return;
       }
-      const { R } = sheet(j);
-      const remAbs = poolOf(id) - absorbed(id);
-      const d = R.map(r => r.full - (r.l.fgValue || 0));
-      const sum = d.reduce((a, b) => a + b, 0);
-      if (Math.abs(sum - remAbs - wip(id)) > 1) throw new Error('Cost sheet vs WIP differ by ' + E.m(sum - remAbs - wip(id)));
-      if (!confirm('Complete ' + j.no + '? Remaining WIP ' + E.m(sum - remAbs) + (remAbs ? ' + wages/overheads ' + E.m(remAbs) : '') + ' → finished goods at full cost.')) return;
-      const no = await E.next('CMP'), ls = [];
-      R.forEach((r, i) => {
-        if (d[i] > 0) ls.push({ acc: '1320', dr: d[i], job: id, cat: 'Costing', art: r.l.id });
-        if (d[i] < 0) ls.push({ acc: '1320', cr: -d[i], job: id, cat: 'Costing', art: r.l.id });
-      });
-      const matPart = sum - remAbs;
-      if (matPart > 0) ls.push({ acc: '1310', cr: matPart, job: id, cat: 'Costing' });
-      if (matPart < 0) ls.push({ acc: '1310', dr: -matPart, job: id, cat: 'Costing' });
-      if (remAbs > 0) ls.push({ acc: ABS, cr: remAbs, job: id, cat: 'Absorbed' });
-      if (remAbs < 0) ls.push({ acc: ABS, dr: -remAbs, job: id, cat: 'Absorbed' });
-      if (ls.length > 1) await E.post({ date: E.today(), ref: no, narr: 'Final costing', source: 'release', lines: ls });
-      for (let i = 0; i < R.length; i++) {
-        const r = R[i], l = r.l, b = JSON.parse(JSON.stringify(l));
-        if (d[i]) await E.stockIn({ date: E.today(), itemId: l.itemId, variantId: l.variantId, qty: 0, value: d[i], type: 'costing', ref: no, job: id });
-        Object.assign(l, { alloc: r.full, unitCost: r.fullPack, unitCostPerPair: r.fullPair, fgValue: r.full });
-        await E.save('jobLines', l, b);
-      }
-      const bj = JSON.parse(JSON.stringify(j));
-      j.status = 'Completed';
-      j.completedAt = E.today();
-      if (frozen) j.shadowSnapshot = frozen;
-      await E.save('jobs', j, bj);
+      /* 2) POST AS ONE UNIT: every step registers how to undo itself; if any later step fails, all earlier steps are taken back */
+      const undo = [];
+      const rollback = async () => { while (undo.length) { const f = undo.pop(); try { await f(); } catch (x) { console.error('completion rollback failed', x); } } };
+      try {
+        if (writeOff) {
+          const nu = await E.next('LOSS');
+          const w = await E.post({ date: E.today(), ref: nu, narr: 'Unused job material written off · ' + j.no, source: 'release', lines: Object.keys(unusedBy).map(lid => ({ acc: '1310', cr: unusedBy[lid], job: id, cat: 'Material', art: lid })).concat([{ acc: '5300', dr: unusedTot }]) });
+          undo.push(() => E.reverse(w.id));
+        }
+        const { R } = sheet(j);
+        const remAbs = poolOf(id) - absorbed(id);
+        const d = R.map(r => r.full - (r.l.fgValue || 0));
+        const sum = d.reduce((x, y) => x + y, 0);
+        if (Math.abs(sum - remAbs - wip(id)) > 1) throw new Error('Cost sheet vs WIP differ by ' + E.m(sum - remAbs - wip(id)));
+        const no = await E.next('CMP'), ls = [], dS = [], usedV = {};
+        for (let i = 0; i < R.length; i++) {
+          const r = R[i];
+          if (d[i] > 0) { ls.push({ acc: '1320', dr: d[i], job: id, cat: 'Costing', art: r.l.id }); dS[i] = d[i]; }
+          else if (d[i] < 0) {
+            /* a true-down can only come out of stock that is still there; pairs already sold carried the excess into cost of sales, so that part is released as a job-closing variance (5390) */
+            const key = r.l.itemId + '|' + (r.l.variantId || ''), st = E.stock(r.l.itemId, r.l.variantId), take = Math.min(-d[i], Math.max(0, (st.value || 0) - (usedV[key] || 0))), ex = -d[i] - take; usedV[key] = (usedV[key] || 0) + take;
+            if (take) ls.push({ acc: '1320', cr: take, job: id, cat: 'Costing', art: r.l.id });
+            if (ex) { if (!E.acct('5390')) await E.ensureCoa(); ls.push({ acc: '5390', cr: ex, job: id, cat: 'Costing', art: r.l.id }); }
+            dS[i] = -take;
+          } else dS[i] = 0;
+        }
+        const matPart = sum - remAbs;
+        if (matPart > 0) ls.push({ acc: '1310', cr: matPart, job: id, cat: 'Costing' });
+        if (matPart < 0) ls.push({ acc: '1310', dr: -matPart, job: id, cat: 'Costing' });
+        if (remAbs > 0) ls.push({ acc: ABS, cr: remAbs, job: id, cat: 'Absorbed' });
+        if (remAbs < 0) ls.push({ acc: ABS, dr: -remAbs, job: id, cat: 'Absorbed' });
+        if (ls.length > 1) { const fin = await E.post({ date: E.today(), ref: no, narr: 'Final costing', source: 'release', lines: ls }); undo.push(() => E.reverse(fin.id)); }
+        for (let i = 0; i < R.length; i++) {
+          const r = R[i], l = r.l, b = JSON.parse(JSON.stringify(l));
+          if (dS[i]) { const mv = await E.stockIn({ date: E.today(), itemId: l.itemId, variantId: l.variantId, qty: 0, value: dS[i], type: 'costing', ref: no, job: id }); undo.push(() => E.del('stockMoves', mv.id)); }
+          Object.assign(l, { alloc: r.full, unitCost: r.fullPack, unitCostPerPair: r.fullPair, fgValue: r.full });
+          try { await E.save('jobLines', l, b); } catch (err) { Object.assign(l, b); throw err; }
+          undo.push(async () => { const cur = JSON.parse(JSON.stringify(l)); Object.assign(l, b); await E.save('jobLines', l, cur); });
+        }
+        const bj = JSON.parse(JSON.stringify(j));
+        j.status = 'Completed';
+        j.completedAt = E.today();
+        if (frozen) j.shadowSnapshot = frozen;
+        try { await E.save('jobs', j, bj); } catch (err) { Object.assign(j, bj); delete j.shadowSnapshot; if (!bj.shadowSnapshot) delete j.shadowSnapshot; throw err; }
+      } catch (err) { await rollback(); err.message = (err.message || 'Failed') + ' (completion was undone; nothing was changed)'; throw err; }
       E.go(); E.toast(j.no + ' completed · frozen', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };

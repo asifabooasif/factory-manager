@@ -424,10 +424,16 @@
       const orig = E.D.journalEntries.find(x => x.id === l.jeId), legacy = !!(orig && orig.lines.some(x => x.acc === '1310'));
       await E.postThen({ date: E.today(), ref: l.no, narr: 'Cancel ' + l.no, source: 'production',
         lines: legacy ? [{ acc: '2210', dr: l.amount }, { acc: '1310', cr: l.amount, job: l.jobId, cat: 'Labour', art: l.lineId, head: '5110' }] : [{ acc: '2210', dr: l.amount }, { acc: '5110', cr: l.amount }] }, async () => {
-        const b = JSON.parse(JSON.stringify(l));
-        l.status = 'cancelled';
-        await E.save('prodLogs', l, b);
-        if (!legacy && E.allocVoid) await E.allocVoid(a => a.logNo === l.no && a.jeId === l.jeId);
+        /* the costing tags are removed FIRST (this refuses when the wage is already inside the stock of a completed job); any later failure puts them back */
+        const u = E.undoStack();
+        try {
+          if (!legacy && E.allocVoid) {
+            const match = a => a.logNo === l.no && a.jeId === l.jeId, rows = E.rows('costAllocations').filter(a => !a.cancelled && match(a));
+            await E.allocVoid(match);
+            u.push(async () => { for (const a of rows) { const cur = JSON.parse(JSON.stringify(a)); a.cancelled = false; await E.save('costAllocations', a, cur); } });
+          }
+          await E.saveU(u, 'prodLogs', l, r => { r.status = 'cancelled'; });
+        } catch (err) { await u.rollback(); throw err; }
       });
       E.go(); E.toast('Cancelled', 'success');
     } catch (e) { E.toast(e.message, 'error'); }

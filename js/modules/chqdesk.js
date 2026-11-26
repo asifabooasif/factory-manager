@@ -252,7 +252,7 @@
   /* ══════════════════ POSTING HELPERS ══════════════════ */
   const ensure = async () => { if (!E.acct('2150') || !E.acct('2400') || !E.acct('1260') || !E.acct('6140')) await E.ensureCoa(); };
   const logIt = (c, ev, note) => { (c.log = c.log || []).push({ date: E.today(), at: new Date().toISOString(), ev, note: note || '', user: E.user }); };
-  const upd = async (c, fn) => { const b = clone(c); fn(c); await E.save('cheques', c, b); };
+  const upd = async (c, fn) => { const b = clone(c); fn(c); try { await E.save('cheques', c, b); } catch (err) { Object.keys(c).forEach(k => { if (!(k in b)) delete c[k]; }); Object.assign(c, b); throw err; } };
   const docCol = dir => dir === 'in' ? 'invoices' : 'purchases';
   const docs = (dir, pid) => E.rows(docCol(dir)).filter(i => i.partyId === pid && !i.cancelled && i.total - i.paid > 0).sort((a, b) => a.date.localeCompare(b.date));
   const bump = async (col, id, a) => { const r = E.D[col].find(q => q.id === id); if (!r) return; const b = clone(r); r.paid = Math.max(0, r.paid + a); await E.save(col, r, b); };
@@ -335,8 +335,10 @@
   E.A.cdClrSave = async id => {
     try { const c = E.D.cheques.find(x => x.id === id), s = c.dir === 'in' ? E.val('cl_s') : c.bankAcc, d = E.val('cl_d') || E.today(); if (!s) throw new Error('Select the bank account');
       if (c.status !== 'Pending') throw new Error('This cheque is not pending');
-      const no = await E.next('CLR'), je = await E.post({ date: d, ref: no, narr: 'Cheque ' + c.chqNo + ' cleared · ' + pn(c.partyId), source: 'cheque', lines: c.dir === 'in' ? [{ acc: s, dr: c.amount }, { acc: '1110', cr: c.amount }] : [{ acc: '2150', dr: c.amount }, { acc: s, cr: c.amount }] });
-      await upd(c, x => { Object.assign(x, { status: 'Cleared', clearDate: d, clearJe: je.id, clearAcc: s }); logIt(x, 'Cleared', (E.acct(s) || {}).name); }); E.closeM(); E.go(); E.toast('Cheque cleared', 'success'); } catch (e) { E.toast(e.message, 'error'); }
+      const no = await E.next('CLR');
+      await E.postThen({ date: d, ref: no, narr: 'Cheque ' + c.chqNo + ' cleared · ' + pn(c.partyId), source: 'cheque', lines: c.dir === 'in' ? [{ acc: s, dr: c.amount }, { acc: '1110', cr: c.amount }] : [{ acc: '2150', dr: c.amount }, { acc: s, cr: c.amount }] }, async je => {
+        await upd(c, x => { Object.assign(x, { status: 'Cleared', clearDate: d, clearJe: je.id, clearAcc: s }); logIt(x, 'Cleared', (E.acct(s) || {}).name); });
+      }); E.closeM(); E.go(); E.toast('Cheque cleared', 'success'); } catch (e) { E.toast(e.message, 'error'); }
   };
 
   /* ── postpone ── */
@@ -392,9 +394,12 @@
     try { const c = E.D.cheques.find(x => x.id === id), pid = E.val('en_p'), d = E.val('en_d') || E.today(), al = [...document.querySelectorAll('.enal')].map(i => ({ id: i.dataset.id, a: E.c(i.value) })).filter(x => x.a > 0);
       if (c.status !== 'Pending' || c.deposit) throw new Error('Only a cheque still in hand can be endorsed'); if (sum(al, x => x.a) !== c.amount) throw new Error('Allocated bills must equal the cheque amount');
       for (const x of al) { const p = E.D.purchases.find(q => q.id === x.id); if (!p || p.cancelled || x.a > p.total - p.paid) throw new Error('A bill allocation is more than its balance'); }
-      const no = await E.next('END'), je = await E.post({ date: d, ref: no, narr: 'Cheque ' + c.chqNo + ' endorsed to ' + pn(pid), source: 'cheque', lines: [{ acc: '2000', dr: c.amount }, { acc: '1110', cr: c.amount }] });
-      for (const x of al) await bump('purchases', x.id, x.a);
-      await upd(c, x => { x.status = 'Endorsed'; x.endorse = { partyId: pid, allocs: al, date: d, jeId: je.id }; logIt(x, 'Endorsed', pn(pid)); }); E.closeM(); E.go(); E.toast('Endorsed to ' + pn(pid), 'success'); } catch (e) { E.toast(e.message, 'error'); }
+      const no = await E.next('END');
+      await E.postThen({ date: d, ref: no, narr: 'Cheque ' + c.chqNo + ' endorsed to ' + pn(pid), source: 'cheque', lines: [{ acc: '2000', dr: c.amount }, { acc: '1110', cr: c.amount }] }, async je => {
+        const done = [];
+        try { for (const x of al) { await bump('purchases', x.id, x.a); done.push(x); } await upd(c, x => { x.status = 'Endorsed'; x.endorse = { partyId: pid, allocs: al, date: d, jeId: je.id }; logIt(x, 'Endorsed', pn(pid)); }); }
+        catch (err) { for (const x of done) { try { await bump('purchases', x.id, -x.a); } catch (z) { console.error(z); } } throw err; }
+      }); E.closeM(); E.go(); E.toast('Endorsed to ' + pn(pid), 'success'); } catch (e) { E.toast(e.message, 'error'); }
   };
 
   /* ── apply an advance to invoices / bills ── */
@@ -409,10 +414,12 @@
     try { const c = E.D.cheques.find(x => x.id === id), d = E.val('ap_d') || E.today(), al = [...document.querySelectorAll('.apal')].map(i => ({ id: i.dataset.id, a: E.c(i.value) })).filter(x => x.a > 0), tot = sum(al, x => x.a);
       if (tot <= 0) throw new Error('Enter the amounts to apply'); if (tot > advLeft(c)) throw new Error('More than the advance left (' + E.m(advLeft(c)) + ')');
       for (const x of al) { const q = E.D[docCol(c.dir)].find(r => r.id === x.id); if (!q || q.cancelled || x.a > q.total - q.paid) throw new Error('An allocation is more than the balance'); }
-      const no = await E.next('ADV'), je = await E.post({ date: d, ref: no, narr: 'Advance from cheque ' + c.chqNo + ' applied · ' + pn(c.partyId), source: 'cheque', lines: c.dir === 'in' ? [{ acc: '2400', dr: tot }, { acc: '1200', cr: tot }] : [{ acc: '2000', dr: tot }, { acc: '1260', cr: tot }] });
-      for (const x of al) { await bump(docCol(c.dir), x.id, x.a); }
-      const list = al.map(x => Object.assign({ date: d, jeId: je.id }, x));
-      await upd(c, x => { x.applied = (x.applied || []).concat(list); logIt(x, 'Advance applied', E.m(tot)); }); E.closeM(); E.go(); E.toast('Advance of ' + E.m(tot) + ' applied', 'success'); } catch (e) { E.toast(e.message, 'error'); }
+      const no = await E.next('ADV');
+      await E.postThen({ date: d, ref: no, narr: 'Advance from cheque ' + c.chqNo + ' applied · ' + pn(c.partyId), source: 'cheque', lines: c.dir === 'in' ? [{ acc: '2400', dr: tot }, { acc: '1200', cr: tot }] : [{ acc: '2000', dr: tot }, { acc: '1260', cr: tot }] }, async je => {
+        const done = [];
+        try { for (const x of al) { await bump(docCol(c.dir), x.id, x.a); done.push(x); } const list = al.map(x => Object.assign({ date: d, jeId: je.id }, x)); await upd(c, x => { x.applied = (x.applied || []).concat(list); logIt(x, 'Advance applied', E.m(tot)); }); }
+        catch (err) { for (const x of done) { try { await bump(docCol(c.dir), x.id, -x.a); } catch (z) { console.error(z); } } throw err; }
+      }); E.closeM(); E.go(); E.toast('Advance of ' + E.m(tot) + ' applied', 'success'); } catch (e) { E.toast(e.message, 'error'); }
   };
 
   /* ── history ── */

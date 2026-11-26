@@ -34,8 +34,10 @@ E.A.cancelPur=async id=>{const p=E.D.purchases.find(x=>x.id===id);try{if(p.paid)
  const jid0=E.jeOf(p),half=!!jid0&&E.isReversed(jid0);
  if(!half)for(const l of (p.lines||[]))if(E.stock(l.itemId,l.variantId).qty<l.qty-1e-9)throw new Error(l.code+' has already been used; cannot cancel');
  if(!confirm('Cancel '+p.no+'? Stock and ledger will be reversed.'))return;
- const jid=jid0;if(!jid)throw new Error('Ledger entry for '+p.no+' not found');if(!half)await E.reverse(jid);for(const l of (p.lines||[])){if(E.rows('stockMoves').some(m=>m.ref===p.no&&m.type==='cancel'&&m.itemId===l.itemId&&(m.variantId||'')===(l.variantId||'')))continue;await E.stockIn({date:E.today(),itemId:l.itemId,variantId:l.variantId,qty:-l.qty,value:-l.amount,type:'cancel',ref:p.no})}
- const b=JSON.parse(JSON.stringify(p));p.cancelled=true;await E.save('purchases',p,b);E.go();E.toast('Cancelled','success')}catch(e){E.toast(e.message,'error')}};
+ const jid=jid0;if(!jid)throw new Error('Ledger entry for '+p.no+' not found');/* one unit: stock out + cancelled flag first, the ledger reversal last; any failure takes every step back */
+ const u=E.undoStack();try{for(const l of (p.lines||[])){if(E.rows('stockMoves').some(m=>m.ref===p.no&&m.type==='cancel'&&m.itemId===l.itemId&&(m.variantId||'')===(l.variantId||'')))continue;const mv=await E.stockIn({date:E.today(),itemId:l.itemId,variantId:l.variantId,qty:-l.qty,value:-l.amount,type:'cancel',ref:p.no});u.push(()=>E.del('stockMoves',mv.id))}
+  await E.saveU(u,'purchases',p,q=>{q.cancelled=true});if(!half)await E.reverse(jid)}catch(err){await u.rollback();err.message=(err.message||'Failed')+' (nothing was changed)';throw err}
+ E.go();E.toast('Cancelled','success')}catch(e){E.toast(e.message,'error')}};
 /* Supplier payment: source account is mandatory; allocation must equal the amount. */
 const openB=pid=>E.rows('purchases').filter(p=>p.partyId===pid&&!p.cancelled&&bal(p)>0).sort((a,b)=>a.date.localeCompare(b.date));
 function payBills(){const b=openB(E.val('y_p'));E.$('y_b').innerHTML=b.length?`<div class="tw"><table><thead><tr><th>Bill</th><th>Date</th><th class="r">Balance</th><th class="r">Pay now (Rs)</th></tr></thead><tbody>${b.map(p=>`<tr><td>${p.no} ${E.esc(p.invNo)}</td><td>${p.date}</td><td class="r">${E.m(bal(p))}</td><td><input class="al" type="number" step="0.01" data-id="${p.id}"></td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">No open bills for this supplier.</p>';payFifo()}
@@ -47,15 +49,17 @@ E.A.payList=()=>{const R=E.rows('payments').filter(p=>p.kind!=='debit'&&p.jeId).
 E.A.revPay=async id=>{try{if(!(E.role==='owner'||E.role==='accountant'))throw new Error('Only an Owner or Accountant can reverse a payment');
  const p=E.D.payments.find(x=>x.id===id);if(!p||p.kind==='debit')throw new Error('Payment not found');if(p.reversed)throw new Error('Already reversed');
  if(!confirm('Reverse '+p.no+' ('+E.m(p.amount)+')? The bills become unpaid again.'))return;
- await E.reverse(p.jeId);
- for(const x of (p.allocs||[])){const b=E.D.purchases.find(q=>q.id===x.id);if(!b)continue;const bb=JSON.parse(JSON.stringify(b));b.paid=Math.max(0,b.paid-x.a);await E.save('purchases',b,bb)}
- const pb=JSON.parse(JSON.stringify(p));p.reversed=true;p.reversedOn=E.today();await E.save('payments',p,pb);
+ const u=E.undoStack();
+ try{for(const x of (p.allocs||[])){const b=E.D.purchases.find(q=>q.id===x.id);if(!b)continue;await E.saveU(u,'purchases',b,q=>{q.paid=Math.max(0,q.paid-x.a)})}
+  await E.saveU(u,'payments',p,q=>{q.reversed=true;q.reversedOn=E.today()});
+  if(p.jeId&&!E.isReversed(p.jeId))await E.reverse(p.jeId)}catch(err){await u.rollback();err.message=(err.message||'Failed')+' (nothing was changed)';throw err}
  E.closeM();E.go();E.toast(p.no+' reversed','success')}catch(e){E.toast(e.message,'error')}};
 E.A.savePay=async()=>{try{const amt=E.c(E.val('y_a')),s=E.val('y_s'),pid=E.val('y_p');if(amt<=0)throw new Error('Enter an amount');if(!s)throw new Error('Select the account the money is paid from');
  const al=[...document.querySelectorAll('.al')].map(i=>({id:i.dataset.id,a:E.c(i.value)})).filter(x=>x.a>0);
  if(al.reduce((t,x)=>t+x.a,0)!==amt)throw new Error('Allocated amounts must equal the payment amount');
  for(const x of al)if(x.a>bal(E.D.purchases.find(p=>p.id===x.id)))throw new Error('An allocation exceeds the bill balance');
  if(E.bal(s)<amt&&!confirm('Selected account balance ('+E.m(E.bal(s))+') is lower than this payment. Continue?'))return;
- const no=await E.next('PAY'),je=await E.post({date:E.val('y_d'),ref:no,narr:(E.val('y_n')||'Payment')+' · '+sup(pid).name,source:'payment',lines:[{acc:'2000',dr:amt},{acc:s,cr:amt}]});
- for(const x of al){const p=E.D.purchases.find(q=>q.id===x.id),b=JSON.parse(JSON.stringify(p));p.paid+=x.a;await E.save('purchases',p,b)}
- await E.save('payments',{no,date:E.val('y_d'),partyId:pid,acc:s,amount:amt,allocs:al,jeId:je.id});E.closeM();E.go();E.toast(no+' posted','success')}catch(e){E.toast(e.message,'error')}};})(window.ERP);
+ const no=await E.next('PAY');
+ await E.postThen({date:E.val('y_d'),ref:no,narr:(E.val('y_n')||'Payment')+' · '+sup(pid).name,source:'payment',lines:[{acc:'2000',dr:amt},{acc:s,cr:amt}]},async je=>{const u=E.undoStack();try{
+  for(const x of al){const p=E.D.purchases.find(q=>q.id===x.id);await E.saveU(u,'purchases',p,q=>{q.paid+=x.a})}
+  const pay=await E.save('payments',{no,date:E.val('y_d'),partyId:pid,acc:s,amount:amt,allocs:al,jeId:je.id});u.push(()=>E.del('payments',pay.id))}catch(err){await u.rollback();throw err}});E.closeM();E.go();E.toast(no+' posted','success')}catch(e){E.toast(e.message,'error')}};})(window.ERP);

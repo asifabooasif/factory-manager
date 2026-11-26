@@ -163,11 +163,14 @@
       const d = E.D.deliveries.find(x => x.id === id);
       if (d.status !== 'Delivered') throw new Error('Only delivered can be cancelled');
       if (!confirm('Cancel ' + d.no + '?')) return;
-      await E.reverse(d.jeId);
-      for (const l of d.lines) await E.stockIn({ date: E.today(), itemId: l.itemId, variantId: l.variantId, qty: l.qty, value: l.cost, type: 'cancel', ref: d.no, job: d.jobId });
-      const b = JSON.parse(JSON.stringify(d));
-      d.status = 'Cancelled';
-      await E.save('deliveries', d, b);
+      /* one unit: stock back + status first, the ledger reversal last; if anything fails every step is undone */
+      const u = E.undoStack();
+      try {
+        for (const l of d.lines) { const mv = await E.stockIn({ date: E.today(), itemId: l.itemId, variantId: l.variantId, qty: l.qty, value: l.cost, type: 'cancel', ref: d.no, job: d.jobId }); u.push(() => E.del('stockMoves', mv.id)); }
+        await E.saveU(u, 'deliveries', d, r => { r.status = 'Cancelled'; });
+        if (d.jeId && !E.isReversed(d.jeId)) await E.reverse(d.jeId);
+        if (d.unbilledJeId && !E.isReversed(d.unbilledJeId)) await E.reverse(d.unbilledJeId);
+      } catch (err) { await u.rollback(); err.message = (err.message || 'Failed') + ' (nothing was changed)'; throw err; }
       E.go(); E.toast('Cancelled', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
@@ -212,10 +215,16 @@
       if (p.limit && out - credit + total > p.limit && !confirm('Exceeds credit limit ' + E.m(p.limit) + '. Continue?')) return;
       if (disc > 0 && !E.acct('4010')) await E.ensureCoa();
       const d = E.val('n_d'), no = await E.next('INV');
-      const je = await E.post({ date: d, ref: no, narr: 'Invoice ' + no, source: 'sale',
-        lines: invLines(sel, g, disc, total) });
-      const inv = await E.save('invoices', { no, date: d, partyId: pid, dnIds: sel.map(x => x.id), gross: g, disc, total, paid: 0, jeId: je.id, cancelled: false });
-      for (const x of sel) { const b = JSON.parse(JSON.stringify(x)); x.status = 'Invoiced'; x.invId = inv.id; await E.save('deliveries', x, b); }
+      /* invoice entry + invoice record + delivery-note status are ONE unit */
+      const inv = await E.postThen({ date: d, ref: no, narr: 'Invoice ' + no, source: 'sale', lines: invLines(sel, g, disc, total) }, async je => {
+        const u = E.undoStack();
+        try {
+          const iv = await E.save('invoices', { no, date: d, partyId: pid, dnIds: sel.map(x => x.id), gross: g, disc, total, paid: 0, jeId: je.id, cancelled: false });
+          u.push(() => E.del('invoices', iv.id));
+          for (const x of sel) await E.saveU(u, 'deliveries', x, r => { r.status = 'Invoiced'; r.invId = iv.id; });
+          return iv;
+        } catch (err) { await u.rollback(); throw err; }
+      });
       E.closeM();
       if (credit > 0 && confirm(cname(pid) + ' has ' + E.m(credit) + ' credit on account.\n\nApply ' + E.m(Math.min(credit, total)) + ' of it to ' + no + ' now?')) {
         try { await applyCredit(pid, [{ id: inv.id, a: Math.min(credit, total) }], d); } catch (e2) { E.toast(e2.message, 'error'); }
@@ -257,11 +266,12 @@
       const jid = E.jeOf(i);
       if (!jid) throw new Error('Ledger entry for ' + i.no + ' not found');
       /* An earlier cancel may have stopped after reversing the ledger: then just finish the job. */
-      if (!E.isReversed(jid)) await E.reverse(jid);
-      for (const k of (i.dnIds || [])) { const x = E.D.deliveries.find(q => q.id === k); if (!x) continue; const b = JSON.parse(JSON.stringify(x)); x.status = 'Delivered'; x.invId = ''; await E.save('deliveries', x, b); }
-      const b = JSON.parse(JSON.stringify(i));
-      i.cancelled = true;
-      await E.save('invoices', i, b);
+      const u = E.undoStack();
+      try {
+        for (const k of (i.dnIds || [])) { const x = E.D.deliveries.find(q => q.id === k); if (!x) continue; await E.saveU(u, 'deliveries', x, r => { r.status = 'Delivered'; r.invId = ''; }); }
+        await E.saveU(u, 'invoices', i, r => { r.cancelled = true; });
+        if (!E.isReversed(jid)) await E.reverse(jid);
+      } catch (err) { await u.rollback(); err.message = (err.message || 'Failed') + ' (nothing was changed)'; throw err; }
       E.go(); E.toast('Cancelled', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
@@ -520,9 +530,12 @@
       if (r.reversed) throw new Error('Already reversed');
       if ((r.advance || 0) > 0 && live(r).length) throw new Error('Part of the credit on this receipt was already applied or refunded. Undo that first (Sales → Customer credit → History).');
       if (!confirm('Reverse ' + r.no + ' (' + E.m(r.amount) + ')? The invoices become unpaid again' + ((r.advance || 0) > 0 ? ' and the ' + E.m(r.advance) + ' customer credit is removed.' : '.'))) return;
-      await E.reverse(r.jeId);
-      for (const x of (r.allocs || [])) { const i = E.D.invoices.find(q => q.id === x.id); if (!i) continue; const b = JSON.parse(JSON.stringify(i)); i.paid = Math.max(0, i.paid - x.a); await E.save('invoices', i, b); }
-      const b = JSON.parse(JSON.stringify(r)); r.reversed = true; r.reversedOn = E.today(); await E.save('receipts', r, b);
+      const u = E.undoStack();
+      try {
+        for (const x of (r.allocs || [])) { const i = E.D.invoices.find(q => q.id === x.id); if (!i) continue; await E.saveU(u, 'invoices', i, q => { q.paid = Math.max(0, q.paid - x.a); }); }
+        await E.saveU(u, 'receipts', r, q => { q.reversed = true; q.reversedOn = E.today(); });
+        if (r.jeId && !E.isReversed(r.jeId)) await E.reverse(r.jeId);
+      } catch (err) { await u.rollback(); err.message = (err.message || 'Failed') + ' (nothing was changed)'; throw err; }
       E.closeM(); E.go(); E.toast(r.no + ' reversed', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };

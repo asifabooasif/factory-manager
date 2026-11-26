@@ -23,6 +23,7 @@
     (je.lines || []).forEach(l => {
       if (!l.dr || SKIP.includes(l.acc)) return;
       const a = E.acct(l.acc); if (!a || a.type !== 'expense' || NOT.includes(a.nature)) return;
+      if (E.natureTreat(a.nature) === 'period') return; /* IAS 2: only direct material, direct labour and factory overhead can be job (product) cost */
       m[l.acc] = (m[l.acc] || 0) + l.dr;
     });
     return m;
@@ -30,7 +31,16 @@
   const baseTotal = je => Object.values(E.allocBase(je)).reduce((s, v) => s + v, 0);
 
   /* replace the costing records of one ledger entry. rows = [{jobId, head, amount}] */
+  /* a cost that has already been absorbed into the finished goods of a COMPLETED job cannot be taken off that job any more */
+  const NOPE = 'This cost was already absorbed into the finished goods of a completed job. Taking it off would leave the stock overstated. Post a correcting journal instead, or reopen your records with the owner.';
+  const guardRemoval = (oldRows, newRows) => {
+    if (!E.jobOverAbsorbed) return;
+    const by = {}; (oldRows || []).forEach(a => { if (E.allocProd(a)) by[a.jobId] = (by[a.jobId] || 0) + a.amount; });
+    (newRows || []).forEach(a => { if (E.allocProd(a)) by[a.jobId] = (by[a.jobId] || 0) - a.amount; });
+    Object.keys(by).forEach(id => { if (by[id] > 0 && E.jobOverAbsorbed(id, by[id])) throw new Error(NOPE); });
+  };
   E.allocPut = async (je, rows) => {
+    guardRemoval(E.rows(COL).filter(a => a.jeId === je.id && E.allocAlive(a)), (rows || []).map(r => Object.assign({ kind: r.kind || '' }, r, { head: r.head })));
     for (const o of E.rows(COL).filter(a => a.jeId === je.id)) await E.del(COL, o.id);
     const out = [];
     for (const r of (rows || [])) {
@@ -44,6 +54,7 @@
   E.allocSplit = async (je, shares) => {
     if (!shares || !shares.length) return E.allocPut(je, []);
     const base = E.allocBase(je), rows = [];
+    if (!Object.keys(base).length) throw new Error('Only direct material, direct labour and factory overhead costs can be charged to a job. Administration, selling and finance costs are period costs (IAS 2) and cannot be added to the cost of stock. Untick the job for this entry.');
     Object.keys(base).forEach(h => {
       let left = base[h];
       shares.forEach((s, i) => { const v = i === shares.length - 1 ? left : Math.round(base[h] * s.p / 10000); left -= v; rows.push({ jobId: s.jobId, head: h, amount: v }); });
@@ -58,6 +69,7 @@
     return E.save(COL, { factoryId: E.fid, date: rec.date, jeId: '', jeNo: rec.refNo || '', jobId: rec.jobId, head: rec.head, headName: rec.headName || ac.name || rec.head, cat: rec.cat || catOf(ac), art: rec.art || '', kind: rec.kind || '', refId: rec.refId || '', amount: rec.amount, narr: rec.narr || '', cancelled: false });
   };
   E.allocVoid = async match => {
+    guardRemoval(E.rows(COL).filter(x => !x.cancelled && match(x) && E.allocAlive(x)), []);
     for (const a of E.rows(COL).filter(x => !x.cancelled && match(x))) { const b = JSON.parse(JSON.stringify(a)); a.cancelled = true; await E.save(COL, a, b); }
   };
   /* total allocated to one job split by article: {artId: amount, '': job-level / shared} */
@@ -228,5 +240,14 @@
   E.hooks.push(e => {
     const t = e.target, f = t.dataset && t.dataset.f;
     if (f && f.startsWith('rc.')) { RF[f.slice(3)] = t.value; const b = E.$('rcb'); if (b) b.innerHTML = reconBody(); }
+  });
+})(window.ERP);
+
+/* a ledger entry that carries job costing records cannot be reversed if that would leave a completed job over-absorbed */
+(E => {
+  (E.revGuards = E.revGuards || []).push(o => {
+    if (!E.allocRows || !E.jobOverAbsorbed) return;
+    const by = {}; E.rows('costAllocations').filter(a => a.jeId === o.id && E.allocAlive(a) && E.allocProd(a)).forEach(a => { by[a.jobId] = (by[a.jobId] || 0) + a.amount; });
+    Object.keys(by).forEach(id => { if (E.jobOverAbsorbed(id, by[id])) throw new Error('This entry carries costs already absorbed into the finished goods of a completed job. Reversing it would leave the stock overstated. Post a correcting journal instead.'); });
   });
 })(window.ERP);

@@ -174,13 +174,16 @@
       /* NORMAL ACCOUNTING: Dr expense account / Cr cash, bank or accrued expenses. Nothing here touches job WIP. */
       const lines = [{ acc: a.code, dr: amt }, { acc: cr, cr: amt }];
       await E.postThen({ date: d, ref: no, narr, source: 'expense', lines }, async je => {
-        await E.save('expenses', {
-          kind: 'voucher', no, date: d, head: a.code, headName: a.name, nature: a.nature, treatment: tr, amount: amt,
-          pay: pm, payee, ref: E.val('ex_r'), narr: E.val('ex_n'), jobs: [],
-          jeId: je.id, jeNo: je.no, cancelled: false, paid: false
-        });
-        /* costing record only (no ledger lines) */
-        if (sh.length) await E.allocSplit(je, sh);
+        /* costing tags first (they can refuse), then the voucher: so a failure can never leave a voucher behind without its ledger entry */
+        const u = E.undoStack();
+        try {
+          if (sh.length) { await E.allocSplit(je, sh); u.push(() => E.allocPut(je, [])); }
+          await E.save('expenses', {
+            kind: 'voucher', no, date: d, head: a.code, headName: a.name, nature: a.nature, treatment: tr, amount: amt,
+            pay: pm, payee, ref: E.val('ex_r'), narr: E.val('ex_n'), jobs: [],
+            jeId: je.id, jeNo: je.no, cancelled: false, paid: false
+          });
+        } catch (err) { await u.rollback(); throw err; }
       });
       E.closeM(); E.go();
       E.toast(no + ' posted' + E.allocText(sh), 'success');
@@ -192,11 +195,12 @@
       const v = E.D.expenses.find(x => x.id === id);
       if (v.paid) throw new Error('This expense is already paid; cancel the payment first');
       if (!confirm('Cancel ' + v.no + '?')) return;
-      if (v.jobs && v.jobs.some(j => (J(j.jobId) || {}).status === 'Completed')) throw new Error('Job completed; use journal adjustment');
-      await E.reverse(v.jeId);
-      const b = JSON.parse(JSON.stringify(v));
-      v.cancelled = true;
-      await E.save('expenses', v, b);
+      /* the ledger reversal refuses by itself when the cost is already inside the stock of a completed job (see joballoc.js) */
+      const u = E.undoStack();
+      try {
+        await E.saveU(u, 'expenses', v, r => { r.cancelled = true; });
+        if (v.jeId && !E.isReversed(v.jeId)) await E.reverse(v.jeId);
+      } catch (err) { await u.rollback(); throw err; }
       E.go(); E.toast('Cancelled', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
@@ -215,10 +219,9 @@
     try {
       const v = E.D.expenses.find(x => x.id === id), s = E.val('z_s');
       if (!s) throw new Error('Select account');
-      await E.post({ date: E.val('z_d'), ref: v.no, narr: 'Pay accrued ' + v.headName, source: 'expense', lines: [{ acc: '2300', dr: v.amount }, { acc: s, cr: v.amount }] });
-      const b = JSON.parse(JSON.stringify(v));
-      v.paid = true;
-      await E.save('expenses', v, b);
+      await E.postThen({ date: E.val('z_d'), ref: v.no, narr: 'Pay accrued ' + v.headName, source: 'expense', lines: [{ acc: '2300', dr: v.amount }, { acc: s, cr: v.amount }] }, async () => {
+        const u = E.undoStack(); await E.saveU(u, 'expenses', v, r => { r.paid = true; });
+      });
       E.closeM(); E.go(); E.toast('Paid', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };

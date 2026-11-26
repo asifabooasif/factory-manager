@@ -132,9 +132,13 @@
           let room = c.amount; const part = [];
           while (room > 0 && queue.length) { const q = queue[0], t = Math.min(room, q.a); part.push({ id: q.id, a: t }); q.a -= t; room -= t; if (q.a <= 0) queue.shift(); }
           const pa = sum(part, x => x.a), adv = c.amount - pa, no = await E.next('END');
-          const je = await E.post({ date: d, ref: no, narr: 'Cheque ' + c.chqNo + ' endorsed to ' + pn(pid) + (note ? ' · ' + note : '') + (adv ? ' (advance ' + E.m(adv) + ')' : ''), source: 'cheque', lines: [pa ? { acc: '2000', dr: pa } : null, adv ? { acc: '1260', dr: adv } : null, { acc: '1110', cr: c.amount }].filter(Boolean) });
-          for (const x of part) await bump('purchases', x.id, x.a);
-          const b = clone(c); c.status = 'Endorsed'; c.endorse = { partyId: pid, allocs: part, adv, applied: [], date: d, jeId: je.id }; logIt(c, 'Endorsed', pn(pid) + (adv ? ' · advance ' + E.m(adv) : '')); await E.save('cheques', c, b);
+          await E.postThen({ date: d, ref: no, narr: 'Cheque ' + c.chqNo + ' endorsed to ' + pn(pid) + (note ? ' · ' + note : '') + (adv ? ' (advance ' + E.m(adv) + ')' : ''), source: 'cheque', lines: [pa ? { acc: '2000', dr: pa } : null, adv ? { acc: '1260', dr: adv } : null, { acc: '1110', cr: c.amount }].filter(Boolean) }, async je => {
+            const done = [], b = clone(c);
+            try {
+              for (const x of part) { await bump('purchases', x.id, x.a); done.push(x); }
+              c.status = 'Endorsed'; c.endorse = { partyId: pid, allocs: part, adv, applied: [], date: d, jeId: je.id }; logIt(c, 'Endorsed', pn(pid) + (adv ? ' · advance ' + E.m(adv) : '')); await E.save('cheques', c, b);
+            } catch (err) { Object.keys(c).forEach(k => { if (!(k in b)) delete c[k]; }); Object.assign(c, b); for (const x of done) { try { await bump('purchases', x.id, -x.a); } catch (z) { console.error(z); } } throw err; }
+          });
         }
         E.closeM(); E.go(); return E.toast(cs.length + ' cheque(s) endorsed to ' + pn(pid), 'success');
       }
@@ -202,11 +206,16 @@
       const { col, id, rec } = srcOf(key), a = advList().find(x => x.col === col && x.id === id); if (!a) throw new Error('Advance not found'); const dir = a.side === 'cust' ? 'in' : 'out';
       const al = allocs('adal'), tot = sum(al, x => x.a), d = E.val('ad_d') || E.today();
       if (tot <= 0) throw new Error('Enter the amounts to apply'); if (tot > a.left) throw new Error('More than the advance left (' + E.m(a.left) + ')'); checkAllocs(dir, al, tot);
-      const no = await E.next('ADV'), je = await E.post({ date: d, ref: no, narr: 'Advance applied · ' + pn(a.pid) + ' · ' + a.src, source: 'advance', lines: dir === 'in' ? [{ acc: '2400', dr: tot }, { acc: '1200', cr: tot }] : [{ acc: '2000', dr: tot }, { acc: '1260', cr: tot }] });
-      for (const x of al) await bump(docCol(dir), x.id, x.a);
-      const list = al.map(x => Object.assign({ date: d, jeId: je.id }, x)), b = clone(rec);
-      if (col === 'endorse') { rec.endorse.applied = (rec.endorse.applied || []).concat(list); logIt(rec, 'Advance applied', E.m(tot)); await E.save('cheques', rec, b); }
-      else { rec.advApplied = (rec.advApplied || []).concat(list); await E.save(col, rec, b); }
+      const no = await E.next('ADV');
+      await E.postThen({ date: d, ref: no, narr: 'Advance applied · ' + pn(a.pid) + ' · ' + a.src, source: 'advance', lines: dir === 'in' ? [{ acc: '2400', dr: tot }, { acc: '1200', cr: tot }] : [{ acc: '2000', dr: tot }, { acc: '1260', cr: tot }] }, async je => {
+        const done = [], b = clone(rec);
+        try {
+          for (const x of al) { await bump(docCol(dir), x.id, x.a); done.push(x); }
+          const list = al.map(x => Object.assign({ date: d, jeId: je.id }, x));
+          if (col === 'endorse') { rec.endorse.applied = (rec.endorse.applied || []).concat(list); logIt(rec, 'Advance applied', E.m(tot)); await E.save('cheques', rec, b); }
+          else { rec.advApplied = (rec.advApplied || []).concat(list); await E.save(col, rec, b); }
+        } catch (err) { Object.keys(rec).forEach(k => { if (!(k in b)) delete rec[k]; }); Object.assign(rec, b); for (const x of done) { try { await bump(docCol(dir), x.id, -x.a); } catch (z) { console.error(z); } } throw err; }
+      });
       E.closeM(); E.go(); E.toast('Advance of ' + E.m(tot) + ' applied', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
@@ -219,8 +228,12 @@
       const { col, id, rec } = srcOf(key), a = advList().find(x => x.col === col && x.id === id); if (!a) throw new Error('Advance not found');
       const amt = E.c(E.val('rf_a')), s = E.val('rf_s'), d = E.val('rf_d') || E.today(); if (amt <= 0) throw new Error('Enter the amount'); if (amt > a.left) throw new Error('More than the advance left'); if (!s) throw new Error('Select the account');
       if (a.side === 'cust' && E.bal(s) < amt && !confirm('The selected account balance is lower than this refund. Continue?')) return;
-      const no = await E.next('RFD'), je = await E.post({ date: d, ref: no, narr: 'Advance refund · ' + pn(a.pid) + ' · ' + a.src, source: 'advance', lines: a.side === 'cust' ? [{ acc: '2400', dr: amt }, { acc: s, cr: amt }] : [{ acc: s, dr: amt }, { acc: '1260', cr: amt }] });
-      const b = clone(rec); rec.advApplied = (rec.advApplied || []).concat([{ refund: true, a: amt, date: d, jeId: je.id, acc: s }]); await E.save(col, rec, b);
+      const no = await E.next('RFD');
+      await E.postThen({ date: d, ref: no, narr: 'Advance refund · ' + pn(a.pid) + ' · ' + a.src, source: 'advance', lines: a.side === 'cust' ? [{ acc: '2400', dr: amt }, { acc: s, cr: amt }] : [{ acc: s, dr: amt }, { acc: '1260', cr: amt }] }, async je => {
+        const b = clone(rec);
+        try { rec.advApplied = (rec.advApplied || []).concat([{ refund: true, a: amt, date: d, jeId: je.id, acc: s }]); await E.save(col, rec, b); }
+        catch (err) { Object.keys(rec).forEach(k => { if (!(k in b)) delete rec[k]; }); Object.assign(rec, b); throw err; }
+      });
       E.closeM(); E.go(); E.toast('Refund of ' + E.m(amt) + ' posted', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };

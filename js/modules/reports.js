@@ -132,6 +132,15 @@
     C.push([je === 0, 'Every journal entry is balanced', je ? je + ' unbalanced entries' : 'All balanced']);
     ck('Materials stock = ledger 1300', rm, E.bal('1300'), 'Stock records');
     ck('Finished goods stock = ledger 1320', fg, E.bal('1320'), 'Stock records');
+    /* costing controls: wages/overheads absorbed into finished goods (5291) must tie to the jobs */
+    {
+      const absJ = E.rows('journalEntries').flatMap(j => j.lines).filter(l => l.acc === '5291' && l.job).reduce((s, l) => s + (l.cr || 0) - (l.dr || 0), 0);
+      ck('Wages & overheads absorbed into stock (5291) agree with the jobs', -E.bal('5291'), absJ, 'Account 5291 vs job absorption');
+      const over = E.jobOverAbsorbed ? E.rows('jobs').filter(j => j.status === 'Completed' && E.jobOverAbsorbed(j.id, 0)).map(j => j.no) : [];
+      C.push([!over.length, 'No completed job has more cost absorbed into stock than was charged to it', over.length ? 'Check ' + over.join(', ') : 'Agrees']);
+      const zv = Object.keys(sm).filter(k => Math.abs(sm[k].qty) < 1e-9 && Math.abs(sm[k].value) > 100).length;
+      C.push([zv === 0, 'No stock line holds value with zero quantity', zv ? zv + ' stock line(s) - review in Stock Valuation' : 'None']);
+    }
     ck('Supplier bills = ledger 2000', E.rows('purchases').filter(p => !p.cancelled).reduce((s, p) => s + p.total - p.paid, 0), E.bal('2000'), 'Bills');
     ck('Customer invoices = ledger 1200', E.rows('invoices').filter(i => !i.cancelled).reduce((s, i) => s + i.total - i.paid, 0), E.bal('1200'), 'Invoices');
     ck('Delivered, not invoiced = ledger 1210', E.rows('deliveries').filter(d => d.status === 'Delivered' && d.unbilled).reduce((s, d) => s + d.total, 0), E.acct('1210') ? E.bal('1210') : 0, 'Delivery notes');

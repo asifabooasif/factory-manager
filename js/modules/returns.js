@@ -108,7 +108,9 @@
 
   E.A.cancelJob = async id => {
     const j = Jb(id);
+    if (j.status === 'Completed' || j.status === 'Cancelled') return E.toast('Only a job that is still in progress can be cancelled.', 'error');
     if (E.rows('journalEntries').some(x => x.lines.some(l => l.job === id))) return E.toast('Costs are already posted to this job. Return materials / complete it instead.', 'error');
+    if (E.allocRows && E.allocRows(id).some(a => a.kind !== 'bommisc')) return E.toast('Wages / expenses are tagged to this job. Remove or move those tags first, so no cost is left pointing at a cancelled job.', 'error');
     if (!confirm('Cancel ' + j.no + '? Nothing has been posted to it.')) return;
     const b = JSON.parse(JSON.stringify(j));
     j.status = 'Cancelled';
