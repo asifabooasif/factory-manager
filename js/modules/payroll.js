@@ -333,7 +333,7 @@
       
       // FIX: Added 'art' parameter so piece wages go directly to the specific article
       /* time wages for a job are a NORMAL wage expense in the ledger; the job only gets a costing record (memo) */
-      const wageAcc = monthly ? '5130' : '5110', memo = {};
+      const wageAcc = monthly ? '5130' : '5110', memo = {}, pcost = [];
       const add = (acc, job, v, cat, art) => { if (!v) return; const k = acc + '|' + job + '|' + (art||''); dr[k] = dr[k] || { acc, job, art, dr: 0, cat }; dr[k].dr += v; };
       
       L.forEach(l => {
@@ -359,7 +359,9 @@
               closedVar.push({ jobId: jid, jobNo: job.no, amount: a }); 
               add('5390', '', a); 
             } else {
-              add('1310', jid, a, 'Labour', lid); 
+              /* employer EPF/ETF on piece wages: normal expense (5140); the job only gets a costing record */
+              add('5140', '', a);
+              if (a && job) pcost.push({ jobId: jid, head: '5140', cat: 'Labour', art: lid, kind: 'piece-oncost', amount: a });
             }
           });
         }
@@ -379,7 +381,7 @@
         E.staffLoanCheck(l.empId, l.loanRec || 0, wd);
         if ((l.advRec || 0) > E.advBal(l.empId)) throw new Error(l.name + ': advance recovery is more than the advance balance');
       }
-      const lines = Object.values(dr).filter(x => x.dr).map(x => x.acc === '1310' ? { acc: '1310', dr: x.dr, job: x.job, art: x.art, cat: 'Labour', head: monthly ? '5130' : '5110' } : { acc: x.acc, dr: x.dr }).concat([{ acc: '2200', cr: net }]);
+      const lines = Object.values(dr).filter(x => x.dr).map(x => ({ acc: x.acc, dr: x.dr })).concat([{ acc: '2200', cr: net }]);
       if (ee + ec + et) lines.push({ acc: '2100', cr: ee + ec + et });
       if (ar) lines.push({ acc: '1250', cr: ar });
       if (lr) lines.push({ acc: '1250', cr: lr });
@@ -388,7 +390,8 @@
       await E.postThen({ date: wd, ref: no, narr: `${type} ${monthly ? 'salaries' : 'wages'} ${f} to ${to}`, source: 'payroll', lines }, async je => {
         const undo = [];
         try {
-          if (Object.keys(memo).length) await E.allocPut(je, Object.keys(memo).map(id => ({ jobId: id, head: wageAcc, amount: memo[id] })));
+          const arows = Object.keys(memo).map(id => ({ jobId: id, head: wageAcc, amount: memo[id] })).concat(pcost);
+          if (arows.length) await E.allocPut(je, arows);
           const run = await E.save('wageRuns', { no, kind: 'run', type, date: wd, from: f, to, lines: L, split, gross: G, epfEmp: ee, epfCo: ec, etf: et, advRec: ar, loanRec: lr, otherDed: od, net, jeId: je.id, paid: false, cancelled: false, closedVarCount: closedVar.length });
           undo.push(async () => { const b = JSON.parse(JSON.stringify(run)); run.cancelled = true; await E.save('wageRuns', run, b); });
           for (const cv of closedVar) {

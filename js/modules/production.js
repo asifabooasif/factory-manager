@@ -388,7 +388,8 @@
       const tot = L.reduce((s, x) => s + x.amount, 0);
       await E.postThen({
         date: d, ref: no, narr: 'Production ' + d + ' · ' + L.length + ' entries', source: 'production',
-        lines: L.map(x => ({ acc: '1310', dr: x.amount, job: x.j.id, cat: 'Labour', art: x.l.id, head: '5110' })).concat([{ acc: '2210', cr: tot }])
+        /* NORMAL ACCOUNTING: Dr Piece-Rate Wages (expense) / Cr Accrued Piece-Rate Wages. The job only gets a costing record (below). */
+        lines: [{ acc: '5110', dr: tot }, { acc: '2210', cr: tot }]
       }, async je => {
         const savedLogs = [];
         try {
@@ -404,6 +405,8 @@
               status: 'accrued', jeId: je.id, jeNo: je.no, runId: '', runNo: ''
             }));
           }
+          /* costing record per log (job + article), costing only */
+          await E.allocPut(je, savedLogs.map(g => ({ jobId: g.jobId, head: '5110', cat: 'Labour', art: g.lineId, logNo: g.no, kind: 'piece', amount: g.amount })));
         } catch (err) { for (const g of savedLogs) try { await E.del('prodLogs', g.id); } catch (z) { console.error(z); } throw err; }
       });
       F.date = d; E.go();
@@ -417,11 +420,14 @@
       const ll = E.D.jobLines.find(x => x.id === l.lineId);
       if (ll) { const fl = E.jobFlow(ll), st = fl.stages.find(s => s.opId === l.opId); if (st) { const nm = Math.min(...fl.stages.map(s => s.opId === l.opId ? R2(s.logged - pairsOf(l, fl.pp)) : s.logged)); if (nm < fl.released - 0.001) throw new Error('Cannot cancel: ' + fl.released + ' pairs of ' + ll.code + ' are already released to stock and depend on this entry.'); } }
       if (!confirm('Cancel ' + l.no + '?')) return;
+      /* entries made before the costing-only change were charged to WIP: reverse them the same way */
+      const orig = E.D.journalEntries.find(x => x.id === l.jeId), legacy = !!(orig && orig.lines.some(x => x.acc === '1310'));
       await E.postThen({ date: E.today(), ref: l.no, narr: 'Cancel ' + l.no, source: 'production',
-        lines: [{ acc: '2210', dr: l.amount }, { acc: '1310', cr: l.amount, job: l.jobId, cat: 'Labour', art: l.lineId, head: '5110' }] }, async () => {
+        lines: legacy ? [{ acc: '2210', dr: l.amount }, { acc: '1310', cr: l.amount, job: l.jobId, cat: 'Labour', art: l.lineId, head: '5110' }] : [{ acc: '2210', dr: l.amount }, { acc: '5110', cr: l.amount }] }, async () => {
         const b = JSON.parse(JSON.stringify(l));
         l.status = 'cancelled';
         await E.save('prodLogs', l, b);
+        if (!legacy && E.allocVoid) await E.allocVoid(a => a.logNo === l.no && a.jeId === l.jeId);
       });
       E.go(); E.toast('Cancelled', 'success');
     } catch (e) { E.toast(e.message, 'error'); }

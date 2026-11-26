@@ -164,6 +164,8 @@
       if (!pm) throw new Error('Choose payment');
       if (!d) throw new Error('Choose date');
       const sh = tr === 'pool' ? [] : E.allocRead('ex');
+      const dup = E.dupExpense ? E.dupExpense(a.code, amt, d, E.val('ex_p')) : '';
+      if (dup && !confirm('A live entry that looks the same already exists:\n\n' + dup + '\n\nSave this one as well?')) return;
       if (pm !== 'ACCR' && E.bal(pm) < amt && !confirm('Balance < expense. Continue?')) return;
       const no = await E.next('EXP');
       const cr = pm === 'ACCR' ? '2300' : pm;
@@ -229,15 +231,17 @@
   E.unabsorbed = () => unabsorbed();
   function unabsorbed() {
     const t = E.totals();
-    return poolAccts().reduce((s, a) => s + E.bal(a.code, t), 0) + E.bal('5290', t);
+    /* old absorptions posted a credit to 5290; new ones are costing records only (kind 'absorb') */
+    const costed = E.rows('costAllocations').filter(a => a.kind === 'absorb' && E.allocAlive(a)).reduce((s, a) => s + a.amount, 0);
+    return poolAccts().reduce((s, a) => s + E.bal(a.code, t), 0) + E.bal('5290', t) - costed;
   }
   const wip = id => E.rows('journalEntries').flatMap(j => j.lines.filter(l => l.job === id && l.acc === '1310'));
   function weights(basis, js) {
     return js.map(j => {
       let w = 1;
       if (basis === 'packs') w = E.rows('jobLines').filter(l => l.jobId === j.id).reduce((s, l) => s + l.released, 0);
-      else if (basis === 'labour') w = wip(j.id).filter(l => l.cat === 'Labour').reduce((s, l) => s + l.dr - l.cr, 0);
-      else if (basis === 'material') w = wip(j.id).filter(l => l.cat === 'Material').reduce((s, l) => s + l.dr - l.cr, 0);
+      else if (basis === 'labour') w = wip(j.id).filter(l => l.cat === 'Labour').reduce((s, l) => s + l.dr - l.cr, 0) + (E.allocByCat ? E.allocByCat(j.id).Labour : 0);
+      else if (basis === 'material') w = wip(j.id).filter(l => l.cat === 'Material').reduce((s, l) => s + l.dr - l.cr, 0) + (E.allocByCat ? E.allocByCat(j.id).Material : 0);
       return Math.max(0, w);
     });
   }
@@ -247,7 +251,7 @@
     const runs = E.rows('costRuns').sort((a, b) => b.no.localeCompare(a.no));
     return `<div class="kp">
       ${E.kpi('Pool', E.m(P.reduce((s, a) => s + E.bal(a.code, t), 0)))}
-      ${E.kpi('Absorbed', E.m(-E.bal('5290', t)))}
+      ${E.kpi('Shared to jobs', E.m(-E.bal('5290', t) + E.rows('costAllocations').filter(a => a.kind === 'absorb' && E.allocAlive(a)).reduce((s, a) => s + a.amount, 0)), 'costing only')}
       ${E.kpi('Unabsorbed', E.m(un), un > 0 ? '<span class="bad">Absorb</span>' : '<span class="ok">Clear</span>')}
     </div>
     <div class="card">
@@ -269,7 +273,7 @@
         <div class="f">Date<input id="ab_d" type="date" value="${E.today()}"></div>
       </div>
       <button class="btn" data-a="abPrev">Preview</button>
-      <button class="btn p" data-a="abSave">Post</button>
+      <button class="btn p" data-a="abSave">Share to jobs (costing only)</button>
       <div id="ab_pv"></div>` : '<p class="bad">No jobs in progress</p>'}
     </div>
     <div class="card"><h3>History</h3><div class="tw"><table>
@@ -294,18 +298,22 @@
     try {
       const s = split();
       if (s.amt <= 0) throw new Error('Enter amount');
-      const d = E.val('ab_d'), no = await E.next('ABS');
-      const je = await E.post({ date: d, ref: no, narr: 'Absorb (' + E.val('ab_b') + ')', source: 'expense',
-        lines: s.rows.map(r => ({ acc: '1310', dr: r.amount, job: r.jobId, cat: 'Overhead', head: '5290' })).concat([{ acc: '5290', cr: s.amt }]) });
-      await E.save('costRuns', { no, kind: 'absorb', date: d, basis: E.val('ab_b'), amount: s.amt, jobs: s.rows.map(r => ({ jobId: r.jobId, amount: r.amount })), jeId: je.id, cancelled: false });
-      E.go(); E.toast(no + ' posted', 'success');
+      const d = E.val('ab_d');
+      if (!d) throw new Error('Choose date');
+      if (s.amt > unabsorbed()) throw new Error('The amount is more than the overhead pool (' + E.m(unabsorbed()) + ')');
+      const no = await E.next('ABS');
+      /* COSTING ONLY: the overhead expenses are already in the ledger; sharing them across jobs posts nothing */
+      const run = await E.save('costRuns', { no, kind: 'absorb', costing: true, date: d, basis: E.val('ab_b'), amount: s.amt, jobs: s.rows.map(r => ({ jobId: r.jobId, amount: r.amount })), jeId: '', cancelled: false });
+      try { for (const r of s.rows) await E.allocRaw({ date: d, jobId: r.jobId, head: '5290', headName: 'Overhead shared at month-end', cat: 'Overhead', kind: 'absorb', refId: run.id, refNo: no, amount: r.amount, narr: 'Overhead absorbed (' + E.val('ab_b') + ')' }); }
+      catch (err) { await E.allocVoid(a => a.refId === run.id); await E.del('costRuns', run.id); throw err; }
+      E.go(); E.toast(no + ' saved (costing only)', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
   E.A.abCancel = async id => {
     try {
       const r = E.D.costRuns.find(x => x.id === id);
       if (!confirm('Reverse ' + r.no + '?')) return;
-      await E.reverse(r.jeId);
+      if (r.jeId) await E.reverse(r.jeId); else await E.allocVoid(a => a.refId === r.id);
       const b = JSON.parse(JSON.stringify(r));
       r.cancelled = true;
       await E.save('costRuns', r, b);

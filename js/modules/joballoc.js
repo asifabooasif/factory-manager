@@ -36,7 +36,7 @@
     for (const r of (rows || [])) {
       if (!r.amount) continue;
       const ac = E.acct(r.head) || {};
-      out.push(await E.save(COL, { factoryId: E.fid, date: je.date, jeId: je.id, jeNo: je.no, jobId: r.jobId, head: r.head, headName: ac.name || r.head, cat: catOf(ac), amount: r.amount, narr: je.narr || '', cancelled: false }));
+      out.push(await E.save(COL, { factoryId: E.fid, date: je.date, jeId: je.id, jeNo: je.no, jobId: r.jobId, head: r.head, headName: ac.name || r.head, cat: r.cat || catOf(ac), art: r.art || '', logNo: r.logNo || '', kind: r.kind || '', amount: r.amount, narr: je.narr || '', cancelled: false }));
     }
     return out;
   };
@@ -49,6 +49,25 @@
       shares.forEach((s, i) => { const v = i === shares.length - 1 ? left : Math.round(base[h] * s.p / 10000); left -= v; rows.push({ jobId: s.jobId, head: h, amount: v }); });
     });
     return E.allocPut(je, rows);
+  };
+
+  /* costing records that have NO ledger entry of their own (month-end overhead absorption, standard BOM-misc amounts).
+     rec = {date, jobId, head, amount, art?, kind, refId, refNo, narr}. They stop counting when the owner record is cancelled (allocVoid). */
+  E.allocRaw = async rec => {
+    const ac = E.acct(rec.head) || {};
+    return E.save(COL, { factoryId: E.fid, date: rec.date, jeId: '', jeNo: rec.refNo || '', jobId: rec.jobId, head: rec.head, headName: rec.headName || ac.name || rec.head, cat: rec.cat || catOf(ac), art: rec.art || '', kind: rec.kind || '', refId: rec.refId || '', amount: rec.amount, narr: rec.narr || '', cancelled: false });
+  };
+  E.allocVoid = async match => {
+    for (const a of E.rows(COL).filter(x => !x.cancelled && match(x))) { const b = JSON.parse(JSON.stringify(a)); a.cancelled = true; await E.save(COL, a, b); }
+  };
+  /* total allocated to one job split by article: {artId: amount, '': job-level / shared} */
+  E.allocByArt = jobId => { const m = {}; E.allocRows(jobId).forEach(a => { m[a.art || ''] = (m[a.art || ''] || 0) + a.amount; }); return m; };
+  /* allocated to one job by cost type and by head */
+  E.allocByCat = jobId => { const m = { Material: 0, Labour: 0, Overhead: 0 }; E.allocRows(jobId).forEach(a => { m[a.cat] = (m[a.cat] || 0) + a.amount; }); return m; };
+  /* duplicate guard used by the entry forms: returns a readable line when a live entry looks the same, else '' */
+  E.dupExpense = (head, amount, date, payee) => {
+    const v = E.rows('expenses').find(x => !x.cancelled && x.kind === 'voucher' && x.head === head && x.amount === amount && x.date === date && (x.payee || '').trim().toLowerCase() === (payee || '').trim().toLowerCase() && E.jeOf(x) && !E.isReversed(x.jeId));
+    return v ? v.no + ' · ' + v.headName + ' · ' + E.m(v.amount) + ' · ' + v.date + (v.payee ? ' · ' + v.payee : '') : '';
   };
 
   /* the costing layer on top of a job's existing "shadow" figures (used by the job cost sheet) */
@@ -170,4 +189,44 @@
     try { const je = jeById(id); if (!je) return; if (!confirm('Remove the job allocation of ' + je.no + '? The accounts are not affected.')) return; await E.allocPut(je, []); const b = E.$('alb'); if (b) b.innerHTML = body(); E.toast('Allocation cleared', 'success'); }
     catch (e) { E.toast(e.message, 'error'); }
   };
+
+  /* ---------- reconciliation: ledger expense = allocated to jobs + not allocated, per head, plus a total per job ---------- */
+  const RF = { from: E.today().slice(0, 8) + '01', to: E.today() };
+  const RNOSRC = NOSRC.filter(x => x !== 'production');
+  E.nav('Accounting', 'allocrecon', '🧮', 'Job Cost Reconciliation');
+  E.route('allocrecon', 'Job Cost Reconciliation', () => `<div class="card"><p class="muted" style="margin:0">For the period you choose: every cost the ledger booked as an expense, how much of it is tagged to jobs (costing only) and how much has no job. The ledger figure is never changed by the job tags. A difference in the last column is an <b>error to look at</b>.</p></div>
+    <div class="bar"><input type="date" class="fs" data-f="rc.from" value="${RF.from}"><input type="date" class="fs" data-f="rc.to" value="${RF.to}"></div><div id="rcb">${reconBody()}</div>`);
+  function reconBody() {
+    const H = {}, pool = { amt: 0 };
+    let over = 0;
+    E.rows('journalEntries').filter(j => !j.reversedBy && !RNOSRC.includes(j.source) && j.date >= RF.from && j.date <= RF.to).forEach(j => {
+      const base = E.allocBase(j), pl = isPool(j);
+      const al = {}; allocOf(j).forEach(a => { al[a.head] = (al[a.head] || 0) + a.amount; });
+      Object.keys(base).forEach(h => {
+        if (pl) { pool.amt += base[h]; return; }
+        const r = H[h] || (H[h] = { led: 0, al: 0, bad: 0 });
+        r.led += base[h]; r.al += Math.min(al[h] || 0, base[h]);
+        if ((al[h] || 0) > base[h]) { r.bad += (al[h] || 0) - base[h]; over += (al[h] || 0) - base[h]; }
+      });
+    });
+    const heads = Object.keys(H).sort();
+    const tl = heads.reduce((a, h) => a + H[h].led, 0), ta = heads.reduce((a, h) => a + H[h].al, 0);
+    const jobs = E.rows('jobs'), JR = jobs.map(j => { const c = { Material: 0, Labour: 0, Overhead: 0 }; E.allocRows(j.id).filter(a => a.date >= RF.from && a.date <= RF.to).forEach(a => { c[a.cat] = (c[a.cat] || 0) + a.amount; }); return { j, c, t: c.Material + c.Labour + c.Overhead }; }).filter(r => r.t);
+    const absorbed = E.rows(COL).filter(a => a.kind === 'absorb' && E.allocAlive(a) && a.date >= RF.from && a.date <= RF.to).reduce((s, a) => s + a.amount, 0);
+    const std = E.rows(COL).filter(a => a.kind === 'bommisc' && E.allocAlive(a) && a.date >= RF.from && a.date <= RF.to).reduce((s, a) => s + a.amount, 0);
+    return `<div class="kp">${E.kpi('Expenses in the ledger', E.m(tl))}${E.kpi('Tagged to jobs', E.m(ta), 'costing only')}${E.kpi('No job', E.m(tl - ta))}${E.kpi('Errors', over ? '<span class="bad">' + E.m(over) + '</span>' : '<span class="ok">None</span>')}</div>
+    <div class="tw"><table><thead><tr><th>Expense account</th><th class="r">Ledger</th><th class="r">Tagged to jobs</th><th class="r">No job</th><th>Check</th></tr></thead><tbody>
+    ${heads.map(h => { const a = E.acct(h) || { name: h }, r = H[h]; return `<tr><td>${h} · ${esc(a.name)}</td><td class="r">${E.m(r.led)}</td><td class="r">${E.m(r.al)}</td><td class="r">${E.m(r.led - r.al)}</td><td>${r.bad ? '<span class="bad">Allocated ' + E.m(r.bad) + ' more than the ledger</span>' : '<span class="ok">✓</span>'}</td></tr>`; }).join('') || '<tr><td colspan="5" class="muted">No expense entries in this period</td></tr>'}
+    </tbody><tfoot><tr><th>Total</th><th class="r">${E.m(tl)}</th><th class="r">${E.m(ta)}</th><th class="r">${E.m(tl - ta)}</th><th></th></tr></tfoot></table></div>
+    <div class="card"><b>Other costing amounts in this period (no ledger entry of their own)</b>
+      <div class="muted" style="font-size:12px;margin-top:4px">Overhead pool expenses booked: ${E.m(pool.amt)} · Absorbed into jobs this period (costing): ${E.m(absorbed)} · Standard BOM-misc amounts: ${E.m(std)} · Pool still not absorbed (all time): ${E.m(E.unabsorbed ? E.unabsorbed() : 0)}</div></div>
+    <h3>Allocated to each job in this period</h3>
+    <div class="tw"><table><thead><tr><th>Job</th><th class="r">Material</th><th class="r">Labour</th><th class="r">Overhead</th><th class="r">Total allocated</th></tr></thead><tbody>
+    ${JR.map(r => `<tr><td>${esc(r.j.no)}</td><td class="r">${E.m(r.c.Material)}</td><td class="r">${E.m(r.c.Labour)}</td><td class="r">${E.m(r.c.Overhead)}</td><td class="r"><b>${E.m(r.t)}</b></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nothing allocated in this period</td></tr>'}
+    </tbody></table></div>`;
+  }
+  E.hooks.push(e => {
+    const t = e.target, f = t.dataset && t.dataset.f;
+    if (f && f.startsWith('rc.')) { RF[f.slice(3)] = t.value; const b = E.$('rcb'); if (b) b.innerHTML = reconBody(); }
+  });
 })(window.ERP);

@@ -66,17 +66,21 @@ function issueVal(g,n){const st=E.stock(g.itemId,g.variantId);if(!g.parts.some(p
 E.issueByBom=async({jobId,date,packs,adj})=>{
  const j=E.D.jobs.find(x=>x.id===jobId);if(!j)throw new Error('Job not found');if(j.status!=='In Progress')throw new Error('Job is not in progress');
  const m=E.bomNeeds(packs,adj),keys=Object.keys(m),misc=E.bomMisc(packs,adj);if(!keys.length&&!misc.length)throw new Error('Nothing to issue: enter packs and make sure the article has a BOM');
+ /* BOM-misc amounts are STANDARD COSTING ONLY (no ledger entry): the real expense is entered once in Expenses. A job that has only misc items and no stocked material has nothing to post. */
+ if(!keys.length)throw new Error('This BOM has only miscellaneous (non-stock) costs. They are costing-only now, so there is nothing to issue. Allocate the real expense to the job in Expenses instead.');
  const sh=E.bomShort(m);if(sh.length)throw new Error('Not enough stock: '+sh.map(x=>x.code+' need '+q3(x.need)+' have '+q3(x.have)).join('; '));
  const no=await E.next('ISS'),jl=[],cr=[],recs=[];let tot=0;
  for(const k of keys){const g=m[k],n=g.parts.reduce((a,p)=>a+p.qty,0);if(!(n>0))continue;const val=issueVal(g,n),s=E.skuList().find(x=>x.itemId===g.itemId&&x.variantId===g.variantId);
   let left=val;g.parts.forEach((p,ix)=>{const v=g._pv?g._pv[ix]:(ix===g.parts.length-1?left:Math.round(val*p.qty/n));left-=v;p.val=v;jl.push({acc:'1310',dr:v,job:jobId,cat:'Material',art:p.lineId,head:'5000'})});
   cr.push({acc:'1300',cr:val});tot+=val;recs.push({g,n,val,code:s?s.code:''})}
- misc.forEach(x=>{jl.push({acc:'1310',dr:x.amount,job:jobId,cat:'Material',art:x.lineId,head:x.acc});cr.push({acc:x.acc,cr:x.amount})});
+ 
  const done=[],saved=[];
- await E.postThen({date,ref:no,narr:'Issue by BOM to '+j.no,source:'issue',lines:jl.concat(cr)},async()=>{
+ await E.postThen({date,ref:no,narr:'Issue by BOM to '+j.no,source:'issue',lines:jl.concat(cr)},async je=>{
   try{for(const r of recs){await E.stockOut({date,itemId:r.g.itemId,variantId:r.g.variantId,qty:r.n,type:'issue',ref:no,job:jobId,value:r.val});done.push(r);
     for(const p of r.g.parts){const rec=await E.save('issues',{no,date,jobId,itemId:r.g.itemId,variantId:r.g.variantId,code:r.code,qty:p.qty,value:p.val,art:p.lineId,bom:true});saved.push(rec)}}
    for(const lid of Object.keys(packs)){const q=packs[lid];if(!(q>0))continue;const l=E.D.jobLines.find(x=>x.id===lid),bf=JSON.parse(JSON.stringify(l));l.started=(l.started||0)+q;await E.save('jobLines',l,bf)}
+   /* standard BOM-misc costing records, tied to this issue entry so they stop counting if it is reversed */
+   if(misc.length&&E.allocPut)await E.allocPut(je,misc.map(x=>({jobId,head:x.acc,cat:'Overhead',art:x.lineId,kind:'bommisc',amount:x.amount})));
   }catch(err){for(const r of done)try{await E.stockIn({date,itemId:r.g.itemId,variantId:r.g.variantId,qty:r.n,value:r.val,type:'cancel',ref:no,job:jobId})}catch(x){console.error(x)}
    for(const s of saved)try{await E.del('issues',s.id)}catch(x){}throw err}});
  return {no,total:tot}};

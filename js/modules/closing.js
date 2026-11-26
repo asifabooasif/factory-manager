@@ -56,6 +56,17 @@
     const la = E.staffLoanAudit ? E.staffLoanAudit() : { issues: [] };
     add('Staff loan records match payroll and the ledger', !la.issues.length, la.issues.length ? la.issues.length + ' problem(s) found' : 'OK', 'loanaudit');
 
+    /* 7b. job costing allocations never exceed the ledger expense they tag, and none points at a missing job */
+    {
+      let over = 0, orphan = 0; const per = {};
+      (E.rows('costAllocations') || []).filter(a => E.allocAlive(a)).forEach(a => {
+        if (!E.D.jobs.some(j => j.id === a.jobId)) { orphan++; return; }
+        if (a.jeId) { const k = a.jeId + '|' + a.head; per[k] = (per[k] || 0) + a.amount; }
+      });
+      Object.keys(per).forEach(k => { const [jid, h] = k.split('|'), je = E.D.journalEntries.find(x => x.id === jid), b = je ? (E.allocBase(je)[h] || 0) : 0; if (per[k] > b) over += per[k] - b; });
+      add('Job costing allocations agree with the ledger expenses they tag', !over && !orphan, over || orphan ? ('Over-allocated ' + E.m(over) + (orphan ? ' · ' + orphan + ' allocation(s) on a missing job' : '')) : 'OK', 'allocrecon');
+    }
+
     /* 8. overhead pool — ignores 5390 */
     const un = E.unabsorbed ? E.unabsorbed() : 0;
     add('Factory overhead pool is absorbed into jobs', un <= 0, 'Not yet absorbed: ' + E.m(un), 'expenses');

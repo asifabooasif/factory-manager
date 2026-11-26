@@ -166,7 +166,7 @@
 
   E.route('jobs', 'Jobs & Costing', () => `<div class="kp">
     ${E.kpi('In progress', active().length)}
-    ${E.kpi('Total WIP', E.m(active().reduce((s, j) => s + wip(j.id), 0)), 'Ledger 1310: ' + E.m(E.bal('1310')))}
+    ${E.kpi('Materials in WIP', E.m(active().reduce((s, j) => s + wip(j.id), 0)), 'Ledger 1310: ' + E.m(E.bal('1310')))}
   </div>
   <div class="bar">
     <input class="fs" style="max-width:300px" placeholder="Search…" data-f="jb.q" value="${E.esc(F.q)}">
@@ -204,12 +204,13 @@
       ['cost', '💰 Costing & Shadow'],
       ['mat', '📦 Material Consumption'],
       ['prod', '🧵 Labour & Operations'],
+      ['alloc', '🎯 Allocated costs'],
       ['ledger', '🧾 Ledger Transactions']
     ];
 
     const tabContent = F.tab === 'cost' ? tabCost(j, R, postedCost, shadowTotal, completeCost) :
                        F.tab === 'mat' ? tabMat(j) :
-                       F.tab === 'prod' ? tabProd(j) : tabLedger(j, L, ls);
+                       F.tab === 'prod' ? tabProd(j) : F.tab === 'alloc' ? tabAlloc(j, L) : tabLedger(j, L, ls);
 
     return `<div class="bar">
       <button class="btn" data-nav="jobs">← Jobs</button>
@@ -268,20 +269,22 @@
           <tr style="background:#faf5ff"><td><b style="font-size:14px">COMPLETE COST</b></td><td class="r">${E.m(postedCost)}</td><td class="r">${E.m(shadowTotal)}</td><td class="r"><b style="font-size:14px">${E.m(completeCost)}</b></td></tr>
         </tbody>
       </table></div>
-      <p class="muted" style="margin-top:10px">Posted = material and piece-rate cost held in job WIP (ledger). Shadow = costs allocated to this job for costing only (expenses, transport, daily salaries, wages) plus fixed-expense daily rates. These are already in the ledger as normal expenses, so they are never added to WIP twice. Complete = for pricing decisions.</p>
+      <p class="muted" style="margin-top:10px">Posted = material cost held in job WIP (ledger). Shadow = every cost allocated to this job for costing only: piece-rate wages, daily salaries, wage runs, expenses, transport, petty cash, shared overhead (see the Allocated costs tab). All of these are already in the ledger as normal expenses, so they are never added to WIP twice. Complete = for pricing decisions. Jobs finished before this change may still hold labour in WIP.</p>
     </div>
 
     <div class="card">
       <h3>Per-article cost breakdown</h3>
       <div class="tw"><table>
-        <thead><tr><th>Article</th><th class="r">Packs</th><th class="r">Pairs</th><th class="r">Total cost</th><th class="r">Per pair</th><th class="r">Per pack</th></tr></thead>
-        <tbody>${R.map(r => `<tr>
+        <thead><tr><th>Article</th><th class="r">Packs</th><th class="r">Pairs</th><th class="r">Posted cost</th><th class="r">Allocated (costing)</th><th class="r">Total cost</th><th class="r">Per pair</th><th class="r">Per pack</th></tr></thead>
+        <tbody>${(() => { const A = E.allocByArt ? E.allocByArt(j.id) : {}, sharedAl = A[''] || 0, tp = R.reduce((s, r) => s + r.pairs, 0) || 0;
+          return R.map(r => { const al = (A[r.l.id] || 0) + (tp ? Math.round(sharedAl * r.pairs / tp) : 0), tot = r.total + al; return `<tr>
           <td><b>${E.esc(r.l.code)}</b> ${E.esc(r.l.name)}</td>
           <td class="r">${r.packs}</td><td class="r">${r.pairs}</td>
-          <td class="r">${E.m(r.total)}</td>
-          <td class="r"><b>${E.m(r.unitPair)}</b></td>
-          <td class="r">${E.m(r.unitPack)}</td>
-        </tr>`).join('')}</tbody>
+          <td class="r">${E.m(r.total)}</td><td class="r">${E.m(al)}</td>
+          <td class="r"><b>${E.m(tot)}</b></td>
+          <td class="r"><b>${E.m(r.pairs ? Math.round(tot / r.pairs) : 0)}</b></td>
+          <td class="r">${E.m(r.packs ? Math.round(tot / r.packs) : 0)}</td>
+        </tr>`; }).join(''); })()}</tbody>
       </table></div>
     </div>`;
   }
@@ -359,6 +362,22 @@
         `).join('')}</tbody>
       </table></div>
     </div>`;
+  }
+
+
+  function tabAlloc(j, L) {
+    const al = (E.allocRows ? E.allocRows(j.id) : []).slice().sort((x, y) => y.date.localeCompare(x.date) || String(y.jeNo).localeCompare(String(x.jeNo)));
+    if (!al.length) return '<div class="card muted">Nothing has been allocated to this job yet. Choose this job in the Job costing box when you enter an expense, salary, wage or petty cash, or use Accounting › Job Cost Allocation for earlier entries.</div>';
+    const tot = al.reduce((s, x) => s + x.amount, 0), cat = E.allocByCat(j.id), by = {};
+    al.forEach(x => { const k = x.head; (by[k] = by[k] || { name: x.headName || x.head, n: 0, v: 0 }); by[k].n++; by[k].v += x.amount; });
+    const KIND = { piece: 'Piece-rate wages', 'piece-oncost': 'Employer EPF/ETF (piece)', bommisc: 'Standard BOM misc', absorb: 'Shared overhead' };
+    return `<div class="kp">${E.kpi('Allocated to this job', '<b>' + E.m(tot) + '</b>', al.length + ' record' + (al.length > 1 ? 's' : ''))}${E.kpi('Labour', E.m(cat.Labour || 0))}${E.kpi('Overhead & expenses', E.m(cat.Overhead || 0))}${E.kpi('Material (expense route)', E.m(cat.Material || 0))}</div>
+    <div class="card"><h3>By expense account</h3><div class="tw"><table><thead><tr><th>Account</th><th class="r">Records</th><th class="r">Amount</th><th class="r">%</th></tr></thead><tbody>
+    ${Object.keys(by).sort().map(k => `<tr><td>${E.esc(k)} — ${E.esc(by[k].name)}</td><td class="r">${by[k].n}</td><td class="r">${E.m(by[k].v)}</td><td class="r">${tot ? (by[k].v * 100 / tot).toFixed(1) : '0.0'}%</td></tr>`).join('')}
+    </tbody></table></div></div>
+    <div class="card"><h3>Every allocation (costing only — the ledger is not affected)</h3><div class="tw"><table><thead><tr><th>Date</th><th>Entry</th><th>Type</th><th>Account</th><th>Article</th><th>Narration</th><th class="r">Amount</th></tr></thead><tbody>
+    ${al.map(x => `<tr><td>${x.date}</td><td>${E.esc(x.jeNo || '')}</td><td>${E.esc(KIND[x.kind] || 'Expense / wages')}</td><td>${E.esc(x.head)} — ${E.esc(x.headName || '')}</td><td>${E.esc(x.art ? ((L.find(l => l.id === x.art) || {}).code || '?') : 'Whole job')}</td><td>${E.esc(x.narr || '')}</td><td class="r">${E.m(x.amount)}</td></tr>`).join('')}
+    <tr style="background:var(--s2)"><td colspan="6" class="r"><b>Total allocated</b></td><td class="r"><b>${E.m(tot)}</b></td></tr></tbody></table></div></div>`;
   }
 
   function tabLedger(j, L, ls) {
