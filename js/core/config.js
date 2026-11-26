@@ -2,7 +2,7 @@
 window.ERP = {
   cfg: {
     db: 'lanka_erp_v2',
-    dbVersion: 16,
+    dbVersion: 17,
     version: '1.0.0',
     cols: [
       'factories', 'coa', 'journalEntries', 'auditLog', 'sequences', 'settings',
@@ -13,7 +13,7 @@ window.ERP = {
       'operations', 'rateCards', 'prodLogs', 'costRuns', 'purchaseOrders',
       'stockTakes', 'loans', 'consumables', 'dailyProduction', 'staffLoans',
       'workingDays', 'fixedExpenses', 'salaryHistory', 'dailyAllocations',
-      'closedJobVariances', 'recurring'
+      'closedJobVariances', 'recurring', 'costAllocations'
     ]
   },
   D: {}, R: {}, N: [], A: {}, hooks: []

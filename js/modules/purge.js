@@ -32,6 +32,7 @@
     for (const j of p.jes) await E.del('journalEntries', j.id);
     for (const m of p.moves) await E.del('stockMoves', m.id);
     for (const v of E.rows('closedJobVariances').filter(v => jeIds.includes(v.sourceJeId))) await E.del('closedJobVariances', v.id);
+    for (const a of E.rows('costAllocations').filter(a => jeIds.includes(a.jeId))) await E.del('costAllocations', a.id);
     await E.audit('purge', d.col, r.id, r, null);
     await E.del(d.col, r.id);
   }

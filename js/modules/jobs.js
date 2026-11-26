@@ -50,10 +50,15 @@
   }
 
   function shadowFor(job) {
-    if (job.shadowSnapshot) return job.shadowSnapshot;
-    const daily = job.shadowDaily || {};
-    const totalFixed = Object.values(daily).reduce((s, v) => s + v, 0);
-    return { totalFixedAllocated: totalFixed, accruedWages: { dailySalaries: 0, weeklyTimeWages: 0, total: 0 }, perExpenseTotal: {}, isLive: true };
+    let base;
+    if (job.shadowSnapshot) base = job.shadowSnapshot;
+    else {
+      const daily = job.shadowDaily || {};
+      const totalFixed = Object.values(daily).reduce((s, v) => s + v, 0);
+      base = { totalFixedAllocated: totalFixed, accruedWages: { dailySalaries: 0, weeklyTimeWages: 0, total: 0 }, perExpenseTotal: {}, isLive: true };
+    }
+    /* + costing-only job allocations from expenses, petty cash, daily salaries and wage runs (see joballoc.js) */
+    return E.withAlloc ? E.withAlloc(base, job.id) : base;
   }
 
   E.A.jobPrint = id => {
@@ -263,7 +268,7 @@
           <tr style="background:#faf5ff"><td><b style="font-size:14px">COMPLETE COST</b></td><td class="r">${E.m(postedCost)}</td><td class="r">${E.m(shadowTotal)}</td><td class="r"><b style="font-size:14px">${E.m(completeCost)}</b></td></tr>
         </tbody>
       </table></div>
-      <p class="muted" style="margin-top:10px">Posted = in ledger (real). Shadow = daily allocation (management). Complete = for pricing decisions.</p>
+      <p class="muted" style="margin-top:10px">Posted = material and piece-rate cost held in job WIP (ledger). Shadow = costs allocated to this job for costing only (expenses, transport, daily salaries, wages) plus fixed-expense daily rates. These are already in the ledger as normal expenses, so they are never added to WIP twice. Complete = for pricing decisions.</p>
     </div>
 
     <div class="card">
@@ -358,8 +363,13 @@
 
   function tabLedger(j, L, ls) {
     const txns = ls.filter(x => x.acc === '1310').sort((a, b) => b.date.localeCompare(a.date));
-    if (!txns.length) return '<div class="card muted">No ledger transactions posted to this job yet.</div>';
-    
+    const al = (E.allocRows ? E.allocRows(j.id) : []).slice().sort((x, y) => y.date.localeCompare(x.date));
+    const alCard = al.length ? `<div class="card"><h3>Costing allocations (not in WIP — already in the ledger as normal expenses)</h3>
+      <div class="tw"><table><thead><tr><th>Date</th><th>Entry</th><th>Expense head</th><th>Narration</th><th class="r">Amount</th></tr></thead>
+      <tbody>${al.map(x => `<tr><td>${x.date}</td><td>${E.esc(x.jeNo || '')}</td><td>${E.esc(x.head)} — ${E.esc(x.headName || '')}</td><td>${E.esc(x.narr || '')}</td><td class="r">${E.m(x.amount)}</td></tr>`).join('')}
+      <tr style="background:var(--s2)"><td colspan="4" class="r"><b>Total allocated</b></td><td class="r"><b>${E.m(al.reduce((t, x) => t + x.amount, 0))}</b></td></tr></tbody></table></div></div>` : '';
+    if (!txns.length && !al.length) return '<div class="card muted">No ledger transactions posted to this job yet.</div>';
+    if (!txns.length) return alCard;
     return `<div class="card">
       <h3>Job Ledger Transactions (WIP 1310)</h3>
       <div class="tw"><table>
@@ -371,7 +381,7 @@
           <td class="r ${x.cr > 0 ? 'ok' : ''}">${E.m(x.cat === 'Wastage' ? -x.cr : x.dr - x.cr)}</td>
         </tr>`).join('')}</tbody>
       </table></div>
-    </div>`;
+    </div>` + alCard;
   }
 
   const artSel = id => `<div class="f">Article<select id="x_a"><option value="">Shared</option>${jl(id).map(l => `<option value="${l.id}">${E.esc(l.code)}</option>`).join('')}</select></div>`;

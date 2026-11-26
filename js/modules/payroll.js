@@ -332,6 +332,8 @@
       const closedVar = [];
       
       // FIX: Added 'art' parameter so piece wages go directly to the specific article
+      /* time wages for a job are a NORMAL wage expense in the ledger; the job only gets a costing record (memo) */
+      const wageAcc = monthly ? '5130' : '5110', memo = {};
       const add = (acc, job, v, cat, art) => { if (!v) return; const k = acc + '|' + job + '|' + (art||''); dr[k] = dr[k] || { acc, job, art, dr: 0, cat }; dr[k].dr += v; };
       
       L.forEach(l => {
@@ -364,8 +366,8 @@
         if (!time) return;
         if (l.target === 'OH') add('5270', '', time);
         else if (l.target === 'ADM') add('6050', '', time);
-        else if (l.target === 'SPLIT') { let left = time; split.forEach((s, i) => { const a = i === split.length - 1 ? left : Math.round(time * s.p / 10000); left -= a; const job = J(s.id); if (job && job.status === 'Completed') { closedVar.push({ jobId: s.id, jobNo: job.no, amount: a }); add('5390', '', a); } else add('1310', s.id, a, 'Labour'); }); }
-        else { const job = J(l.target); if (job && job.status === 'Completed') { closedVar.push({ jobId: l.target, jobNo: job.no, amount: time }); add('5390', '', time); } else add('1310', l.target, time, 'Labour'); }
+        else if (l.target === 'SPLIT') { let left = time; split.forEach((s, i) => { const a = i === split.length - 1 ? left : Math.round(time * s.p / 10000); left -= a; add(wageAcc, '', a); memo[s.id] = (memo[s.id] || 0) + a; }); }
+        else { add(wageAcc, '', time); memo[l.target] = (memo[l.target] || 0) + time; }
       });
       
       const S = k => L.reduce((a, l) => a + l[k], 0);
@@ -386,6 +388,7 @@
       await E.postThen({ date: wd, ref: no, narr: `${type} ${monthly ? 'salaries' : 'wages'} ${f} to ${to}`, source: 'payroll', lines }, async je => {
         const undo = [];
         try {
+          if (Object.keys(memo).length) await E.allocPut(je, Object.keys(memo).map(id => ({ jobId: id, head: wageAcc, amount: memo[id] })));
           const run = await E.save('wageRuns', { no, kind: 'run', type, date: wd, from: f, to, lines: L, split, gross: G, epfEmp: ee, epfCo: ec, etf: et, advRec: ar, loanRec: lr, otherDed: od, net, jeId: je.id, paid: false, cancelled: false, closedVarCount: closedVar.length });
           undo.push(async () => { const b = JSON.parse(JSON.stringify(run)); run.cancelled = true; await E.save('wageRuns', run, b); });
           for (const cv of closedVar) {
@@ -451,11 +454,12 @@
         <div class="f" style="background:var(--acs);padding:8px;border-radius:8px">
           <b>Charge To *</b>
           <select id="ds_target">
-            <option value="5270">Factory Overhead (Pool)</option>
-            <option value="6050">Admin Expense</option>
-            ${jobs.map(j => `<option value="${j.id}">Job: ${j.no}</option>`).join('')}
+            <option value="5130">Production Staff Salaries (direct labour)</option>
+            <option value="5270">Supervisors &amp; Indirect Labour (factory overhead)</option>
+            <option value="6050">Admin Salaries</option>
           </select>
         </div>
+        ${E.allocUI('ds')}
 
         <div class="f">Advance recovery<input id="ds_adv" type="number" step="0.01" value="0" oninput="E.A.dsDailyUpdate()"></div>
         <div class="f">Loan recovery<input id="ds_loan" type="number" step="0.01" value="0" oninput="E.A.dsDailyUpdate()"></div>
@@ -516,19 +520,11 @@
       const src = E.val('ds_s');
       if (!src) throw new Error('Choose account');
       
-      let drAcc = E.val('ds_target'); 
-      let drJob = '';
-      let targetLabel = 'Factory Overhead (Pool)';
-      
-      if (drAcc === '5270') {
-          targetLabel = 'Factory Overhead (Pool)';
-      } else if (drAcc === '6050') {
-          targetLabel = 'Admin Expense';
-      } else {
-          drJob = drAcc; 
-          drAcc = '1310'; 
-          targetLabel = 'Job ' + (J(drJob) || {}).no;
-      }
+      let drAcc = E.val('ds_target') || '5130';
+      const drJob = '';
+      const sh = E.allocRead('ds');
+      const ACN = { '5130': 'Production Staff Salaries', '5270': 'Factory Overhead (Indirect Labour)', '6050': 'Admin Salaries' };
+      let targetLabel = ACN[drAcc] || drAcc;
 
       const on = E.setting('epfOn') && e.epf;
       const ee = on ? Math.round(gross * E.setting('epfEmp') / 100) : 0;
@@ -551,6 +547,7 @@
       
       const lb0 = E.loanBal(e.id);
       await E.postThen({ date: E.val('ds_pd'), ref: no, narr: `Daily salary · ${e.name} (${targetLabel})`, source: 'payroll', lines }, async je => {
+        if (sh.length) await E.allocSplit(je, sh);
         const rec = await E.save('wageRuns', {
           no, kind: 'daily-salary', empId: e.id, date: E.val('ds_pd'), from: E.val('ds_f'), to: E.val('ds_t'),
           days, rate, gross, epfEmp: ee, epfCo: ec, etf: et, advRec: adv, loanRec: loan, loanBefore: lb0, loanAfter: lb0 - loan, net, bank: src, target: drAcc, notes: E.val('ds_n'), jeId: je.id, paid: true, cancelled: false
@@ -560,7 +557,7 @@
           catch (err) { const b = JSON.parse(JSON.stringify(rec)); rec.cancelled = true; await E.save('wageRuns', rec, b); throw err; }
         }
       });
-      E.closeM(); E.go(); E.toast(no + ' posted to ' + targetLabel, 'success');
+      E.closeM(); E.go(); E.toast(no + ' posted to ' + targetLabel + E.allocText(sh), 'success');
     } catch (err) { E.toast(err.message, 'error'); }
   });
 

@@ -14,10 +14,19 @@
     .sort((a, b) => a.code.localeCompare(b.code));
   const hl = a => a.code + ' — ' + a.name;
   const findHead = t => { t = (t || '').trim().toLowerCase(); return heads().find(a => hl(a).toLowerCase() === t || a.code === t); };
-  const TR = { job: 'Charged to job(s)', pool: 'Factory overhead pool', period: 'Period expense' };
-  const TR_DESC = { job: '→ Direct to job WIP', pool: '→ Absorbed month-end', period: '→ P&L only' };
+  const TR = { job: 'Charged to job(s) (old)', pool: 'Factory overhead pool', period: 'Normal expense' };
+  const TR_DESC = { job: '→ Direct to job WIP', pool: '→ Absorbed month-end', period: '→ Ledger / P&L' };
   const CAT = { dm: 'Material', dl: 'Labour', oh: 'Overhead' };
   const natTag = n => `<span class="tag" style="${n === 'dm' || n === 'dl' ? 'background:#dcfce7;color:#166534' : n === 'oh' ? 'background:#fef3c7;color:#b45309' : 'background:var(--s2);color:var(--t3)'}">${E.esc(E.NATURE[n] || n)}</span>`;
+
+  /* who this expense is costed to: legacy vouchers (charged straight to WIP) or the new costing-only allocations */
+  function chargedCell(v) {
+    if (v.jobs && v.jobs.length) return v.jobs.map(j => { const jb = J(j.jobId); return jb ? `<div>${E.esc(jb.no)}${jb.status === 'Completed' ? ' <span class="bad">→5390</span>' : ''} ${E.m(j.amount)}</div>` : ''; }).join('');
+    if (v.treatment === 'pool') return '<span class="muted">→ absorbed</span>';
+    const by = {}; E.rows('costAllocations').filter(a => a.jeId === v.jeId && E.allocAlive(a)).forEach(a => { by[a.jobId] = (by[a.jobId] || 0) + a.amount; });
+    const ks = Object.keys(by);
+    return ks.length ? ks.map(id => `<div>${E.esc((J(id) || { no: '?' }).no)} ${E.m(by[id])}</div>`).join('') : '<span class="muted">no job</span>';
+  }
   const vouchers = () => E.rows('expenses').filter(x => x.kind === 'voucher');
 
   E.route('expenses', 'Expenses & Costs', () => {
@@ -40,9 +49,9 @@
     const t = e.target, f = t.dataset && t.dataset.f;
     if (f && f.startsWith('ex.')) { F[f.slice(3)] = t.value; E.$('exb').innerHTML = F.tab === 'reg' ? regTab() : F.tab === 'pool' ? poolTab() : anaTab(); return; }
     if (t.id === 'ex_h') headPick();
-    if (t.id === 'ex_t') trPick();
-    if (t.id === 'ex_pm') payPick();
-    if (t.id === 'ex_a' || (t.classList && t.classList.contains('exs'))) livePreview();
+    if (t.id === 'ex_t') E.A.exTrPick();
+    if (t.id === 'ex_pm') E.A.exPayPick();
+    if (t.id === 'ex_a') E.A.exLivePreview();
   });
 
   function regTab() {
@@ -57,16 +66,16 @@
       <input type="date" class="fs" data-f="ex.to" value="${F.to}">
     </div>
     <div class="tw"><table>
-      <thead><tr><th>Date</th><th>No</th><th>Head</th><th>Nature</th><th>Treatment</th><th>Charged to</th><th class="r">Amount</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>No</th><th>Head</th><th>Nature</th><th>Treatment</th><th>Costed to jobs</th><th class="r">Amount</th><th>Status</th><th></th></tr></thead>
       <tbody>${R.map(v => `<tr style="${v.cancelled ? 'opacity:.45' : ''}">
         <td>${v.date}</td><td>${v.no}</td>
         <td><b>${E.esc(v.headName)}</b>${v.payee ? '<div class="muted" style="font-size:11px">' + E.esc(v.payee) + '</div>' : ''}</td>
         <td>${natTag(v.nature)}</td>
         <td><span class="tag">${TR[v.treatment]}</span></td>
-        <td>${v.jobs && v.jobs.length ? v.jobs.map(j => { const jb = J(j.jobId); return jb ? `<div>${E.esc(jb.no)}${jb.status === 'Completed' ? ' <span class="bad">→5390</span>' : ''} ${E.m(j.amount)}</div>` : ''; }).join('') : v.treatment === 'pool' ? '<span class="muted">→ absorbed</span>' : '<span class="muted">period</span>'}</td>
+        <td>${chargedCell(v)}</td>
         <td class="r"><b>${E.m(v.amount)}</b></td>
         <td><span class="tag">${v.cancelled ? 'Cancelled' : v.pay === 'ACCR' ? (v.paid ? 'Paid' : 'Accrued') : 'Paid'}</span></td>
-        <td class="r">${!v.cancelled && v.pay === 'ACCR' && !v.paid ? `<button class="btn sm p" data-a="exPay" data-id="${v.id}">Pay</button> ` : ''}${!v.cancelled && !(v.pay === 'ACCR' && v.paid) ? `<button class="btn sm d" data-a="exCancel" data-id="${v.id}">Cancel</button>` : ''}</td>
+        <td class="r">${!v.cancelled && v.pay === 'ACCR' && !v.paid ? `<button class="btn sm p" data-a="exPay" data-id="${v.id}">Pay</button> ` : ''}${!v.cancelled && v.treatment !== 'pool' && !(v.jobs && v.jobs.length) ? `<button class="btn sm" data-a="alEdit" data-id="${v.jeId}">🎯 Job</button> ` : ''}${!v.cancelled && !(v.pay === 'ACCR' && v.paid) ? `<button class="btn sm d" data-a="exCancel" data-id="${v.id}">Cancel</button>` : ''}</td>
       </tr>`).join('') || '<tr><td colspan="9" class="muted">No expenses</td></tr>'}
       <tr style="background:var(--s2)"><td colspan="6" class="r"><b>Total</b></td><td class="r"><b>${E.m(T)}</b></td><td colspan="2"></td></tr>
       </tbody>
@@ -84,24 +93,11 @@
       <div id="ex_cls" class="card" style="background:var(--acs);display:none;margin:10px 0"></div>
       <div class="g2">
         <div class="f">Amount (Rs) *<input id="ex_a" type="number" step="0.01" oninput="E.A.exLivePreview()"></div>
-        <div class="f">Treatment<select id="ex_t" onchange="E.A.exTrPick()"></select></div>
+        <div class="f">Accounting treatment<select id="ex_t" onchange="E.A.exTrPick()"></select></div>
       </div>
-      <div id="ex_jobs" style="display:none;margin-top:8px">
-        <b style="font-size:13px;display:block;margin-bottom:6px">Which jobs?</b>
-        <div class="tw"><table>
-          <thead><tr><th>Job</th><th>Customer</th><th>Status</th><th class="r">Share %</th><th class="r">Amount</th></tr></thead>
-          <tbody>${active().concat(E.rows('jobs').filter(j => j.status === 'Completed' && j.completedAt && j.completedAt >= F.from && j.completedAt <= F.to)).map(j => `<tr>
-            <td>${E.esc(j.no)}</td>
-            <td>${E.esc((E.D.parties.find(p => p.id === j.partyId) || { name: 'Stock' }).name)}</td>
-            <td><span class="tag" style="${j.status === 'Completed' ? 'background:#fee2e2;color:#b91c1c' : ''}">${j.status}</span></td>
-            <td class="r"><input class="exs" data-id="${j.id}" type="number" step="0.01" style="width:80px;padding:6px;border:1px solid var(--bd);border-radius:8px" oninput="E.A.exLivePreview()"></td>
-            <td class="r exj-amt" data-job="${j.id}"></td>
-          </tr>`).join('') || '<tr><td colspan="5" class="bad">No jobs available</td></tr>'}
-          </tbody>
-        </table></div>
-        <button class="btn sm" data-a="exEq" style="margin-top:8px">Split equally</button>
-      </div>
-      <div id="ex_live" style="margin-top:14px"></div>
+      <div id="ex_jobs" style="display:none">${E.allocUI('ex')}</div>
+      <div id="ex_pooln" class="muted" style="display:none;font-size:12px;margin:6px 0">Overhead pool costs reach the jobs when you run "Absorb" at month-end, so no job is chosen here.</div>
+      <div id="ex_live" style="margin-top:10px"></div>
       <div class="g2">
         <div class="f">Payment *<select id="ex_pm" onchange="E.A.exPayPick()">
           <option value="">— select —</option>
@@ -118,18 +114,12 @@
     headPick();
   };
 
-  E.A.exEq = () => {
-    const a = [...document.querySelectorAll('.exs')];
-    a.forEach((i, k) => i.value = k === a.length - 1 ? (100 - Math.floor(10000 / a.length) / 100 * (a.length - 1)).toFixed(2) : (Math.floor(10000 / a.length) / 100).toFixed(2));
-    E.A.exLivePreview();
-  };
-
   function headPick() {
     const a = findHead(E.val('ex_h')), c = E.$('ex_cls'), t = E.$('ex_t');
     if (!c) return;
-    if (!a) { c.style.display = 'none'; t.innerHTML = '<option value="">— choose head —</option>'; E.$('ex_jobs').style.display = 'none'; return; }
-    const d = E.natureTreat(a.nature);
-    const opts = a.nature === 'oh' ? ['pool', 'job'] : a.nature === 'dm' || a.nature === 'dl' ? ['job'] : ['period'];
+    if (!a) { c.style.display = 'none'; t.innerHTML = '<option value="">— choose head —</option>'; E.$('ex_jobs').style.display = 'none'; E.$('ex_pooln').style.display = 'none'; return; }
+    const d = E.natureTreat(a.nature) === 'pool' ? 'pool' : 'period';
+    const opts = a.nature === 'oh' ? ['pool', 'period'] : ['period'];
     t.innerHTML = opts.map(k => `<option value="${k}" ${k === d ? 'selected' : ''}>${TR[k]} ${TR_DESC[k]}</option>`).join('');
     c.style.display = '';
     c.innerHTML = `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
@@ -137,19 +127,21 @@
       <div><small class="muted">Nature</small><div>${natTag(a.nature)}</div></div>
       <div><small class="muted">Behaviour</small><div>${a.beh || '—'}</div></div>
     </div>`;
-    trPick(); payPick(); E.A.exLivePreview();
+    E.A.exTrPick(); E.A.exPayPick(); E.A.exLivePreview();
   }
 
   E.A.exTrPick = () => {
-    const t = E.val('ex_t'), g = E.$('ex_jobs');
-    if (g) g.style.display = t === 'job' ? '' : 'none';
+    const t = E.val('ex_t'), g = E.$('ex_jobs'), n = E.$('ex_pooln'), has = !!findHead(E.val('ex_h'));
+    if (g) g.style.display = has && t !== 'pool' ? '' : 'none';
+    if (n) n.style.display = has && t === 'pool' ? '' : 'none';
     E.A.exLivePreview();
   };
 
   E.A.exPayPick = () => {
-    const n = E.$('ex_note'), p = E.val('ex_pm');
+    const n = E.$('ex_note'), p = E.val('ex_pm'), a = findHead(E.val('ex_h'));
     if (!n) return;
-    n.textContent = p === 'ACCR' ? 'Posts Dr expense / Cr 2300 Accrued' : p ? 'Balance: ' + E.m(E.bal(p)) : '';
+    const nm = a ? a.code + ' ' + a.name : 'the expense head';
+    n.textContent = p === 'ACCR' ? 'Posts Dr ' + nm + ' / Cr 2300 Accrued expenses' : p ? 'Posts Dr ' + nm + ' / Cr ' + p + ' · balance ' + E.m(E.bal(p)) : '';
   };
 
   E.A.exLivePreview = () => {
@@ -159,43 +151,9 @@
     const amt = E.c(E.val('ex_a'));
     const tr = E.val('ex_t');
     if (!a || !amt) { box.innerHTML = ''; return; }
-    const jobDetails = [];
-    document.querySelectorAll('.exs').forEach(i => {
-      const pct = Math.round((parseFloat(i.value) || 0) * 100);
-      const v = Math.round(amt * pct / 10000);
-      const td = i.closest('tr').querySelector('.exj-amt');
-      if (td) td.textContent = v ? E.m(v) : '—';
-      if (pct > 0) {
-        const job = J(i.dataset.id);
-        if (job) jobDetails.push({ job, amount: v, pct });
-      }
-    });
-    const totalPct = [...document.querySelectorAll('.exs')].reduce((s, i) => s + (Math.round((parseFloat(i.value) || 0) * 100)), 0);
-    const poolBal = unabsorbed();
-    let summary = '';
-    if (tr === 'job') {
-      const inProgress = jobDetails.filter(j => j.job.status === 'In Progress');
-      const completed = jobDetails.filter(j => j.job.status === 'Completed');
-      const wipAmt = inProgress.reduce((s, j) => s + j.amount, 0);
-      const closedAmt = completed.reduce((s, j) => s + j.amount, 0);
-      summary = `<div style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);padding:14px;border-radius:10px;border-left:4px solid #059669">
-        <b>✅ Charged to job WIP</b><br>
-        <span style="font-size:13px">${inProgress.length} in-progress job(s): <b>${E.m(wipAmt)}</b></span>
-        ${completed.length ? `<br><span style="font-size:13px;color:#b91c1c">⚠ ${completed.length} completed job(s): <b>${E.m(closedAmt)}</b> → posts to 5390 Closed Job Adjustments</span>` : ''}
-        ${totalPct !== 10000 ? '<br><span class="bad" style="font-size:12px">⚠ Total ' + (totalPct / 100).toFixed(2) + '% — must equal 100%</span>' : ''}
-      </div>`;
-    } else if (tr === 'pool') {
-      summary = `<div style="background:linear-gradient(135deg,#fef3c7,#fde68a);padding:14px;border-radius:10px;border-left:4px solid #d97706">
-        <b>⏳ To overhead pool</b><br>
-        <span style="font-size:13px">${E.m(amt)} will absorb month-end. New pool: <b>${E.m(poolBal + amt)}</b></span>
-      </div>`;
-    } else if (tr === 'period') {
-      summary = `<div style="background:linear-gradient(135deg,#e0e7ff,#c7d2fe);padding:14px;border-radius:10px;border-left:4px solid #4f46e5">
-        <b>📄 Period expense</b><br>
-        <span style="font-size:13px">${E.m(amt)} → P&L. Not part of job cost.</span>
-      </div>`;
-    }
-    box.innerHTML = summary;
+    box.innerHTML = tr === 'pool'
+      ? `<div style="background:linear-gradient(135deg,#fef3c7,#fde68a);padding:12px;border-radius:10px;border-left:4px solid #d97706"><b>⏳ Overhead pool</b><br><span style="font-size:13px">${E.m(amt)} is debited to ${E.esc(a.name)} and absorbed into jobs at month-end. New pool: <b>${E.m(unabsorbed() + amt)}</b></span></div>`
+      : `<div style="background:linear-gradient(135deg,#e0e7ff,#c7d2fe);padding:12px;border-radius:10px;border-left:4px solid #4f46e5"><b>📒 Normal expense</b><br><span style="font-size:13px">Dr ${E.esc(a.name)} ${E.m(amt)} → profit &amp; loss. The job choice above is for costing only.</span></div>`;
   };
 
   E.A.exSave = async () => {
@@ -205,57 +163,25 @@
       if (amt <= 0) throw new Error('Enter amount');
       if (!pm) throw new Error('Choose payment');
       if (!d) throw new Error('Choose date');
-      let jobs = [];
-      if (tr === 'job') {
-        const sp = [...document.querySelectorAll('.exs')].map(i => ({ id: i.dataset.id, p: Math.round((parseFloat(i.value) || 0) * 100) })).filter(x => x.p > 0);
-        if (!sp.length) throw new Error('Choose jobs');
-        if (sp.reduce((s, x) => s + x.p, 0) !== 10000) throw new Error('Must total 100%');
-        let left = amt;
-        jobs = sp.map((x, i) => { const v = i === sp.length - 1 ? left : Math.round(amt * x.p / 10000); left -= v; return { jobId: x.id, amount: v }; });
-      }
+      const sh = tr === 'pool' ? [] : E.allocRead('ex');
       if (pm !== 'ACCR' && E.bal(pm) < amt && !confirm('Balance < expense. Continue?')) return;
       const no = await E.next('EXP');
       const cr = pm === 'ACCR' ? '2300' : pm;
       const payee = E.val('ex_p');
       const narr = [a.name, E.val('ex_n'), payee && 'to ' + payee].filter(Boolean).join(' · ');
-      const lines = [];
-      const closedVar = [];
-      if (tr === 'job') {
-        /* Double entry in the expense head's OWN ledger: the spend is debited there, then credited out to the job(s). The head's ledger statement shows both lines (net nil), the job gets its cost in WIP. */
-        lines.push({ acc: a.code, dr: amt });
-        for (const j of jobs) {
-          const job = J(j.jobId);
-          if (job && job.status === 'Completed') {
-            lines.push({ acc: '5390', dr: j.amount });
-            closedVar.push({ jobId: j.jobId, jobNo: job.no, amount: j.amount, closedDate: job.completedAt });
-          } else {
-            lines.push({ acc: '1310', dr: j.amount, job: j.jobId, cat: CAT[a.nature] || 'Overhead', head: a.code });
-          }
-        }
-        lines.push({ acc: a.code, cr: amt });
-      } else {
-        lines.push({ acc: a.code, dr: amt });
-      }
-      lines.push({ acc: cr, cr: amt });
+      /* NORMAL ACCOUNTING: Dr expense account / Cr cash, bank or accrued expenses. Nothing here touches job WIP. */
+      const lines = [{ acc: a.code, dr: amt }, { acc: cr, cr: amt }];
       await E.postThen({ date: d, ref: no, narr, source: 'expense', lines }, async je => {
-        const savedCv = [];
-        try {
-          await E.save('expenses', {
-            kind: 'voucher', no, date: d, head: a.code, headName: a.name, nature: a.nature, treatment: tr, amount: amt,
-            pay: pm, payee, ref: E.val('ex_r'), narr: E.val('ex_n'), jobs,
-            jeId: je.id, jeNo: je.no, cancelled: false, paid: false, closedVarCount: closedVar.length
-          });
-          for (const cv of closedVar) {
-            savedCv.push(await E.save('closedJobVariances', {
-              factoryId: E.fid, jobId: cv.jobId, jobNo: cv.jobNo, type: 'late-expense', amount: cv.amount, date: d,
-              closedDate: cv.closedDate, notes: a.name + ' · ' + no, sourceJeId: je.id, createdAt: new Date().toISOString()
-            }));
-          }
-        } catch (err) { for (const x of savedCv) try { await E.del('closedJobVariances', x.id); } catch (z) { } throw err; }
+        await E.save('expenses', {
+          kind: 'voucher', no, date: d, head: a.code, headName: a.name, nature: a.nature, treatment: tr, amount: amt,
+          pay: pm, payee, ref: E.val('ex_r'), narr: E.val('ex_n'), jobs: [],
+          jeId: je.id, jeNo: je.no, cancelled: false, paid: false
+        });
+        /* costing record only (no ledger lines) */
+        if (sh.length) await E.allocSplit(je, sh);
       });
       E.closeM(); E.go();
-      const msg = no + ' posted' + (closedVar.length ? ' · ' + closedVar.length + ' to 5390 (completed job)' : tr === 'job' ? ' → ' + jobs.length + ' job(s)' : '');
-      E.toast(msg, closedVar.length ? 'warning' : 'success');
+      E.toast(no + ' posted' + E.allocText(sh), 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
 
