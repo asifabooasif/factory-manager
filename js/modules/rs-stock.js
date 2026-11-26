@@ -3,7 +3,7 @@
    "Value by source" shows where every rupee of stock value came from: opening entries, purchases, production, returns, adjustments. */
 (E => {
   const RS = E.RS, D = RS.d, dt = RS.dt, add = RS.add;
-  const KINDS = [['Raw Material', 'Raw materials'], ['Accessory', 'Accessories'], ['Packing', 'Packing'], ['Finished Good', 'Finished goods']];
+  const KINDS = [['Raw Material', 'Raw materials'], ['Accessory', 'Accessories'], ['Packing', 'Packing'], ['Miscellaneous', 'Miscellaneous'], ['Finished Good', 'Finished goods']];
   const info = s => { const i = D.item(s.itemId); return { i, itemId: s.itemId, variantId: s.variantId, code: D.code(s.itemId, s.variantId), name: D.name(s.itemId), colour: D.colour(s.variantId), cat: D.catOf(i), kind: D.kindOf(i), unit: i ? (D.isFG(i) ? 'Pack' : (i.unit || '')) : '', fg: D.isFG(i) }; };
   const pass = (x, P) => (!P.item || x.itemId === P.item) && (!P.cat || x.cat === P.cat) && (!P.extra.kind || (x.i && x.i.cat === P.extra.kind));
   const kindF = { k: 'kind', l: 'Stock type', o: KINDS };

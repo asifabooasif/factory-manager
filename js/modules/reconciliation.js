@@ -16,7 +16,7 @@
     });
     if (daysMethodCodes.size === 0) {
       E.rows('coa').filter(a => a.nature === 'oh' && a.type === 'expense').forEach(a => {
-        if (!['5290', '5295', '5390'].includes(a.code)) daysMethodCodes.add(a.code);
+        if (!['5290', '5291', '5295', '5390'].includes(a.code)) daysMethodCodes.add(a.code);
       });
     }
 

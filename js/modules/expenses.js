@@ -7,7 +7,7 @@
   const F = { tab: 'reg', q: '', nat: '', tr: '', from: E.today().slice(0, 8) + '01', to: E.today() };
   const J = id => E.D.jobs.find(x => x.id === id);
   const active = () => E.rows('jobs').filter(j => j.status === 'In Progress');
-  const EXCLUDE_POOL = ['5290', '5295', '5390'];
+  const EXCLUDE_POOL = ['5290', '5291', '5295', '5390'];
   const heads = () => E.rows('coa').filter(a => a.type === 'expense' && a.nature
     && !['contra', 'cogs', 'loss'].includes(a.nature)
     && !EXCLUDE_POOL.includes(a.code) && !a.inactive)
@@ -226,7 +226,7 @@
   /* ─── Exclude 5290/5295/5390 from the overhead pool. 5260 (factory machinery depreciation) is a PERIOD expense by owner's decision: it is never absorbed into product cost ─── */
   const poolAccts = () => E.rows('coa').filter(a =>
     a.type === 'expense' && a.nature === 'oh' &&
-    !['5290', '5295', '5390', '5260'].includes(a.code) && !a.inactive
+    !['5290', '5291', '5295', '5390', '5260'].includes(a.code) && !a.inactive
   );
   E.unabsorbed = () => unabsorbed();
   function unabsorbed() {

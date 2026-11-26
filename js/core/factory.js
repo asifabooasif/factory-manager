@@ -34,6 +34,7 @@
     ['5270', 'Supervisors & Indirect Labour', 'expense', 0, 'oh', 'fixed'],
     ['5280', 'Water, Fuel & Gas', 'expense', 0, 'oh', 'semi'],
     ['5290', 'Overhead Absorbed to Jobs (contra)', 'expense', 0, 'contra', 'variable'],
+    ['5291', 'Wages & Overheads Absorbed into Stock (contra)', 'expense', 0, 'contra', 'variable'],
     ['5295', 'Overhead Under / Over Applied', 'expense', 0, 'oh', 'semi'],
     ['5300', 'Factory Loss (Wastage/Damage)', 'expense', 0, 'loss', 'variable'],
     ['5390', 'Closed Job Adjustments', 'expense', 0, 'oh', 'variable'],
@@ -61,7 +62,7 @@
   E.NATURE = {
     dm: 'Direct material', dl: 'Direct labour', oh: 'Indirect factory overhead',
     adm: 'Administrative', sel: 'Selling & distribution', fin: 'Finance',
-    oth: 'Other', contra: 'Overhead absorbed (contra)', loss: 'Factory loss', cogs: 'Cost of goods sold'
+    oth: 'Other', contra: 'Costs absorbed into stock (contra)', loss: 'Factory loss', cogs: 'Cost of goods sold'
   };
   E.natureTreat = n => n === 'dm' || n === 'dl' ? 'job' : n === 'oh' ? 'pool' : 'period';
 

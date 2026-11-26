@@ -6,7 +6,7 @@
    A costing record is valid only while its ledger entry is live: when the entry is cancelled / reversed / deleted, the costing record stops counting by itself. */
 (E => {
   const COL = 'costAllocations';
-  const SKIP = ['5290', '5295', '5390'];
+  const SKIP = ['5290', '5291', '5295', '5390'];
   const NOT = ['contra', 'cogs', 'loss'];
   const jeById = id => E.D.journalEntries.find(j => j.id === id);
   const J = id => E.D.jobs.find(j => j.id === id);

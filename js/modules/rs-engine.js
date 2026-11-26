@@ -256,7 +256,7 @@
       <div id="rs_out">${bodyOut(id)}</div>`;
   };
   RS.home = () => {
-    if (E.$('pt')) E.$('pt').textContent = 'Report Suite';
+    if (E.$('pt')) E.$('pt').textContent = 'Reports';
     const pn = pins(), tile = r => `<div class="rstile" data-a="rsGo" data-id="${r.id}"><b>${E.esc(r.t)}</b><span class="muted">${E.esc(r.d || '')}</span></div>`;
     const pinned = pn.map(i => RS.R[i]).filter(Boolean);
     return `<div class="bar"><input class="fs" id="rs_find" placeholder="Find a report: trial balance, ageing, item wise sales, job cost…" style="min-width:380px;flex:1"><span class="muted">${Object.keys(RS.R).length} reports · every figure comes from your ledger and stock records</span></div>
@@ -269,11 +269,15 @@
     const pinned = pn.map(i => RS.R[i]).filter(r => r && match(r));
     if (pinned.length) h += `<div class="card"><h3>★ Pinned</h3><div class="rsgrid">${pinned.map(tile).join('')}</div></div>`;
     RS.groups.forEach(g => { const L = Object.values(RS.R).filter(r => r.g === g[0] && match(r)); if (L.length) h += `<div class="card"><h3>${g[1]} ${g[2]}</h3><p class="muted" style="margin:-6px 0 10px">${g[3]}</p><div class="rsgrid">${L.map(tile).join('')}</div></div>`; });
+    /* older stand-alone screens that have no twin in the suite: kept here so there is ONE place for every report */
+    const EXT = [['ledger', 'Ledger Search (anything)', 'Search any customer, supplier, employee, account, job or item and see every posting.', 'search party ledger anything'], ['profit', 'Profitability', 'Real margin per article, customer and job from deliveries, reconciled to sales (4000).', 'profit margin profitability'], ['cashflow', 'Cash Forecast', 'Projects the bank balance week by week from open invoices, bills and uncleared cheques.', 'cash forecast weeks'], ['summary', 'Period Summary', 'Period summary of the business, including advances and staff loans outstanding.', 'period summary overview'], ['reconciliation', 'Fixed Expense Cost Reconciliation', 'Planned fixed expenses against actual paid and allocated to jobs.', 'cost reconciliation fixed expenses'], ['allocrecon', 'Job Cost Reconciliation', 'Ledger expense = tagged to jobs + not tagged, per account and per job.', 'job cost reconciliation allocation']].filter(x => !q || (x[1] + ' ' + x[2] + ' ' + x[3]).toLowerCase().includes(q));
+    if (EXT.length) h += `<div class="card"><h3>🧰 Planning & reconciliation tools</h3><p class="muted" style="margin:-6px 0 10px">Other screens that are not in the lists above.</p><div class="rsgrid">${EXT.map(x => `<div class="rstile" data-a="rsExt" data-id="${x[0]}"><b>${E.esc(x[1])}</b><span class="muted">${E.esc(x[2])}</span></div>`).join('')}</div></div>`;
     return h || '<p class="muted">No report matches. Try another word.</p>';
   }
-  E.route('rs', 'Report Suite', () => RS.cur && RS.R[RS.cur] ? RS.view() : RS.home());
+  E.A.rsExt = id => { location.hash = '#/' + id; };
+  E.route('rs', 'Reports', () => RS.cur && RS.R[RS.cur] ? RS.view() : RS.home());
   const at = E.N.findIndex(n => n.id === 'reports');
-  E.N.splice(at < 0 ? E.N.length : at, 0, { g: 'Reports', id: 'rs', ico: '🗂', label: 'Report Suite' });
+  E.N.splice(at < 0 ? E.N.length : at, 0, { g: 'Reports', id: 'rs', ico: '🗂', label: 'Reports' });
 
   RS.open = (id, p, keep) => {
     if (RS.cur && keep !== false) RS.hist.push(RS.cur);

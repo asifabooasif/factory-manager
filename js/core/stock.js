@@ -4,7 +4,7 @@ E.stock=(i,v)=>E.stockMap()[i+'|'+(v||'')]||{qty:0,value:0};
 /* Finished goods are kept as COLOUR PACKS: one stock line per Article + Colour (a pack = one size run, e.g. 6,7,7,8,8,9). Quantity = packs.
    Older size-wise SKUs still appear (with their size) until you deactivate them. */
 E.packPairs=itemId=>{const i=E.D.items.find(x=>x.id===itemId);return (i&&i.pack)||E.setting('packSize')||1};
-E.skuList=f=>{const out=[];E.rows('items').filter(i=>i.active&&(!f||f(i))).forEach(i=>{const fgI=i.cat==='Finished Good',grp=fgI?(i.sub||'Finished Good'):i.cat,vs=E.rows('variants').filter(v=>v.itemId===i.id&&v.active);
+E.skuList=f=>{const out=[];E.rows('items').filter(i=>i.active&&(!f||f(i))).forEach(i=>{const fgI=i.cat==='Finished Good',grp=fgI?(i.sub||'Finished Good'):(i.cat==='Miscellaneous'?'Miscellaneous · '+(i.sub||'General'):i.cat),vs=E.rows('variants').filter(v=>v.itemId===i.id&&v.active);
  const base={itemId:i.id,name:i.name,cat:i.cat,group:grp,unit:fgI?'Pack':i.unit,min:i.min,art:i.art,run:i.sizeRun||'',pairs:i.pack||0};
  if(!vs.length)out.push(Object.assign({},base,{variantId:'',code:i.art,barcode:'',color:'',label:i.art+' — '+i.name}));
  else vs.forEach(v=>out.push(Object.assign({},base,{variantId:v.id,code:v.sku,barcode:v.barcode,color:v.color||'',size:v.size||'',label:v.sku+' — '+i.name+([v.color,v.size].filter(Boolean).length?' ('+[v.color,v.size].filter(Boolean).join(' / ')+')':'')})))});return out};

@@ -19,7 +19,7 @@
   const SEV = { critical: 3, warn: 2, info: 1 };
   const SEVN = { critical: 'Critical', warn: 'Warning', info: 'Notice' };
   const CONTROL = ['1200', '1210', '1300', '1310', '1320', '2000', '2210', '2200', '2100', '1110', '2150', '1250', '2400', '1260'];
-  const CONTRA = ['1410', '4010', '5290'];
+  const CONTRA = ['1410', '4010', '5290', '5291'];
 
   /* ---------- tuneable limits (shown on the Rules list) ---------- */
   const TH = { priceMove: 0.15, lowMargin: 0.05, bomOver: 0.10, wastagePct: 0.03, spikeX: 1.5, spikeMin: 500000, recvDays: 60, unbilledDays: 14, epfDays: 45, backdate: 35 };
@@ -128,7 +128,7 @@
   rule('spike', 'Expenses', 'Expense spikes', 'An expense account running well above its own three-month average.', ctx => {
     const out = [], t = ctx.today, curM = ym(t), dn = +t.slice(8, 10), mkey = k => { const d = new Date(t.slice(0, 7) + '-01T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() - k); return d.toISOString().slice(0, 7); };
     const mths = [1, 2, 3, 4].map(mkey), per = {};
-    ctx.JL.forEach(l => { const a = ctx.acc[l.acc]; if (!a || a.type !== 'expense' || ['5290', '5400', '5300', '5260', '6150', '5295', '5390'].includes(l.acc)) return; const m = ym(l.date); if (m !== curM && !mths.includes(m)) return; (per[l.acc] = per[l.acc] || {})[m] = ((per[l.acc] || {})[m] || 0) + l.dr - l.cr; });
+    ctx.JL.forEach(l => { const a = ctx.acc[l.acc]; if (!a || a.type !== 'expense' || ['5290', '5291', '5400', '5300', '5260', '6150', '5295', '5390'].includes(l.acc)) return; const m = ym(l.date); if (m !== curM && !mths.includes(m)) return; (per[l.acc] = per[l.acc] || {})[m] = ((per[l.acc] || {})[m] || 0) + l.dr - l.cr; });
     Object.keys(per).forEach(code => {
       const p = per[code], base = [mths[1], mths[2], mths[3]].map(m => p[m] || 0), avg = base.reduce((s, x) => s + x, 0) / 3; if (avg <= 0 || base.filter(x => x > 0).length < 2) return;
       const chk = (val, label) => { if (val > avg * TH.spikeX && val - avg > TH.spikeMin) out.push({ id: 'spike:' + code + ':' + label, sev: 'warn', area: 'Expenses', title: ctx.acc[code].name + ' is ' + Math.round(val * 100 / avg) + '% of its usual level (' + label + ')', detail: money(Math.round(val)) + ' vs three-month average ' + money(Math.round(avg)),

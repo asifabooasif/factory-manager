@@ -22,7 +22,7 @@
   const list = a => a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
   const plural = (n, w) => n + ' ' + (n === 1 ? w : (/[^aeiou]y$/.test(w) ? w.slice(0, -1) + 'ies' : w + 's'));
   const EXP_SRC = ['expense', 'petty', 'voucher', 'manual'];
-  const NOT_EXP = ['5400', '5290', '5300', '5260', '5390', '5295'];
+  const NOT_EXP = ['5400', '5290', '5291', '5300', '5260', '5390', '5295'];
   const pastEod = () => { const n = new Date(), p = String(SN.cfg.eod || '17:30').split(':'), h = Number.isFinite(+p[0]) ? +p[0] : 17, m = Number.isFinite(+p[1]) ? +p[1] : 0; return n.getHours() * 60 + n.getMinutes() >= h * 60 + m; };
 
   /* ---------- things you confirmed: "no expenses that day" etc. ---------- */

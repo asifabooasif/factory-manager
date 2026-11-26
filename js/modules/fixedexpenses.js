@@ -6,7 +6,7 @@
   let CM = E.today().slice(0, 7);
   const monthRec = m => E.rows('fixedExpenses').filter(f => f.month === m);
   const getExpense = (m, code) => monthRec(m).find(f => f.code === code);
-  const EXCLUDE = ['5290', '5295', '5390'];
+  const EXCLUDE = ['5290', '5291', '5295', '5390'];
 
   /* Monthly-salaried staff for a month with the salary in force and the employer EPF/ETF cost.
      Admin staff (charged to Admin) are listed but excluded from the aggregate that is spread over jobs. */

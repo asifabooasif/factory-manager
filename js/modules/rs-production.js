@@ -20,7 +20,7 @@
     f: ['range', 'cmp', 'detail'], preset: 'fy', def: { detail: true }, detailLabel: 'Show every overhead account',
     build(P) {
       const A = [{ from: P.from, to: P.to, label: RS.periodLabel(P.from, P.to), short: 'current' }], c = RS.cmpRange(P.from, P.to, P.cmp); if (c) A.push({ from: c[0], to: c[1], label: RS.periodLabel(c[0], c[1]), short: 'compared' });
-      A.forEach(p => { p.m = D.range(p.from, p.to); p.w = wipCats(p.from, p.to); p.wo = D.natC('1310', D.upTo(dt.addDays(p.from, -1))); p.wc = D.natC('1310', D.upTo(p.to)); p.pk = packsOut(p.from, p.to); p.pr = pairsOut(p.from, p.to); p.xfer = -(p.w.Release + p.w.Costing); p.charged = p.w.Material + p.w.Labour + p.w.Overhead + p.w.Other; p.rmo = stockLedger('1300', dt.addDays(p.from, -1)); p.rmc = stockLedger('1300', p.to); p.fgo = stockLedger('1320', dt.addDays(p.from, -1)); p.fgc = stockLedger('1320', p.to); p.rm = bySrc('1300', p.from, p.to); p.fg = bySrc('1320', p.from, p.to, x => x.cat === 'Release' || x.cat === 'Costing'); p.fgIn = (() => { let s = 0; D.lines().forEach(x => { if (x.acc === '1320' && x.date >= p.from && x.date <= p.to && (x.cat === 'Release' || x.cat === 'Costing')) s += x.dr - x.cr; }); return s; })(); });
+      A.forEach(p => { p.m = D.range(p.from, p.to); p.abs = -D.natC('5291', p.m); p.w = wipCats(p.from, p.to); p.wo = D.natC('1310', D.upTo(dt.addDays(p.from, -1))); p.wc = D.natC('1310', D.upTo(p.to)); p.pk = packsOut(p.from, p.to); p.pr = pairsOut(p.from, p.to); p.xfer = -(p.w.Release + p.w.Costing); p.charged = p.w.Material + p.w.Labour + p.w.Overhead + p.w.Other; p.rmo = stockLedger('1300', dt.addDays(p.from, -1)); p.rmc = stockLedger('1300', p.to); p.fgo = stockLedger('1320', dt.addDays(p.from, -1)); p.fgc = stockLedger('1320', p.to); p.rm = bySrc('1300', p.from, p.to); p.fg = bySrc('1320', p.from, p.to, x => x.cat === 'Release' || x.cat === 'Costing'); p.fgIn = (() => { let s = 0; D.lines().forEach(x => { if (x.acc === '1320' && x.date >= p.from && x.date <= p.to && (x.cat === 'Release' || x.cat === 'Costing')) s += x.dr - x.cr; }); return s; })(); });
       function stockLedger(acc, d) { return D.natC(acc, D.upTo(d)); }
       const S = RS.stmt(A, { first: 'Particulars' }), oh = D.coa().filter(a => a.type === 'expense' && a.nature === 'oh' && a.code !== '5260' && a.code !== '5290');
       const per = (n, f) => p => p.pk ? f(p) / p.pk : 0;
@@ -40,9 +40,10 @@
       S.sub('TOTAL PRODUCTION COST CHARGED TO JOBS', p => p.charged, { i: 0 });
       S.row('Add: opening work in progress', p => p.wo, { always: true });
       S.row('Less: closing work in progress', p => -p.wc, { always: true });
-      S.tot('COST OF GOODS MANUFACTURED (transferred to finished goods)', p => p.wo + p.charged - p.wc);
+      S.row('Add: wages & overheads tagged to jobs, absorbed into finished goods (from period expenses)', p => p.abs, { always: true });
+      S.tot('COST OF GOODS MANUFACTURED (transferred to finished goods)', p => p.wo + p.charged - p.wc + p.abs);
       S.row('Packs completed (released to finished goods)', p => p.pk, { t: 'qty', always: true }); S.row('Pairs completed', p => p.pr, { t: 'qty', always: true });
-      S.row('Factory cost per pack', p => p.pk ? Math.round((p.wo + p.charged - p.wc) / p.pk) : 0, { always: true }); S.row('Factory cost per pair', p => p.pr ? Math.round((p.wo + p.charged - p.wc) / p.pr) : 0, { always: true });
+      S.row('Factory cost per pack', p => p.pk ? Math.round((p.wo + p.charged - p.wc + p.abs) / p.pk) : 0, { always: true }); S.row('Factory cost per pair', p => p.pr ? Math.round((p.wo + p.charged - p.wc + p.abs) / p.pr) : 0, { always: true });
       /* 3. overhead */
       S.sp(); S.head('3. FACTORY OVERHEAD ACCOUNT (incurred versus absorbed)');
       if (P.detail) oh.forEach(a => S.acc(a));
@@ -61,15 +62,15 @@
       S.sub('Closing finished goods', p => p.fgc, { i: 0 });
       S.row('Cost of goods sold per ledger (5400)', p => D.natC('5400', p.m), { always: true });
       S.sp(); S.head('5. FULL COST (for pricing decisions only)');
-      S.row('Factory cost of production', p => p.wo + p.charged - p.wc, { always: true });
+      S.row('Factory cost of production', p => p.wo + p.charged - p.wc + p.abs, { always: true });
       S.row('Add: administration, selling & finance expenses', p => D.sum(p.m, a => a.type === 'expense' && ['adm', 'sel', 'fin', 'oth'].includes(a.nature)));
-      S.row('Add: factory overhead not absorbed + depreciation + losses', p => D.sum(p.m, a => a.type === 'expense' && (a.nature === 'oh' || a.nature === 'loss' || a.nature === 'contra') && a.code !== '5390'));
-      S.tot('FULL COST OF PRODUCTION', p => (p.wo + p.charged - p.wc) + D.sum(p.m, a => a.type === 'expense' && ['adm', 'sel', 'fin', 'oth'].includes(a.nature)) + D.sum(p.m, a => a.type === 'expense' && (a.nature === 'oh' || a.nature === 'loss' || a.nature === 'contra') && a.code !== '5390'));
-      S.row('Full cost per pack', p => p.pk ? Math.round(((p.wo + p.charged - p.wc) + D.sum(p.m, a => a.type === 'expense' && ['adm', 'sel', 'fin', 'oth'].includes(a.nature)) + D.sum(p.m, a => a.type === 'expense' && (a.nature === 'oh' || a.nature === 'loss' || a.nature === 'contra') && a.code !== '5390')) / p.pk) : 0, { always: true });
+      S.row('Add: factory overhead not absorbed + depreciation + losses', p => D.sum(p.m, a => a.type === 'expense' && (a.nature === 'oh' || a.nature === 'loss' || a.nature === 'contra' || a.nature === 'dl') && a.code !== '5390'));
+      S.tot('FULL COST OF PRODUCTION', p => (p.wo + p.charged - p.wc + p.abs) + D.sum(p.m, a => a.type === 'expense' && ['adm', 'sel', 'fin', 'oth'].includes(a.nature)) + D.sum(p.m, a => a.type === 'expense' && (a.nature === 'oh' || a.nature === 'loss' || a.nature === 'contra' || a.nature === 'dl') && a.code !== '5390'));
+      S.row('Full cost per pack', p => p.pk ? Math.round(((p.wo + p.charged - p.wc + p.abs) + D.sum(p.m, a => a.type === 'expense' && ['adm', 'sel', 'fin', 'oth'].includes(a.nature)) + D.sum(p.m, a => a.type === 'expense' && (a.nature === 'oh' || a.nature === 'loss' || a.nature === 'contra' || a.nature === 'dl') && a.code !== '5390')) / p.pk) : 0, { always: true });
       const p0 = A[0], checks = [];
       const rmStock = stockVal(p0.to, false), fgStock = stockVal(p0.to, true);
       checks.push([p0.wo + p0.charged + p0.xfer * -1 === p0.wc, 'Work in progress: opening + costs charged - transferred to finished goods = closing', p0.wo + p0.charged - p0.xfer === p0.wc ? E.m(p0.wc) : 'Difference ' + E.m(p0.wo + p0.charged - p0.xfer - p0.wc)]);
-      checks.push([p0.fgIn === p0.xfer, 'Cost of goods manufactured agrees with what finished goods received', p0.fgIn === p0.xfer ? E.m(p0.xfer) : 'Finished goods received ' + E.m(p0.fgIn) + ' vs transferred out of WIP ' + E.m(p0.xfer)]);
+      checks.push([p0.fgIn === p0.xfer + p0.abs, 'Cost of goods manufactured agrees with what finished goods received', p0.fgIn === p0.xfer + p0.abs ? E.m(p0.fgIn) : 'Finished goods received ' + E.m(p0.fgIn) + ' vs transferred out of WIP ' + E.m(p0.xfer) + ' + absorbed ' + E.m(p0.abs)]);
       checks.push([rmStock === p0.rmc, 'Raw material closing = stock records', rmStock === p0.rmc ? E.m(rmStock) : 'Ledger ' + E.m(p0.rmc) + ' vs stock records ' + E.m(rmStock)]);
       checks.push([fgStock === p0.fgc, 'Finished goods closing = stock records', fgStock === p0.fgc ? E.m(fgStock) : 'Ledger ' + E.m(p0.fgc) + ' vs stock records ' + E.m(fgStock)]);
       const jobWip = Object.values(D.jobCost('', p0.to)).reduce((s, r) => s + r.bal, 0); checks.push([jobWip === p0.wc, 'Closing work in progress = sum of all job balances', jobWip === p0.wc ? E.m(p0.wc) : 'Jobs ' + E.m(jobWip) + ' vs ledger ' + E.m(p0.wc)]);

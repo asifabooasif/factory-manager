@@ -2,7 +2,8 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
 
 (E => {
   const n = E.N.find(x => x.id === 'items'); if (n) n.soon = 0;
-  const CATS = ['Finished Good', 'Raw Material', 'Accessory', 'Packing'];
+  const CATS = ['Finished Good', 'Raw Material', 'Accessory', 'Packing', 'Miscellaneous'];
+  const miscSubs = () => [...new Set(E.rows('items').filter(i => i.cat === 'Miscellaneous').map(i => i.sub || 'General'))].sort();
   const UNITS = ['Pair', 'Pcs', 'Kg', 'Meter', 'Sheet', 'Roll', 'Litre', 'Box', 'Pack', 'g', 'ml'];
   const F = { q: '', g: '', act: '1' };
   
@@ -10,7 +11,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
   const used = id => E.D.stockMoves.some(m => m.itemId === id) || E.D.jobLines.some(l => l.itemId === id) || E.D.issues.some(l => l.itemId === id);
   const list = s => (s || '').split(',').map(x => x.trim()).filter(Boolean);
   const title = c => c.replace(/\s+/g, ' ').trim().replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
-  const grpOf = i => i.cat === 'Finished Good' ? 'FG:' + (i.sub || 'Other') : i.cat;
+  const grpOf = i => i.cat === 'Finished Good' ? 'FG:' + (i.sub || 'Other') : i.cat === 'Miscellaneous' ? 'MISC:' + (i.sub || 'General') : i.cat;
 
   const ean = async () => {
     const k = +(await E.next('BC')).slice(3), b = '890' + String(k).padStart(9, '0');
@@ -90,16 +91,16 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
 
   function chips() {
     const rows = E.rows('items').filter(i => F.act === '' || i.active === (F.act === '1'));
-    const cnt = k => rows.filter(i => k === 'FG:*' ? i.cat === 'Finished Good' : grpOf(i) === k).length;
+    const cnt = k => rows.filter(i => k === 'FG:*' ? i.cat === 'Finished Good' : k === 'MISC:*' ? i.cat === 'Miscellaneous' : grpOf(i) === k).length;
     const subs = [...new Set([...E.fgCats(), ...rows.filter(i => i.cat === 'Finished Good').map(i => i.sub || 'Other')])];
     const b = (k, l, c) => `<button class="chip ${F.g === k ? 'on' : ''}" data-a="itGrp" data-id="${k}">${l} <small>${c}</small></button>`;
-    return `<div class="chips">${b('', 'All', rows.length)}${b('FG:*', 'Finished goods', cnt('FG:*'))}${subs.map(s => b('FG:' + s, '↳ ' + E.esc(s), cnt('FG:' + s))).join('')}${['Raw Material', 'Accessory', 'Packing'].map(c => b(c, c, cnt(c))).join('')}</div>`;
+    return `<div class="chips">${b('', 'All', rows.length)}${b('FG:*', 'Finished goods', cnt('FG:*'))}${subs.map(s => b('FG:' + s, '↳ ' + E.esc(s), cnt('FG:' + s))).join('')}${['Raw Material', 'Accessory', 'Packing'].map(c => b(c, c, cnt(c))).join('')}${b('MISC:*', 'Miscellaneous', cnt('MISC:*'))}${miscSubs().map(s => b('MISC:' + s, '↳ ' + E.esc(s), cnt('MISC:' + s))).join('')}</div>`;
   }
 
   function tbl() {
     const s = F.q.toLowerCase();
     const rows = E.rows('items')
-      .filter(i => (!F.g || (F.g === 'FG:*' ? i.cat === 'Finished Good' : grpOf(i) === F.g)) && (F.act === '' || i.active === (F.act === '1')) && (!s || (i.art + ' ' + i.name + ' ' + (i.sub || '') + ' ' + (i.sizeRun || '') + ' ' + vs(i.id).map(v => v.sku + ' ' + v.barcode + ' ' + v.color).join(' ')).toLowerCase().includes(s)))
+      .filter(i => (!F.g || (F.g === 'FG:*' ? i.cat === 'Finished Good' : F.g === 'MISC:*' ? i.cat === 'Miscellaneous' : grpOf(i) === F.g)) && (F.act === '' || i.active === (F.act === '1')) && (!s || (i.art + ' ' + i.name + ' ' + (i.sub || '') + ' ' + (i.sizeRun || '') + ' ' + vs(i.id).map(v => v.sku + ' ' + v.barcode + ' ' + v.color).join(' ')).toLowerCase().includes(s)))
       .sort((a, b) => grpOf(a).localeCompare(grpOf(b)) || a.art.localeCompare(b.art));
     return `<div class="tw"><table>
       <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Details</th><th>Colours</th><th class="r">Price</th><th>🧪</th><th></th></tr></thead>
@@ -151,6 +152,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
     
     document.querySelectorAll('.fg-only').forEach(x => x.style.display = fgI ? '' : 'none');
     document.querySelectorAll('.rm-only').forEach(x => x.style.display = fgI ? 'none' : '');
+    document.querySelectorAll('.misc-only').forEach(x => x.style.display = cat === 'Miscellaneous' ? '' : 'none');
     
     const unitSel = E.$('i_unit');
     if (fgI) {
@@ -209,6 +211,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
       <div class="rm-only" style="${fgI ? 'display:none' : ''}">
         <div class="card" style="background:var(--s);border:1px solid var(--bd);padding:14px;margin:12px 0">
           <h4 style="margin:0 0 10px;color:var(--ac);font-size:14px">Material Settings</h4>
+          <div class="f misc-only" style="${it && it.cat === 'Miscellaneous' ? '' : 'display:none'}">Miscellaneous sub-category *<input id="i_msub" list="i_msubs" value="${E.esc(it && it.sub)}" placeholder="e.g., Glue &amp; chemicals, Thread, Labels, Cartons"><datalist id="i_msubs">${miscSubs().map(s => `<option value="${E.esc(s)}">`).join('')}</datalist><small class="muted">Type a new sub-category or pick an existing one. These are real stock items: buy them, count them, and pick them in an article's BOM.</small></div>
           <div class="g2">
             <div class="f">Unit of Measure *<select id="i_unit">${UNITS.map(u => `<option ${((it ? it.unit : 'Pcs') === u) ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
             <div class="f">Purchase price per unit (Rs) *<input id="i_buy" type="number" step="0.01" value="${it && (it.buyPrice || it.price) ? ((it.buyPrice || it.price) / 100).toFixed(2) : ''}"></div>
@@ -305,6 +308,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
     const run = fgI ? E.expandSizes(E.val('i_run')) : [];
     if (fgI && !run.length) return E.toast('Enter size run (e.g., 36-41)', 'error');
     if (!fgI && !(E.c(E.val('i_buy')) > 0)) return E.toast('Enter a valid purchase price', 'error');
+    if (cat === 'Miscellaneous' && !E.val('i_msub').trim()) return E.toast('Enter the Miscellaneous sub-category (for example Thread or Labels)', 'error');
 
     const openQty = parseFloat(E.val('i_open_qty')) || 0;
     if (openQty < 0) return E.toast('Opening quantity cannot be negative', 'error');
@@ -316,7 +320,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
     Object.assign(it, {
       name, cat, unit: fgI ? 'Pack' : E.val('i_unit'),
       pack: fgI ? run.length : 0,
-      sizeRun: fgI ? run.join(',') : '', sub: fgI ? E.val('i_sub') : '',
+      sizeRun: fgI ? run.join(',') : '', sub: fgI ? E.val('i_sub') : cat === 'Miscellaneous' ? (E.val('i_msub').trim() || 'General') : '',
       price: fgI ? E.c(E.val('i_price')) : 0,
       cost: fgI ? E.c(E.val('i_cost')) : (it.cost || 0),
       buyPrice: fgI ? (it.buyPrice || 0) : E.c(E.val('i_buy')),
@@ -354,7 +358,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
     if (!it) return;
     const bom = it.bom || [];
     // Strictly filter ONLY Raw Materials, Accessories, and Packing
-    const materials = E.rows('items').filter(i => i.cat !== 'Finished Good').sort((a, b) => a.art.localeCompare(b.art));
+    const materials = E.rows('items').filter(i => i.cat !== 'Finished Good' && i.active !== false).sort((a, b) => ((a.cat === 'Miscellaneous') - (b.cat === 'Miscellaneous')) || (a.sub || '').localeCompare(b.sub || '') || a.art.localeCompare(b.art));
     
     E.modal('BOM — ' + it.art + ' ' + it.name, `
       <p class="muted" style="margin-bottom:14px"><b style="color:var(--ac)">STRICTLY PER PAIR.</b> Define exactly how much material goes into ONE PAIR. (e.g., if a Box holds 6 pairs, enter 0.1667). This BOM is shared across all colours.</p>
@@ -365,7 +369,7 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
             return `<tr data-bom="${i}">
               <td><select class="bom-mat" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:8px">
                 <option value="">— select material —</option>
-                ${materials.map(m => `<option value="${m.id}" ${b.itemId === m.id ? 'selected' : ''}>${E.esc(m.art)} — ${E.esc(m.name)}</option>`).join('')}
+                ${materials.map(m => `<option value="${m.id}" ${b.itemId === m.id ? 'selected' : ''}>${m.cat === 'Miscellaneous' ? '[Misc · ' + E.esc(m.sub || 'General') + '] ' : ''}${E.esc(m.art)} — ${E.esc(m.name)}</option>`).join('')}
               </select></td>
               <td class="r"><input class="bom-qty" type="number" step="0.0001" value="${b.qty || ''}" style="width:100px;padding:6px;text-align:right;border:1px solid var(--bd);border-radius:8px"></td>
               <td><button class="btn sm d" data-a="bomRm" data-id="${i}">✕</button></td>
@@ -386,11 +390,11 @@ console.log("🔥🔥🔥 ULTIMATE ENTERPRISE ITEMS JS LOADED 🔥🔥🔥");
     const tb = E.$('bom_body');
     if (tb.innerHTML.includes('No materials yet')) tb.innerHTML = '';
     const idx = Date.now();
-    const materials = E.rows('items').filter(i => i.cat !== 'Finished Good').sort((a, b) => a.art.localeCompare(b.art));
+    const materials = E.rows('items').filter(i => i.cat !== 'Finished Good' && i.active !== false).sort((a, b) => ((a.cat === 'Miscellaneous') - (b.cat === 'Miscellaneous')) || (a.sub || '').localeCompare(b.sub || '') || a.art.localeCompare(b.art));
     tb.insertAdjacentHTML('beforeend', `<tr data-bom="${idx}">
       <td><select class="bom-mat" style="width:100%;padding:6px;border:1px solid var(--bd);border-radius:8px">
         <option value="">— select material —</option>
-        ${materials.map(m => `<option value="${m.id}">${E.esc(m.art)} — ${E.esc(m.name)}</option>`).join('')}
+        ${materials.map(m => `<option value="${m.id}">${m.cat === 'Miscellaneous' ? '[Misc · ' + E.esc(m.sub || 'General') + '] ' : ''}${E.esc(m.art)} — ${E.esc(m.name)}</option>`).join('')}
       </select></td>
       <td class="r"><input class="bom-qty" type="number" step="0.0001" style="width:100px;padding:6px;text-align:right;border:1px solid var(--bd);border-radius:8px"></td>
       <td><button class="btn sm d" data-a="bomRm" data-id="${idx}">✕</button></td>

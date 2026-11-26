@@ -11,6 +11,13 @@
   const lines = id => E.rows('journalEntries').flatMap(j => j.lines.filter(l => l.job === id).map(l => Object.assign({ date: j.date, no: j.no, narr: j.narr }, l)));
   const wip = id => lines(id).filter(l => l.acc === '1310').reduce((s, l) => s + l.dr - l.cr, 0);
   E.jobWip = wip;
+  /* Full-cost finished goods: wages and overheads tagged to a job (costing records) are absorbed into finished goods
+     through contra account 5291 as the pairs are released, so stock is valued at the exact full cost. */
+  const ABS = '5291';
+  const absorbed = id => lines(id).filter(l => l.acc === ABS).reduce((s, l) => s + (l.cr || 0) - (l.dr || 0), 0);
+  /* standard BOM-misc amounts (kind 'bommisc') have no ledger expense behind them, so they are never absorbed */
+  const poolOf = id => E.allocRows ? E.allocRows(id).filter(a => a.kind !== 'bommisc').reduce((s, a) => s + a.amount, 0) : 0;
+  E.jobAbsorbed = absorbed;
   const pairsPerPack = l => { const i = itemOf(l); return i.pack || E.setting('packSize') || 1; };
   const active = () => E.rows('jobs').filter(j => j.status === 'In Progress');
   const CATS = ['Material', 'Labour', 'Overhead', 'Consumable'];
@@ -45,6 +52,17 @@
       r.pairs = r.l.released * pairsPerPack(r.l);
       r.unitPack = r.packs ? Math.round(r.total / r.packs) : 0;
       r.unitPair = r.pairs ? Math.round(r.total / r.pairs) : 0;
+    });
+    /* wages / overheads tagged to the job (costing records): by article, shared ones split by pairs */
+    const AB = {}; (E.allocRows ? E.allocRows(j.id) : []).filter(a => a.kind !== 'bommisc').forEach(a => { AB[a.art || ''] = (AB[a.art || ''] || 0) + a.amount; }); const shared = AB[''] || 0, tp = R.reduce((a, r) => a + r.pairs, 0);
+    let lastP = -1; R.forEach((r, i) => { if (r.pairs > 0) lastP = i; });
+    let shLeft = tp ? shared : 0;
+    R.forEach((r, i) => {
+      const sp = !tp ? 0 : (i === lastP ? shLeft : Math.round(shared * r.pairs / tp)); shLeft -= sp;
+      r.Alloc = (AB[r.l.id] || 0) + sp;
+      r.full = r.total + r.Alloc;
+      r.fullPack = r.packs ? Math.round(r.full / r.packs) : 0;
+      r.fullPair = r.pairs ? Math.round(r.full / r.pairs) : 0;
     });
     return { R, rel, sh };
   }
@@ -556,21 +574,31 @@
         leftValue -= v;
         return v;
       });
+
+      /* wages and overheads tagged to the job and not yet absorbed: same share of them moves into finished goods */
+      const remAbs = poolOf(id) - absorbed(id);
+      const absPart = remAbs > 0 ? Math.round(remAbs * (totalPairsToRelease / remPairs)) : 0;
+      let leftAbs = absPart;
+      const absVals = rq.map((x, i) => {
+        const v = i === rq.length - 1 ? leftAbs : Math.round(absPart * (x.pairs / totalPairsToRelease));
+        leftAbs -= v;
+        return v;
+      });
       
       const d = E.val('r_d'), no = await E.next('REL');
       
       await E.postThen({ 
         date: d, ref: no, narr: 'Release ' + totalPairsToRelease + ' pairs', source: 'release',
-        lines: rq.map((x, i) => ({ acc: '1320', dr: vals[i], job: id, cat: 'Release', art: x.l.id })).concat([{ acc: '1310', cr: batchValue, job: id, cat: 'Release' }]) 
+        lines: rq.map((x, i) => ({ acc: '1320', dr: vals[i] + absVals[i], job: id, cat: 'Release', art: x.l.id })).concat([{ acc: '1310', cr: batchValue, job: id, cat: 'Release' }]).concat(absPart > 0 ? [{ acc: ABS, cr: absPart, job: id, cat: 'Absorbed' }] : [])
       }, async () => {
         for (let i = 0; i < rq.length; i++) {
           const { l, pairs } = rq[i];
           const pp = pairsPerPack(l);
           const packsToAdd = pairs / pp;
-          await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: packsToAdd, value: vals[i], type: 'release', ref: no, job: id });
+          await E.stockIn({ date: d, itemId: l.itemId, variantId: l.variantId, qty: packsToAdd, value: vals[i] + absVals[i], type: 'release', ref: no, job: id });
           const b = JSON.parse(JSON.stringify(l));
           l.released += packsToAdd;
-          l.fgValue += vals[i];
+          l.fgValue += vals[i] + absVals[i];
           await E.save('jobLines', l, b);
         }
       });
@@ -691,22 +719,26 @@
         await E.post({ date: E.today(), ref: nu, narr: 'Unused job material written off · ' + j.no, source: 'release', lines: Object.keys(unusedBy).map(lid => ({ acc: '1310', cr: unusedBy[lid], job: id, cat: 'Material', art: lid })).concat([{ acc: '5300', dr: unusedTot }]) });
       }
       const { R } = sheet(j);
-      const d = R.map(r => r.total - (r.l.fgValue || 0));
+      const remAbs = poolOf(id) - absorbed(id);
+      const d = R.map(r => r.full - (r.l.fgValue || 0));
       const sum = d.reduce((a, b) => a + b, 0);
-      if (Math.abs(sum - wip(id)) > 1) throw new Error('Cost sheet vs WIP differ by ' + E.m(sum - wip(id)));
-      if (!confirm('Complete ' + j.no + '? Remaining WIP ' + E.m(sum) + ' → FG.')) return;
+      if (Math.abs(sum - remAbs - wip(id)) > 1) throw new Error('Cost sheet vs WIP differ by ' + E.m(sum - remAbs - wip(id)));
+      if (!confirm('Complete ' + j.no + '? Remaining WIP ' + E.m(sum - remAbs) + (remAbs ? ' + wages/overheads ' + E.m(remAbs) : '') + ' → finished goods at full cost.')) return;
       const no = await E.next('CMP'), ls = [];
       R.forEach((r, i) => {
         if (d[i] > 0) ls.push({ acc: '1320', dr: d[i], job: id, cat: 'Costing', art: r.l.id });
         if (d[i] < 0) ls.push({ acc: '1320', cr: -d[i], job: id, cat: 'Costing', art: r.l.id });
       });
-      if (sum > 0) ls.push({ acc: '1310', cr: sum, job: id, cat: 'Costing' });
-      if (sum < 0) ls.push({ acc: '1310', dr: -sum, job: id, cat: 'Costing' });
+      const matPart = sum - remAbs;
+      if (matPart > 0) ls.push({ acc: '1310', cr: matPart, job: id, cat: 'Costing' });
+      if (matPart < 0) ls.push({ acc: '1310', dr: -matPart, job: id, cat: 'Costing' });
+      if (remAbs > 0) ls.push({ acc: ABS, cr: remAbs, job: id, cat: 'Absorbed' });
+      if (remAbs < 0) ls.push({ acc: ABS, dr: -remAbs, job: id, cat: 'Absorbed' });
       if (ls.length > 1) await E.post({ date: E.today(), ref: no, narr: 'Final costing', source: 'release', lines: ls });
       for (let i = 0; i < R.length; i++) {
         const r = R[i], l = r.l, b = JSON.parse(JSON.stringify(l));
         if (d[i]) await E.stockIn({ date: E.today(), itemId: l.itemId, variantId: l.variantId, qty: 0, value: d[i], type: 'costing', ref: no, job: id });
-        Object.assign(l, { alloc: r.total, unitCost: r.unitPack, unitCostPerPair: r.unitPair, fgValue: r.total });
+        Object.assign(l, { alloc: r.full, unitCost: r.fullPack, unitCostPerPair: r.fullPair, fgValue: r.full });
         await E.save('jobLines', l, b);
       }
       const bj = JSON.parse(JSON.stringify(j));
