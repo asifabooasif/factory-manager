@@ -57,22 +57,24 @@ function bomCalc(){const m=need(),keys=Object.keys(m),box=E.$('bomr');if(!box)re
 /* ONE shared engine for issuing materials by BOM (used by Materials > Issue by BOM AND by New Job).
    packs = {jobLineId: packsStarting}. One journal entry (Dr WIP per article / Cr Raw Material Stock), stock moves at weighted-average cost,
    all-or-nothing: if anything fails the ledger entry is reversed and stock moves are put back. */
-E.bomNeeds=packs=>{const m={};Object.keys(packs).forEach(lid=>{const q=packs[lid];if(!(q>0))return;const l=E.D.jobLines.find(x=>x.id===lid),i=l&&it(l.itemId);((i&&i.bom)||[]).forEach(b=>{const k=b.itemId+'|'+(b.variantId||'');const n=q3(b.qty*q*((i&&i.pack)||1));(m[k]=m[k]||{itemId:b.itemId,variantId:b.variantId||'',parts:[]}).parts.push({lineId:lid,qty:n})})});return m};
+E.bomNeeds=(packs,adj)=>{const m={};Object.keys(packs).forEach(lid=>{const q=packs[lid];if(!(q>0))return;const l=E.D.jobLines.find(x=>x.id===lid),i=l&&it(l.itemId);((i&&i.bom)||[]).forEach(b=>{const k=b.itemId+'|'+(b.variantId||'');const ov=adj&&adj[lid]&&adj[lid].mat&&adj[lid].mat[k],n=ov&&ov.qty!=null?q3(ov.qty):q3(b.qty*q*((i&&i.pack)||1));(m[k]=m[k]||{itemId:b.itemId,variantId:b.variantId||'',parts:[]}).parts.push({lineId:lid,qty:n,price:ov&&ov.price!=null?ov.price:null})})});return m};
 /* Miscellaneous BOM costs (items that cannot be tracked in inventory): standard amount per pair, charged to the job's WIP and credited to the chosen expense ledger. */
-E.bomMisc=packs=>{const out=[];Object.keys(packs).forEach(lid=>{const q=packs[lid];if(!(q>0))return;const l=E.D.jobLines.find(x=>x.id===lid),i=l&&it(l.itemId);((i&&i.bomMisc)||[]).forEach(m=>{const a=Math.round((m.amt||0)*q*((i&&i.pack)||1));if(a>0&&E.acct(m.acc))out.push({lineId:lid,acc:m.acc,name:m.name,amount:a})})});return out};
+E.bomMisc=(packs,adj)=>{const out=[];Object.keys(packs).forEach(lid=>{const q=packs[lid];if(!(q>0))return;const l=E.D.jobLines.find(x=>x.id===lid),i=l&&it(l.itemId);((i&&i.bomMisc)||[]).forEach((m,ix)=>{const ov=adj&&adj[lid]&&adj[lid].misc&&adj[lid].misc[ix],a=Math.round((ov!=null?ov:(m.amt||0))*q*((i&&i.pack)||1));if(a>0&&E.acct(m.acc))out.push({lineId:lid,acc:m.acc,name:m.name,amount:a})})});return out};
 E.bomShort=m=>Object.keys(m).map(k=>{const n=m[k].parts.reduce((a,p)=>a+p.qty,0),st=E.stock(m[k].itemId,m[k].variantId),s=E.skuList().find(x=>x.itemId===m[k].itemId&&x.variantId===m[k].variantId);return n>st.qty+1e-9?{code:s?s.code:'material',need:n,have:st.qty}:null}).filter(Boolean);
-E.issueByBom=async({jobId,date,packs})=>{
+/* value of one material for this issue: average cost by default; a part may carry its own price (latest / typed). Whole stock always takes the whole stock value so the ledger and stock stay equal. */
+function issueVal(g,n){const st=E.stock(g.itemId,g.variantId);if(!g.parts.some(p=>p.price!=null))return E.outValue(g.itemId,g.variantId,n);if(n>st.qty+1e-9)throw new Error('Insufficient stock: only '+st.qty+' available');const avg=st.qty?st.value/st.qty:0,pv=g.parts.map(p=>Math.round(p.qty*(p.price!=null?p.price:avg)));let val=n>=st.qty-1e-9?st.value:Math.min(pv.reduce((a,b)=>a+b,0),st.value);pv[pv.length-1]+=val-pv.reduce((a,b)=>a+b,0);g._pv=pv;return val}
+E.issueByBom=async({jobId,date,packs,adj})=>{
  const j=E.D.jobs.find(x=>x.id===jobId);if(!j)throw new Error('Job not found');if(j.status!=='In Progress')throw new Error('Job is not in progress');
- const m=E.bomNeeds(packs),keys=Object.keys(m),misc=E.bomMisc(packs);if(!keys.length&&!misc.length)throw new Error('Nothing to issue: enter packs and make sure the article has a BOM');
+ const m=E.bomNeeds(packs,adj),keys=Object.keys(m),misc=E.bomMisc(packs,adj);if(!keys.length&&!misc.length)throw new Error('Nothing to issue: enter packs and make sure the article has a BOM');
  const sh=E.bomShort(m);if(sh.length)throw new Error('Not enough stock: '+sh.map(x=>x.code+' need '+q3(x.need)+' have '+q3(x.have)).join('; '));
  const no=await E.next('ISS'),jl=[],cr=[],recs=[];let tot=0;
- for(const k of keys){const g=m[k],n=g.parts.reduce((a,p)=>a+p.qty,0);if(!(n>0))continue;const val=E.outValue(g.itemId,g.variantId,n),s=E.skuList().find(x=>x.itemId===g.itemId&&x.variantId===g.variantId);
-  let left=val;g.parts.forEach((p,ix)=>{const v=ix===g.parts.length-1?left:Math.round(val*p.qty/n);left-=v;p.val=v;jl.push({acc:'1310',dr:v,job:jobId,cat:'Material',art:p.lineId,head:'5000'})});
+ for(const k of keys){const g=m[k],n=g.parts.reduce((a,p)=>a+p.qty,0);if(!(n>0))continue;const val=issueVal(g,n),s=E.skuList().find(x=>x.itemId===g.itemId&&x.variantId===g.variantId);
+  let left=val;g.parts.forEach((p,ix)=>{const v=g._pv?g._pv[ix]:(ix===g.parts.length-1?left:Math.round(val*p.qty/n));left-=v;p.val=v;jl.push({acc:'1310',dr:v,job:jobId,cat:'Material',art:p.lineId,head:'5000'})});
   cr.push({acc:'1300',cr:val});tot+=val;recs.push({g,n,val,code:s?s.code:''})}
  misc.forEach(x=>{jl.push({acc:'1310',dr:x.amount,job:jobId,cat:'Material',art:x.lineId,head:x.acc});cr.push({acc:x.acc,cr:x.amount})});
  const done=[],saved=[];
  await E.postThen({date,ref:no,narr:'Issue by BOM to '+j.no,source:'issue',lines:jl.concat(cr)},async()=>{
-  try{for(const r of recs){await E.stockOut({date,itemId:r.g.itemId,variantId:r.g.variantId,qty:r.n,type:'issue',ref:no,job:jobId});done.push(r);
+  try{for(const r of recs){await E.stockOut({date,itemId:r.g.itemId,variantId:r.g.variantId,qty:r.n,type:'issue',ref:no,job:jobId,value:r.val});done.push(r);
     for(const p of r.g.parts){const rec=await E.save('issues',{no,date,jobId,itemId:r.g.itemId,variantId:r.g.variantId,code:r.code,qty:p.qty,value:p.val,art:p.lineId,bom:true});saved.push(rec)}}
    for(const lid of Object.keys(packs)){const q=packs[lid];if(!(q>0))continue;const l=E.D.jobLines.find(x=>x.id===lid),bf=JSON.parse(JSON.stringify(l));l.started=(l.started||0)+q;await E.save('jobLines',l,bf)}
   }catch(err){for(const r of done)try{await E.stockIn({date,itemId:r.g.itemId,variantId:r.g.variantId,qty:r.n,value:r.val,type:'cancel',ref:no,job:jobId})}catch(x){console.error(x)}
@@ -85,7 +87,7 @@ E.A.bomPost=async()=>{try{
  const d=E.val('bm_d')||E.today(),jid=F.job,j=J(jid);
  const over=Object.keys(packs).map(id=>{const l=E.D.jobLines.find(x=>x.id===id);return l&&(l.started||0)+packs[id]>l.target+1e-9?l.code+' (target '+q3(l.target)+', already started '+q3(l.started||0)+', now '+q3(packs[id])+')':null}).filter(Boolean);
  if(over.length&&!confirm('This is MORE than the job target:\n'+over.join('\n')+'\n\nIssue anyway?'))return;
- const r=await E.issueByBom({jobId:jid,date:d,packs});
- E.go();E.toast(r.no+' — materials issued, '+E.m(r.total)+' charged to '+j.no,'success')}catch(e){E.toast(e.message,'error')}};
+ const groups=Object.keys(packs).map(id=>{const l=E.D.jobLines.find(x=>x.id===id),i=it(l.itemId);return {key:id,lineId:id,itemId:l.itemId,code:l.code,packs:packs[id],pairs:packs[id]*((i&&i.pack)||1)}});
+ E.confirmBom({title:'Confirm material issue · '+j.no,groups,issue:true,date:d,okLabel:'Confirm & issue materials',onConfirm:async adj=>{const r=await E.issueByBom({jobId:jid,date:d,packs,adj});E.closeM();E.go();E.toast(r.no+' — materials issued, '+E.m(r.total)+' charged to '+j.no,'success')}})}catch(e){E.toast(e.message,'error')}};
 E.A.bomIssue=id=>{F.tab='bom';F.job=id;location.hash='#/matledger';E.go()};
 })(window.ERP);

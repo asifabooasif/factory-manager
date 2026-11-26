@@ -594,26 +594,31 @@
       const ks = Object.values(m);
       if (!ks.length) throw new Error('Add at least one line');
       const wantBom = !!(E.$('j_bom') && E.$('j_bom').checked), bd = E.val('j_bd') || E.val('j_d');
-      if (wantBom) {
-        const pk = {}; ks.forEach((x, i) => { pk['t' + i] = x.packs; });
-        const need = {}; ks.forEach((x, i) => { const it = E.D.items.find(q => q.id === x.s.itemId); ((it && it.bom) || []).forEach(b => { const k = b.itemId + '|' + (b.variantId || ''); need[k] = (need[k] || 0) + b.qty * x.packs * (it.pack || 1); }); });
-        const short = Object.keys(need).map(k => { const [iid, vid] = k.split('|'); const st = E.stock(iid, vid), sk = E.skuList().find(z => z.itemId === iid && z.variantId === vid); return need[k] > st.qty + 1e-9 ? (sk ? sk.code : 'material') + ' short by ' + (Math.round((need[k] - st.qty) * 1000) / 1000) : null; }).filter(Boolean);
-        if (short.length && !confirm('Not enough stock to issue the full BOM:\n' + short.join('\n') + '\n\nCreate the job WITHOUT issuing materials now?')) return;
-      }
-      const no = await E.next('JOB');
-      const j = await E.save('jobs', { no, date: E.val('j_d'), due: E.val('j_u'), partyId: E.val('j_p'), priority: E.val('j_pr'), notes: E.val('j_n'), status: 'In Progress' });
-      const created = [];
-      for (const { s, packs } of ks) created.push(await E.save('jobLines', { jobId: j.id, itemId: s.itemId, variantId: s.variantId, code: s.code, name: s.name, target: packs, released: 0, fgValue: 0 }));
-      let note = no + ' created';
-      if (wantBom) {
-        const pk = {}; created.forEach(l => { pk[l.id] = l.target; });
-        const noBom = created.filter(l => !((E.D.items.find(x => x.id === l.itemId) || {}).bom || []).length).map(l => l.code);
-        try {
-          const r = await E.issueByBom({ jobId: j.id, date: bd, packs: pk });
-          note += ' · materials issued by BOM ' + E.m(r.total) + (noBom.length ? ' (no BOM for: ' + noBom.join(', ') + ')' : '');
-        } catch (e2) { note += ' · MATERIALS NOT ISSUED: ' + e2.message + ' — use Material Ledger > Issue by BOM'; }
-      }
-      E.closeM(); E.A.openJob(j.id); E.toast(note, 'success');
+      const head = { date: E.val('j_d'), due: E.val('j_u'), partyId: E.val('j_p'), priority: E.val('j_pr'), notes: E.val('j_n') };
+      /* Create the job (and optionally issue materials). Nothing is saved until the person confirms the articles and their BOMs. */
+      const create = async (issue, adjByKey) => {
+        const no = await E.next('JOB');
+        const j = await E.save('jobs', Object.assign({ no, status: 'In Progress' }, head));
+        const created = [];
+        for (const { s, packs } of ks) created.push(await E.save('jobLines', { jobId: j.id, itemId: s.itemId, variantId: s.variantId, code: s.code, name: s.name, target: packs, released: 0, fgValue: 0 }));
+        let note = no + ' created';
+        if (issue) {
+          const pk = {}, adj = {}; created.forEach(l => { pk[l.id] = l.target; const a = adjByKey && adjByKey[l.itemId + '|' + l.variantId]; if (a) adj[l.id] = a; });
+          const noBom = created.filter(l => !((E.D.items.find(x => x.id === l.itemId) || {}).bom || []).length).map(l => l.code);
+          try {
+            const r = await E.issueByBom({ jobId: j.id, date: bd, packs: pk, adj });
+            note += ' · materials issued by BOM ' + E.m(r.total) + (noBom.length ? ' (no BOM for: ' + noBom.join(', ') + ')' : '');
+          } catch (e2) { note += ' · MATERIALS NOT ISSUED: ' + e2.message + ' — use Material Ledger > Issue by BOM'; }
+        }
+        E.closeM(); E.A.openJob(j.id); E.toast(note, 'success');
+      };
+      E.confirmBom({
+        inline: true, issue: wantBom, date: bd, title: 'Confirm job · articles and their BOMs',
+        groups: ks.map(x => ({ key: x.s.itemId + '|' + x.s.variantId, itemId: x.s.itemId, code: x.s.code, packs: x.packs, pairs: x.pairs })),
+        okLabel: wantBom ? 'Confirm: create job & issue materials' : 'Confirm: create job',
+        altLabel: wantBom ? 'Create job WITHOUT issuing materials' : '',
+        onConfirm: adjByKey => create(wantBom, adjByKey), onAlt: () => create(false)
+      });
     } catch (e) { E.toast(e.message, 'error'); }
   };
 

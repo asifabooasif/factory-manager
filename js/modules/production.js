@@ -484,8 +484,10 @@
       if (!item || !(item.bom || []).length) throw new Error('No BOM');
       if (!line || line.jobId !== jobId) throw new Error('Article does not belong to this job');
       /* same atomic engine as Material Ledger > Issue by BOM: one journal entry, stock moves, rollback on any failure */
-      const r = await E.issueByBom({ jobId, date, packs: { [lineId]: pairs / (item.pack || 1) } });
-      E.go(); E.toast(r.no + ' posted', 'success');
+      const packs = { [lineId]: pairs / (item.pack || 1) };
+      E.confirmBom({ title: 'Confirm material issue · ' + ((J(jobId) || {}).no || ''), issue: true, date, okLabel: 'Confirm & deduct materials',
+        groups: [{ key: lineId, lineId, itemId: line.itemId, code: line.code, packs: packs[lineId], pairs }],
+        onConfirm: async adj => { const r = await E.issueByBom({ jobId, date, packs, adj }); E.closeM(); E.go(); E.toast(r.no + ' posted', 'success'); } });
     } catch (e) { E.toast(e.message, 'error'); }
   };
   

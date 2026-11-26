@@ -19,4 +19,4 @@ E.unitCost=(itemId,variantId)=>{const s=E.stock(itemId,variantId),i=E.D.items.fi
  const c=i.cat==='Finished Good'?Math.round((i.cost||0)*(i.pack||E.packPairs(itemId)||1)):(i.buyPrice||0);
  return c>0?{cost:c,src:'item'}:{cost:0,src:''}};
 E.outValue=(i,v,qty)=>{const s=E.stock(i,v);if(qty>s.qty+1e-9)throw new Error('Insufficient stock: only '+s.qty+' available');return qty>=s.qty-1e-9?s.value:Math.round(s.value*qty/s.qty)};
-E.stockOut=async({date,itemId,variantId,qty,type,ref,job})=>{const value=E.outValue(itemId,variantId,qty);await E.put('stockMoves',{date,itemId,variantId:variantId||'',qty:-qty,value:-value,type,ref,job:job||'',factoryId:E.fid});return value};})(window.ERP);
+E.stockOut=async({date,itemId,variantId,qty,type,ref,job,value:ov})=>{let value=E.outValue(itemId,variantId,qty);if(ov!=null){const s=E.stock(itemId,variantId);value=qty>=s.qty-1e-9?s.value:Math.min(Math.max(0,Math.round(ov)),s.value)}await E.put('stockMoves',{date,itemId,variantId:variantId||'',qty:-qty,value:-value,type,ref,job:job||'',factoryId:E.fid});return value};})(window.ERP);
