@@ -221,6 +221,8 @@
       const lines = [];
       const closedVar = [];
       if (tr === 'job') {
+        /* Double entry in the expense head's OWN ledger: the spend is debited there, then credited out to the job(s). The head's ledger statement shows both lines (net nil), the job gets its cost in WIP. */
+        lines.push({ acc: a.code, dr: amt });
         for (const j of jobs) {
           const job = J(j.jobId);
           if (job && job.status === 'Completed') {
@@ -230,6 +232,7 @@
             lines.push({ acc: '1310', dr: j.amount, job: j.jobId, cat: CAT[a.nature] || 'Overhead', head: a.code });
           }
         }
+        lines.push({ acc: a.code, cr: amt });
       } else {
         lines.push({ acc: a.code, dr: amt });
       }

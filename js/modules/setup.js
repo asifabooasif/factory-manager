@@ -80,7 +80,7 @@
       if (!E.$('wz_ok').checked) throw new Error('Tick the confirmation box');
       const d = draft();
       const packSize = parseInt(d.biz.pack) || 6;
-      const today = E.today();
+      const today = E.setting('openingDate') || E.today();
       await E.setSetting({ fgCats: cats(), packSize });
 
       /* 1. BANKS + CASH */

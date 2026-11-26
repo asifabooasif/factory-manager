@@ -58,15 +58,18 @@ function bomCalc(){const m=need(),keys=Object.keys(m),box=E.$('bomr');if(!box)re
    packs = {jobLineId: packsStarting}. One journal entry (Dr WIP per article / Cr Raw Material Stock), stock moves at weighted-average cost,
    all-or-nothing: if anything fails the ledger entry is reversed and stock moves are put back. */
 E.bomNeeds=packs=>{const m={};Object.keys(packs).forEach(lid=>{const q=packs[lid];if(!(q>0))return;const l=E.D.jobLines.find(x=>x.id===lid),i=l&&it(l.itemId);((i&&i.bom)||[]).forEach(b=>{const k=b.itemId+'|'+(b.variantId||'');const n=q3(b.qty*q*((i&&i.pack)||1));(m[k]=m[k]||{itemId:b.itemId,variantId:b.variantId||'',parts:[]}).parts.push({lineId:lid,qty:n})})});return m};
+/* Miscellaneous BOM costs (items that cannot be tracked in inventory): standard amount per pair, charged to the job's WIP and credited to the chosen expense ledger. */
+E.bomMisc=packs=>{const out=[];Object.keys(packs).forEach(lid=>{const q=packs[lid];if(!(q>0))return;const l=E.D.jobLines.find(x=>x.id===lid),i=l&&it(l.itemId);((i&&i.bomMisc)||[]).forEach(m=>{const a=Math.round((m.amt||0)*q*((i&&i.pack)||1));if(a>0&&E.acct(m.acc))out.push({lineId:lid,acc:m.acc,name:m.name,amount:a})})});return out};
 E.bomShort=m=>Object.keys(m).map(k=>{const n=m[k].parts.reduce((a,p)=>a+p.qty,0),st=E.stock(m[k].itemId,m[k].variantId),s=E.skuList().find(x=>x.itemId===m[k].itemId&&x.variantId===m[k].variantId);return n>st.qty+1e-9?{code:s?s.code:'material',need:n,have:st.qty}:null}).filter(Boolean);
 E.issueByBom=async({jobId,date,packs})=>{
  const j=E.D.jobs.find(x=>x.id===jobId);if(!j)throw new Error('Job not found');if(j.status!=='In Progress')throw new Error('Job is not in progress');
- const m=E.bomNeeds(packs),keys=Object.keys(m);if(!keys.length)throw new Error('Nothing to issue: enter packs and make sure the article has a BOM');
+ const m=E.bomNeeds(packs),keys=Object.keys(m),misc=E.bomMisc(packs);if(!keys.length&&!misc.length)throw new Error('Nothing to issue: enter packs and make sure the article has a BOM');
  const sh=E.bomShort(m);if(sh.length)throw new Error('Not enough stock: '+sh.map(x=>x.code+' need '+q3(x.need)+' have '+q3(x.have)).join('; '));
  const no=await E.next('ISS'),jl=[],cr=[],recs=[];let tot=0;
  for(const k of keys){const g=m[k],n=g.parts.reduce((a,p)=>a+p.qty,0);if(!(n>0))continue;const val=E.outValue(g.itemId,g.variantId,n),s=E.skuList().find(x=>x.itemId===g.itemId&&x.variantId===g.variantId);
   let left=val;g.parts.forEach((p,ix)=>{const v=ix===g.parts.length-1?left:Math.round(val*p.qty/n);left-=v;p.val=v;jl.push({acc:'1310',dr:v,job:jobId,cat:'Material',art:p.lineId,head:'5000'})});
   cr.push({acc:'1300',cr:val});tot+=val;recs.push({g,n,val,code:s?s.code:''})}
+ misc.forEach(x=>{jl.push({acc:'1310',dr:x.amount,job:jobId,cat:'Material',art:x.lineId,head:x.acc});cr.push({acc:x.acc,cr:x.amount})});
  const done=[],saved=[];
  await E.postThen({date,ref:no,narr:'Issue by BOM to '+j.no,source:'issue',lines:jl.concat(cr)},async()=>{
   try{for(const r of recs){await E.stockOut({date,itemId:r.g.itemId,variantId:r.g.variantId,qty:r.n,type:'issue',ref:no,job:jobId});done.push(r);
