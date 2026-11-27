@@ -9,6 +9,7 @@ and deliberately break individual steps to prove nothing is left half-done.
     node tests/accounting-suite-1.js   # in another
     node tests/accounting-suite-2.js
     node tests/accounting-suite-3.js   # WIP absorption, provisional cost, progress tab
+    node tests/accounting-suite-4.js   # v98: pool double count, true-up after sales, all-or-nothing saves, stock-account guard
 
 Every line must start with PASS. Each step also checks: trial balance, all Health Check controls,
 and (at the end) every built-in check of every report in the Report Suite.

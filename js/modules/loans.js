@@ -54,9 +54,10 @@ E.A.lnSave=async()=>{try{const s=rd(),lender=E.val('ln_l'),d=E.val('ln_d'),ex=E.
  let code='';for(let c=2401;c<2500;c++)if(!E.acct(String(c))){code=String(c);break}if(!code)throw new Error('No free loan account code (2400-2499)');
  const x=E.loanSchedule(s),rows=x.rows;rows.slice(0,pd).forEach(r=>{r.paid=true;r.prepaid=true;r.paidDate=r.due;r.paidPrincipal=r.principal;r.paidInterest=r.interest});
  const owing=pd?rows[pd].opening:s.principal,no=await E.next('LN');
- await E.save('coa',{id:E.fid+'-'+code,code,name:'Loan - '+lender+' ('+no+')',type:'liability',bank:0,kind:'liability',custom:true});
- const je=await E.post({date:pdate,ref:no,narr:(ex?'Opening balance of loan · ':'Loan received · ')+lender,source:ex?'opening':'loan',lines:ex?[{acc:'3200',dr:owing},{acc:code,cr:owing}]:[{acc:bank,dr:s.principal},{acc:code,cr:s.principal}]});
- await E.save('loans',{no,lender,type:E.val('ln_t'),ref:E.val('ln_ref'),notes:E.val('ln_nt'),principal:s.principal,rate:s.rate,method:s.method,n:s.n,date:d,first:s.first,emi:x.emi,rows,bankAcc:ex?'':bank,loanAcc:code,existing:ex,openDate:ex?od:'',disbJe:je.id,cancelled:false,settled:null});
+ const coaRec=await E.save('coa',{id:E.fid+'-'+code,code,name:'Loan - '+lender+' ('+no+')',type:'liability',bank:0,kind:'liability',custom:true});
+ /* v98: ledger entry + loan record are ONE unit; if anything fails the entry is reversed and the new loan account is removed again (no orphan account) */
+ try{await E.postThen({date:pdate,ref:no,narr:(ex?'Opening balance of loan · ':'Loan received · ')+lender,source:ex?'opening':'loan',lines:ex?[{acc:'3200',dr:owing},{acc:code,cr:owing}]:[{acc:bank,dr:s.principal},{acc:code,cr:s.principal}]},async je=>{await E.save('loans',{no,lender,type:E.val('ln_t'),ref:E.val('ln_ref'),notes:E.val('ln_nt'),principal:s.principal,rate:s.rate,method:s.method,n:s.n,date:d,first:s.first,emi:x.emi,rows,bankAcc:ex?'':bank,loanAcc:code,existing:ex,openDate:ex?od:'',disbJe:je.id,cancelled:false,settled:null})})}
+ catch(err){try{await E.del('coa',(coaRec&&coaRec.id)||E.fid+'-'+code)}catch(x){console.error('loan account clean-up failed',x)}throw err}
  E.closeM();E.go();E.toast(no+' saved'+(ex?' · opening balance '+E.m(owing)+' posted':''),'success')}catch(e){E.toast(e.message,'error')}};
 /* ---------- view / schedule ---------- */
 const pr=(t,h)=>{const w=window.open('','_blank');if(!w)return E.toast('Allow pop-ups to print','error');w.document.write('<html><head><title>'+t+'</title><style>@page{size:A4;margin:14mm}body{font:12px Arial}table{width:100%;border-collapse:collapse;margin:12px 0}th,td{border-bottom:1px solid #bbb;padding:5px;text-align:left}th{background:#eee}.r{text-align:right}</style></head><body><h1 style="margin:0">'+E.esc(E.factory().name)+'</h1>'+h+'</body></html>');w.document.close();setTimeout(()=>w.print(),300)};
@@ -79,21 +80,27 @@ E.A.lnPaySave=async k=>{try{const [id,i]=k.split(':'),l=ln(id),r=l.rows[+i],date
  if(done(r))throw new Error('This instalment is already settled');if(l.rows.slice(0,+i).some(x=>!done(x)))throw new Error('Pay the earlier instalments first');
  if(!DT.test(date))throw new Error('Enter the payment date');if(!from)throw new Error('Choose the account paid from');if(int<0)throw new Error('Interest cannot be negative');if(!E.acct(INT))throw new Error('Account '+INT+' Finance Charges is missing');
  const t=r.principal+int;if(E.bal(from)<t&&!confirm('Balance ('+E.m(E.bal(from))+') is less than this payment. Continue?'))return;
- const no=await E.next('LP'),je=await E.post({date,ref:no,narr:'Loan instalment '+r.n+'/'+l.rows.length+' · '+l.lender+' ('+l.no+')',source:'loan',lines:[{acc:l.loanAcc,dr:r.principal},{acc:INT,dr:int},{acc:from,cr:t}]}),b=clone(l);
- Object.assign(r,{paid:true,paidDate:date,paidPrincipal:r.principal,paidInterest:int,payNo:no,jeId:je.id,bank:from,chq:E.val('lp_r')});await E.save('loans',l,b);
+ const no=await E.next('LP'),b=clone(l),chq=E.val('lp_r');
+ await E.postThen({date,ref:no,narr:'Loan instalment '+r.n+'/'+l.rows.length+' · '+l.lender+' ('+l.no+')',source:'loan',lines:[{acc:l.loanAcc,dr:r.principal},{acc:INT,dr:int},{acc:from,cr:t}]},async je=>{
+  Object.assign(r,{paid:true,paidDate:date,paidPrincipal:r.principal,paidInterest:int,payNo:no,jeId:je.id,bank:from,chq});
+  try{await E.save('loans',l,b)}catch(err){['paid','paidDate','paidPrincipal','paidInterest','payNo','jeId','bank','chq'].forEach(f=>delete r[f]);r.paid=false;throw err}});
  E.closeM();E.go();E.toast(no+' posted','success')}catch(e){E.toast(e.message,'error')}};
+/* v98: record change + reversal are one unit: the record is saved first, the entry reversed second, and the record is put back if the reversal fails */
+const flip=async(l,mut,jeId)=>{const b=clone(l);mut();await E.save('loans',l,b);try{await E.reverse(jeId)}catch(err){const cur=clone(l);Object.keys(l).forEach(x=>delete l[x]);Object.assign(l,b);try{await E.save('loans',l,cur)}catch(x){console.error('loan restore failed',x)}throw err}};
 E.A.lnUndo=async k=>{try{const [id,i]=k.split(':'),l=ln(id),r=l.rows[+i];if(!r.jeId||!r.paid)throw new Error('Only a payment made in this system can be undone');if(l.settled)throw new Error('Undo the settlement first');
  if(l.rows.slice(+i+1).some(x=>x.paid))throw new Error('Undo the later payment first');if(!confirm('Undo payment '+r.payNo+'? A reversing entry is posted today and the instalment becomes due again.'))return;
- await E.reverse(r.jeId);const b=clone(l);['paid','paidDate','paidPrincipal','paidInterest','payNo','jeId','bank','chq'].forEach(f=>delete r[f]);r.paid=false;await E.save('loans',l,b);E.closeM();E.go();E.toast('Payment reversed','success')}catch(e){E.toast(e.message,'error')}};
+ await flip(l,()=>{const jeId=r.jeId;['paid','paidDate','paidPrincipal','paidInterest','payNo','jeId','bank','chq'].forEach(f=>delete r[f]);r.paid=false},r.jeId);E.closeM();E.go();E.toast('Payment reversed','success')}catch(e){E.toast(e.message,'error')}};
 /* ---------- settle early / cancel ---------- */
 E.A.lnSettle=id=>{const l=ln(id),r=nx(l);E.modal('Settle '+l.no+' in full',`<div class="g2"><div class="f">Settlement date<input id="ls_d" type="date" value="${E.today()}"></div><div class="f">Paid from *<select id="ls_b">${E.opts(a=>a.bank,l.bankAcc||'1100')}</select></div><div class="f">Principal still owing<input value="${(out(l)/100).toFixed(2)}" readonly></div><div class="f">Interest to date (Rs)<input id="ls_i" type="number" step="0.01" value="0"></div><div class="f">Early settlement fee / penalty (Rs)<input id="ls_f" type="number" step="0.01" value="0"></div></div><p class="muted">Take the interest, fee and total payoff amount from the lender's settlement letter. The remaining ${l.rows.filter(x=>!done(x)).length} instalments are closed. Posts Dr loan account / Dr Finance Charges / Cr bank.</p>`,`<button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="lnSettleSave" data-id="${id}">Post settlement</button>`)};
 E.A.lnSettleSave=async id=>{try{const l=ln(id),date=E.val('ls_d'),from=E.val('ls_b'),int=E.c(E.val('ls_i')),fee=E.c(E.val('ls_f')),rem=out(l);
  if(!DT.test(date))throw new Error('Enter the settlement date');if(!from)throw new Error('Choose the account paid from');if(int<0||fee<0)throw new Error('Amounts cannot be negative');if(rem<=0)throw new Error('Nothing is outstanding');
  const t=rem+int+fee;if(E.bal(from)<t&&!confirm('Balance ('+E.m(E.bal(from))+') is less than '+E.m(t)+'. Continue?'))return;
- const no=await E.next('LP'),je=await E.post({date,ref:no,narr:'Loan settled in full · '+l.lender+' ('+l.no+')',source:'loan',lines:[{acc:l.loanAcc,dr:rem},{acc:INT,dr:int+fee},{acc:from,cr:t}]}),b=clone(l);
- l.rows.forEach(r=>{if(!done(r))r.waived=true});l.settled={date,principal:rem,interest:int,fee,payNo:no,jeId:je.id,bank:from};await E.save('loans',l,b);E.closeM();E.go();E.toast(no+' posted · loan closed','success')}catch(e){E.toast(e.message,'error')}};
+ const no=await E.next('LP'),b=clone(l);
+ await E.postThen({date,ref:no,narr:'Loan settled in full · '+l.lender+' ('+l.no+')',source:'loan',lines:[{acc:l.loanAcc,dr:rem},{acc:INT,dr:int+fee},{acc:from,cr:t}]},async je=>{
+  const w=l.rows.filter(r=>!done(r));w.forEach(r=>{r.waived=true});l.settled={date,principal:rem,interest:int,fee,payNo:no,jeId:je.id,bank:from};
+  try{await E.save('loans',l,b)}catch(err){w.forEach(r=>{r.waived=false});l.settled=null;throw err}});E.closeM();E.go();E.toast(no+' posted · loan closed','success')}catch(e){E.toast(e.message,'error')}};
 E.A.lnUnsettle=async id=>{try{const l=ln(id);if(!l.settled)return;if(!confirm('Undo the early settlement? A reversing entry is posted today and the remaining instalments become due again.'))return;
- await E.reverse(l.settled.jeId);const b=clone(l);l.rows.forEach(r=>{if(r.waived)r.waived=false});l.settled=null;await E.save('loans',l,b);E.closeM();E.go();E.toast('Settlement reversed','success')}catch(e){E.toast(e.message,'error')}};
+ await flip(l,()=>{l.rows.forEach(r=>{if(r.waived)r.waived=false});l.settled=null},l.settled.jeId);E.closeM();E.go();E.toast('Settlement reversed','success')}catch(e){E.toast(e.message,'error')}};
 E.A.lnCancel=async id=>{try{const l=ln(id);if(l.rows.some(r=>r.jeId)||l.settled)throw new Error('Payments have been posted. Undo them first');if(!confirm('Cancel loan '+l.no+'? The loan receipt / opening balance is reversed with an entry posted today.'))return;
- await E.reverse(l.disbJe);const b=clone(l);l.cancelled=true;await E.save('loans',l,b);E.closeM();E.go();E.toast('Loan cancelled','success')}catch(e){E.toast(e.message,'error')}};
+ await flip(l,()=>{l.cancelled=true},l.disbJe);E.closeM();E.go();E.toast('Loan cancelled','success')}catch(e){E.toast(e.message,'error')}};
 })(window.ERP);

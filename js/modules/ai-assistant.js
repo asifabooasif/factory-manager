@@ -449,7 +449,19 @@
     /* ══════════════════════════════════════════════════════════════
        CHAT INTENTS (30+)
        ══════════════════════════════════════════════════════════════ */
+    var KNOW = 'ACCOUNTING RULES OF THIS SYSTEM (v98): ' +
+      '1) Overhead pool: overhead already tagged straight to a job is never offered again for month-end sharing; you can only share the Unabsorbed amount. ' +
+      '2) Job completion true-up: if some pairs were sold before completion, they carry their share of the final cost (charged to 5390 Closed Job Adjustments, inside profit and loss); the pairs still in stock are valued at the final cost per pack. ' +
+      '3) Asset purchase, bank loan creation, loan instalment/settlement and EPF/ETF remittance post the ledger entry and save the record as one unit; if the save fails the entry is reversed automatically. ' +
+      '4) Manual journals cannot use 1300 Raw Material Stock, 1310 Work in Progress or 1320 Finished Goods; use purchase, issue/return, stocktake, gain/loss or job screens. ' +
+      '5) Production costs only (material, labour, factory overhead) can be tagged to jobs (IAS 2); admin, selling and finance costs are period expenses. Factory depreciation is a period cost.';
     var INTENTS = [
+      { id: 'rules', re: [/(true.?up|closing variance|5390|closed job adjust|double.?count|share(d)? twice|manual journal.*(stock|1300|1310|1320)|why can.?t i (post|use).*(1300|1310|1320|stock)|all.or.nothing|orphan|accounting rules|what changed in v98)/i],
+        run: function () {
+          if (!factoryReady()) return { text: 'Create a factory first.' };
+          var un = E.unabsorbed ? E.unabsorbed() : 0, v = E.bal('5390');
+          return { text: '**How the accounting protects itself**\n\n• **Overhead pool** — cost already tagged to a job is never offered again. Unabsorbed now: ' + m(un) + '.\n• **Completion true-up** — pairs already sold carry their share of the final cost (5390 Closed Job Adjustments, balance ' + m(v) + '); stock is valued at the final cost per pack.\n• **One-unit saves** — asset purchase, loans, instalments and EPF/ETF remittance post and save together, or undo themselves.\n• **Stock accounts** — 1300, 1310 and 1320 cannot be used in a manual journal.\n• **Job costs** — only material, labour and factory overhead (IAS 2).', acts: [{ l: 'Guardian →', a: 'nav', id: 'guardian' }, { l: 'Overhead pool →', a: 'nav', id: 'expenses' }] };
+        } },
       { id: 'cash', re: [/^(?:how much )?(?:cash|money)(?: do i have| in hand)?\??$/i, /^(?:cash|bank) balance/i],
         run: function () {
           if (!factoryReady()) return { text: 'Create a factory first.' };
@@ -612,7 +624,7 @@
         '\nCheques in hand (pending): ' + m(E.rows('cheques').filter(function (c) { return c.dir === 'in' && c.status === 'Pending'; }).reduce(function (s, c) { return s + c.amount; }, 0)) +
         '\nCheques issued (pending): ' + m(E.rows('cheques').filter(function (c) { return c.dir === 'out' && c.status === 'Pending'; }).reduce(function (s, c) { return s + c.amount; }, 0))
       ) : 'No factory open.';
-      var prompt = 'You are an AI assistant for Lanka Slipper ERP (manufacturing/accounting). Answer concisely (under 150 words). Use ** bold ** and • bullets. Never invent numbers.\n\nCONTEXT:\n' + ctx + '\n\nQUESTION: ' + q;
+      var prompt = 'You are an AI assistant for Lanka Slipper ERP (manufacturing/accounting). Answer concisely (under 150 words). Use ** bold ** and • bullets. Never invent numbers.\n\n' + KNOW + '\n\nCONTEXT:\n' + ctx + '\n\nQUESTION: ' + q;
       try {
         if (cfg.provider === 'openai') {
           var r = await fetch('https://api.openai.com/v1/chat/completions', {

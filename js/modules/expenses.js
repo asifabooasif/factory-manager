@@ -236,7 +236,10 @@
     const t = E.totals();
     /* old absorptions posted a credit to 5290; new ones are costing records only (kind 'absorb') */
     const costed = E.rows('costAllocations').filter(a => a.kind === 'absorb' && E.allocAlive(a)).reduce((s, a) => s + a.amount, 0);
-    return poolAccts().reduce((s, a) => s + E.bal(a.code, t), 0) + E.bal('5290', t) - costed;
+    /* v98: overhead already tagged straight to a job (a live ledger-backed costing record on a pool head) is already costed - it must not be offered again for sharing */
+    const codes = new Set(poolAccts().map(a => a.code));
+    const direct = E.rows('costAllocations').filter(a => a.kind !== 'absorb' && a.jeId && codes.has(a.head) && E.allocAlive(a)).reduce((s, a) => s + a.amount, 0);
+    return Math.max(0, poolAccts().reduce((s, a) => s + E.bal(a.code, t), 0) + E.bal('5290', t) - costed - direct);
   }
   const wip = id => E.rows('journalEntries').flatMap(j => j.lines.filter(l => l.job === id && l.acc === '1310'));
   function weights(basis, js) {

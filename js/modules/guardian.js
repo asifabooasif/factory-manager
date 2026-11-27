@@ -208,6 +208,42 @@
     return out;
   });
 
+  rule('orphans', 'Integrity', 'Ledger entries without their record', 'Asset purchases, loan entries and EPF/ETF remittances posted to the ledger but with no matching record (a save that stopped half-way).', ctx => {
+    const live = R('journalEntries').filter(j => !j.reversedBy);
+    const assets = new Set(R('assets').map(a => a.jeId)), remits = new Set(R('wageRuns').filter(w => w.kind === 'remit').flatMap(w => [w.jeId, w.no]));
+    const loanIds = new Set(); R('loans').forEach(l => { loanIds.add(l.disbJe); if (l.settled) loanIds.add(l.settled.jeId); (l.rows || []).forEach(r => { if (r.jeId) loanIds.add(r.jeId); }); });
+    const bad = live.filter(j => (j.source === 'asset' && /^Asset purchase/.test(j.narr) && !assets.has(j.id)) || (j.source === 'loan' && !loanIds.has(j.id)) || (j.source === 'payroll' && j.narr === 'EPF/ETF remit' && !remits.has(j.id) && !remits.has(j.ref)));
+    if (!bad.length) return [];
+    return [{ id: 'orphans', sev: 'warn', area: 'Integrity', title: bad.length + ' ledger entr' + (bad.length > 1 ? 'ies' : 'y') + ' with no matching record', detail: bad.slice(0, 5).map(j => j.no + ' ' + j.date + ' ' + (j.narr || '')).join(' · '),
+      why: 'New saves post the entry and the record as one unit and undo themselves on failure. An entry left behind means money moved in the ledger but the asset, loan or remittance does not show in its own screen.',
+      fix: 'Open the Journal and reverse the entry, then enter the asset / loan / remittance again through its own screen.', route: 'journal' }];
+  });
+
+  rule('jobvar', 'Costing', 'Job closing variances', 'Completed jobs whose final cost differed a lot from the provisional cost the sold pairs were charged at (5390 Closed Job Adjustments).', ctx => {
+    const per = {};
+    R('journalEntries').filter(j => !j.reversedBy && j.narr === 'Final costing').forEach(j => j.lines.forEach(l => { if (l.acc === '5390' && l.job) per[l.job] = (per[l.job] || 0) + l.dr - l.cr; }));
+    const out = [];
+    Object.keys(per).forEach(id => {
+      const job = R('jobs').find(x => x.id === id); if (!job) return;
+      const cost = R('jobLines').filter(l => l.jobId === id).reduce((s, l) => s + (l.fgValue || 0), 0);
+      if (Math.abs(per[id]) >= 100000 && cost > 0 && Math.abs(per[id]) / cost >= 0.03) out.push(job.no + ' ' + (per[id] > 0 ? 'cost of sales +' : 'cost of sales -') + money(Math.abs(per[id])));
+    });
+    if (!out.length) return [];
+    return [{ id: 'jobvar', sev: 'info', area: 'Costing', title: out.length + ' job(s) closed with a large cost variance', detail: out.slice(0, 5).join(' · '),
+      why: 'Pairs were sold at a provisional cost before the job finished. At completion the sold pairs are charged their share of the final cost (5390), so profit for the month of completion moves.',
+      fix: 'Normal when costs arrive late. To reduce it, tag wages and overheads to the job as they happen and release goods only after most costs are in.', route: 'jobs' }];
+  });
+
+  rule('poolover', 'Costing', 'Overhead shared beyond what was booked', 'Overhead charged to jobs (tagged or shared) that is more than the overhead booked in the ledger.', ctx => {
+    const skip = ['5260', '5290', '5291', '5295', '5390'], t = E.totals();
+    const booked = R('coa').filter(a => a.type === 'expense' && a.nature === 'oh' && !skip.includes(a.code)).reduce((s, a) => s + E.bal(a.code, t), 0) + E.bal('5290', t);
+    const charged = R('costAllocations').filter(a => E.allocAlive(a) && a.cat === 'Overhead' && a.kind !== 'bommisc' && (a.kind === 'absorb' || a.jeId)).reduce((s, a) => s + a.amount, 0);
+    if (charged <= booked + 100) return [];
+    return [{ id: 'poolover', sev: 'critical', area: 'Costing', title: 'Jobs carry ' + money(charged - booked) + ' more overhead than was booked', detail: 'Booked ' + money(booked) + ' · charged to jobs ' + money(charged),
+      why: 'Overhead shared twice inflates work in progress and stock with no expense behind it, so profit is overstated.',
+      fix: 'Open Expenses & Costs > Overhead pool > History and reverse the latest month-end sharing, then share only the Unabsorbed amount.', route: 'expenses' }];
+  });
+
   rule('pool', 'Costing', 'Factory overhead not absorbed', 'Factory overhead sitting in the pool and not yet charged to jobs at month-end.', ctx => {
     const un = E.unabsorbed ? E.unabsorbed() : 0; if (un < 500000) return [];
     const last = R('costRuns').filter(r => !r.cancelled && r.kind === 'absorb').reduce((m, r) => r.date > m ? r.date : m, '');

@@ -8,6 +8,8 @@ E.post=async({date,ref,narr,lines,source,absOf})=>{
  for(const l of lines){if(l.dr<0||l.cr<0||(l.dr&&l.cr))throw new Error('Each line needs either a debit or a credit');if(!E.acct(l.acc))throw new Error('Unknown account '+l.acc)}
  const d=lines.reduce((s,l)=>s+l.dr,0),c=lines.reduce((s,l)=>s+l.cr,0);
  if(d!==c)throw new Error('Debits ('+E.m(d)+') must equal credits ('+E.m(c)+')');
+ /* v98: stock accounts are controlled by the stock / job records; a hand-made journal cannot move them (it would break stock = ledger and WIP = jobs) */
+ if((!source||source==='manual')&&lines.some(l=>['1300','1310','1320'].includes(l.acc)))throw new Error('Accounts 1300 Raw Material Stock, 1310 Work in Progress and 1320 Finished Goods are controlled by the stock and job records and cannot be used in a manual journal. Use a purchase, material issue / return, stock gain / loss, stocktake or job screen instead.');
  const no=await E.next('JV');
  const je=await E.put('journalEntries',{no,date,ref:ref||'',narr:narr||'',lines,source:source||'manual',locked:true,reversedBy:'',factoryId:E.fid,...(absOf?{absOf}:{})});
  await E.audit('post','journalEntries',je.id,null,je);return je};

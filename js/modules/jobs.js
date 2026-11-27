@@ -789,13 +789,24 @@
         const d = R.map(r => stockOf(id, r) - (r.l.fgValue || 0));
         const sum = d.reduce((x, y) => x + y, 0);
         if (Math.abs(sum - remAbs - wip(id)) > 1) throw new Error('Cost sheet vs WIP differ by ' + E.m(sum - remAbs - wip(id)));
-        const no = await E.next('CMP'), ls = [], dS = [], usedV = {};
+        const no = await E.next('CMP'), ls = [], dS = [], usedV = {}, usedQ = {};
         for (let i = 0; i < R.length; i++) {
           const r = R[i];
-          if (d[i] > 0) { ls.push({ acc: '1320', dr: d[i], job: id, cat: 'Costing', art: r.l.id }); dS[i] = d[i]; }
+          const key = r.l.itemId + '|' + (r.l.variantId || ''), st = E.stock(r.l.itemId, r.l.variantId), relPk = r.l.released || 0;
+          const unsold = Math.min(relPk, Math.max(0, (st.qty || 0) - (usedQ[key] || 0))), sold = relPk - unsold; usedQ[key] = (usedQ[key] || 0) + unsold;
+          if (relPk > 1e-9 && sold > 1e-9) {
+            /* v98: part of this article was ALREADY SOLD at a provisional cost. The final cost is an average over every pack released, so the sold packs must carry their share too:
+               finished goods on hand are brought to (unsold packs x final cost per pack) and the difference is charged to / credited from 5390 (job-closing variance, inside the P&L).
+               Without this, the packs still in stock would carry the whole true-up and cost of sales would be understated. */
+            const A = stockOf(id, r), D = Math.round(A * unsold / relPk), V = (st.qty || 0) > 1e-9 ? Math.round((st.value || 0) * unsold / st.qty) : 0, f = D - V, g = d[i] - f;
+            if (f > 0) ls.push({ acc: '1320', dr: f, job: id, cat: 'Costing', art: r.l.id });
+            if (f < 0) ls.push({ acc: '1320', cr: -f, job: id, cat: 'Costing', art: r.l.id });
+            if (g) { if (!E.acct('5390')) await E.ensureCoa(); ls.push(g > 0 ? { acc: '5390', dr: g, job: id, cat: 'Costing', art: r.l.id } : { acc: '5390', cr: -g, job: id, cat: 'Costing', art: r.l.id }); }
+            dS[i] = f;
+          } else if (d[i] > 0) { ls.push({ acc: '1320', dr: d[i], job: id, cat: 'Costing', art: r.l.id }); dS[i] = d[i]; }
           else if (d[i] < 0) {
-            /* a true-down can only come out of stock that is still there; pairs already sold carried the excess into cost of sales, so that part is released as a job-closing variance (5390) */
-            const key = r.l.itemId + '|' + (r.l.variantId || ''), st = E.stock(r.l.itemId, r.l.variantId), take = Math.min(-d[i], Math.max(0, (st.value || 0) - (usedV[key] || 0))), ex = -d[i] - take; usedV[key] = (usedV[key] || 0) + take;
+            /* a true-down can only come out of stock that is still there; any part that is no longer in stock is released as a job-closing variance (5390) */
+            const take = Math.min(-d[i], Math.max(0, (st.value || 0) - (usedV[key] || 0))), ex = -d[i] - take; usedV[key] = (usedV[key] || 0) + take;
             if (take) ls.push({ acc: '1320', cr: take, job: id, cat: 'Costing', art: r.l.id });
             if (ex) { if (!E.acct('5390')) await E.ensureCoa(); ls.push({ acc: '5390', cr: ex, job: id, cat: 'Costing', art: r.l.id }); }
             dS[i] = -take;

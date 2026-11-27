@@ -751,8 +751,9 @@
       const c = chk();
       if (c.a > E.bal('2100')) throw new Error('Exceeds payable');
       const no = await E.next('EPF');
-      await E.post({ date: c.d, ref: no, narr: 'EPF/ETF remit', source: 'payroll', lines: [{ acc: '2100', dr: c.a }, { acc: c.s, cr: c.a }] });
-      await E.save('wageRuns', { no, kind: 'remit', date: c.d, amount: c.a });
+      await E.postThen({ date: c.d, ref: no, narr: 'EPF/ETF remit', source: 'payroll', lines: [{ acc: '2100', dr: c.a }, { acc: c.s, cr: c.a }] }, async je => {
+        await E.save('wageRuns', { no, kind: 'remit', date: c.d, amount: c.a, jeId: je.id });
+      });
       E.closeM(); E.go(); E.toast('Remitted', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
   };
