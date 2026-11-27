@@ -31,3 +31,10 @@ Factory depreciation stays a period cost. A cost tagged to a completed job stays
 - guardian.js: three new rules. "Ledger entries without their record" (orphans), "Job closing variances" (5390 after completion) and "Overhead shared beyond what was booked" (critical).
 - ai-assistant.js: the assistant now knows these rules (ask "explain the true-up rule", "5390", "why can't I post to 1300", "what changed in v98") and answers with live figures; the optional LLM bridge also receives the rules as background.
 - tests: suite 4 now has 43 checks.
+
+## v99 - Transaction Explorer: searchable account ledgers + shortcut
+- Every account is searchable in the Transaction Explorer: type part of a code or name (filters all matching ledgers) or pick the exact account (opens it as a ledger).
+- A single account with no other filter shows opening balance, a running balance on every line and the closing balance for the chosen dates.
+- Click any account name in any row to jump straight to that account's ledger. The ✕ button clears it.
+- Shortcut: Alt+L from any screen opens the Transaction Explorer with the account search focused.
+- tests/explorer-ledger.js (7 checks). Cache version: lanka-erp-v99.
