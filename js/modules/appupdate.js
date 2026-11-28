@@ -2,7 +2,7 @@
    Shows the version that is really running (top bar badge), compares it with the version on the server and, when the browser is
    still running old files, shows a red "Update available" badge. One tap clears the offline cache and reloads the newest files. */
 (E => {
-  const VER = 'v100'; window.APP_VERSION = VER; E.version = VER;
+  const VER = 'v101'; window.APP_VERSION = VER; E.version = VER;
   const badge = () => document.getElementById('appver');
   const mount = () => {
     if (badge()) return;

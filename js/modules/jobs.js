@@ -791,26 +791,28 @@
         if (Math.abs(sum - remAbs - wip(id)) > 1) throw new Error('Cost sheet vs WIP differ by ' + E.m(sum - remAbs - wip(id)));
         const no = await E.next('CMP'), ls = [], dS = [], usedV = {}, usedQ = {};
         for (let i = 0; i < R.length; i++) {
-          const r = R[i];
-          const key = r.l.itemId + '|' + (r.l.variantId || ''), st = E.stock(r.l.itemId, r.l.variantId), relPk = r.l.released || 0;
-          const unsold = Math.min(relPk, Math.max(0, (st.qty || 0) - (usedQ[key] || 0))), sold = relPk - unsold; usedQ[key] = (usedQ[key] || 0) + unsold;
-          if (relPk > 1e-9 && sold > 1e-9) {
-            /* v98: part of this article was ALREADY SOLD at a provisional cost. The final cost is an average over every pack released, so the sold packs must carry their share too:
-               finished goods on hand are brought to (unsold packs x final cost per pack) and the difference is charged to / credited from 5390 (job-closing variance, inside the P&L).
-               Without this, the packs still in stock would carry the whole true-up and cost of sales would be understated. */
-            const A = stockOf(id, r), D = Math.round(A * unsold / relPk), V = (st.qty || 0) > 1e-9 ? Math.round((st.value || 0) * unsold / st.qty) : 0, f = D - V, g = d[i] - f;
-            if (f > 0) ls.push({ acc: '1320', dr: f, job: id, cat: 'Costing', art: r.l.id });
-            if (f < 0) ls.push({ acc: '1320', cr: -f, job: id, cat: 'Costing', art: r.l.id });
-            if (g) { if (!E.acct('5390')) await E.ensureCoa(); ls.push(g > 0 ? { acc: '5390', dr: g, job: id, cat: 'Costing', art: r.l.id } : { acc: '5390', cr: -g, job: id, cat: 'Costing', art: r.l.id }); }
-            dS[i] = f;
-          } else if (d[i] > 0) { ls.push({ acc: '1320', dr: d[i], job: id, cat: 'Costing', art: r.l.id }); dS[i] = d[i]; }
-          else if (d[i] < 0) {
-            /* a true-down can only come out of stock that is still there; any part that is no longer in stock is released as a job-closing variance (5390) */
-            const take = Math.min(-d[i], Math.max(0, (st.value || 0) - (usedV[key] || 0))), ex = -d[i] - take; usedV[key] = (usedV[key] || 0) + take;
-            if (take) ls.push({ acc: '1320', cr: take, job: id, cat: 'Costing', art: r.l.id });
-            if (ex) { if (!E.acct('5390')) await E.ensureCoa(); ls.push({ acc: '5390', cr: ex, job: id, cat: 'Costing', art: r.l.id }); }
-            dS[i] = -take;
-          } else dS[i] = 0;
+          const r = R[i], l = r.l, key = l.itemId + '|' + (l.variantId || ''), st = E.stock(l.itemId, l.variantId);
+          /* FINAL COSTING: every pack of a line carries the same final cost (final line cost / packs released).
+             Packs released EARLIER were valued provisionally; packs that have already left stock (sold, damaged) stay in cost of sales at the value they
+             were released at, and the difference to the final cost is a job-closing variance (5390). It is NOT loaded onto the packs still on the shelf.
+             The packs still in stock are taken as the most recent ones (first in, first out). */
+          const relPk = l.released || 0, availQ = Math.max(0, (st.qty || 0) - (usedQ[key] || 0)), onHand = Math.min(relPk, availQ);
+          usedQ[key] = (usedQ[key] || 0) + onHand;
+          let toStock = d[i], toVar = 0;
+          if (relPk > 1e-9) {
+            const gone = relPk - onHand, avg = ((l.fgValue || 0) + d[i]) / relPk;
+            let need = gone, goneValue = 0;
+            E.rows('stockMoves').filter(m => m.type === 'release' && m.job === id && m.itemId === l.itemId && (m.variantId || '') === (l.variantId || '')).sort((x, y) => (x.date || '').localeCompare(y.date || '')).forEach(m => { if (need <= 1e-9 || !(m.qty > 0)) return; const t = Math.min(need, m.qty); goneValue += m.value * t / m.qty; need -= t; });
+            toStock = Math.round(onHand * avg - ((l.fgValue || 0) - goneValue)); toVar = d[i] - toStock;
+          }
+          if (toStock < 0) { /* stock can only be reduced by the value that is still there */
+            const avail = Math.max(0, (st.value || 0) - (usedV[key] || 0)), take = Math.min(-toStock, avail);
+            toVar += toStock + take; toStock = -take; usedV[key] = (usedV[key] || 0) + take;
+          }
+          if (toStock > 0) ls.push({ acc: '1320', dr: toStock, job: id, cat: 'Costing', art: l.id });
+          if (toStock < 0) ls.push({ acc: '1320', cr: -toStock, job: id, cat: 'Costing', art: l.id });
+          if (toVar !== 0) { if (!E.acct('5390')) await E.ensureCoa(); ls.push(toVar > 0 ? { acc: '5390', dr: toVar, job: id, cat: 'Costing', art: l.id } : { acc: '5390', cr: -toVar, job: id, cat: 'Costing', art: l.id }); }
+          dS[i] = toStock;
         }
         const matPart = sum - remAbs;
         if (matPart > 0) ls.push({ acc: '1310', cr: matPart, job: id, cat: 'Costing' });

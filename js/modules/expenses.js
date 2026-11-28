@@ -236,10 +236,12 @@
     const t = E.totals();
     /* old absorptions posted a credit to 5290; new ones are costing records only (kind 'absorb') */
     const costed = E.rows('costAllocations').filter(a => a.kind === 'absorb' && E.allocAlive(a)).reduce((s, a) => s + a.amount, 0);
-    /* v98: overhead already tagged straight to a job (a live ledger-backed costing record on a pool head) is already costed - it must not be offered again for sharing */
+    return poolAccts().reduce((s, a) => s + E.bal(a.code, t), 0) + E.bal('5290', t) - costed - directTagged();
+  }
+  /* overhead that was ALREADY charged to jobs one by one (tagged on the expense / wage entry) is in job cost; sharing it again at month-end would count it twice */
+  function directTagged() {
     const codes = new Set(poolAccts().map(a => a.code));
-    const direct = E.rows('costAllocations').filter(a => a.kind !== 'absorb' && a.jeId && codes.has(a.head) && E.allocAlive(a)).reduce((s, a) => s + a.amount, 0);
-    return Math.max(0, poolAccts().reduce((s, a) => s + E.bal(a.code, t), 0) + E.bal('5290', t) - costed - direct);
+    return E.rows('costAllocations').filter(a => a.kind !== 'absorb' && a.kind !== 'bommisc' && E.allocAlive(a) && codes.has(a.head)).reduce((s, a) => s + a.amount, 0);
   }
   const wip = id => E.rows('journalEntries').flatMap(j => j.lines.filter(l => l.job === id && l.acc === '1310'));
   function weights(basis, js) {
@@ -257,6 +259,7 @@
     const runs = E.rows('costRuns').sort((a, b) => b.no.localeCompare(a.no));
     return `<div class="kp">
       ${E.kpi('Pool', E.m(P.reduce((s, a) => s + E.bal(a.code, t), 0)))}
+      ${E.kpi('Already charged to jobs', E.m(directTagged()), 'tagged one by one - not shared again')}
       ${E.kpi('Shared to jobs', E.m(-E.bal('5290', t) + E.rows('costAllocations').filter(a => a.kind === 'absorb' && E.allocAlive(a)).reduce((s, a) => s + a.amount, 0)), 'costing only')}
       ${E.kpi('Unabsorbed', E.m(un), un > 0 ? '<span class="bad">Absorb</span>' : '<span class="ok">Clear</span>')}
     </div>

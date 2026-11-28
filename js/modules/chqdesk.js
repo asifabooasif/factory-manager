@@ -352,12 +352,17 @@
   };
 
   /* ── unwind (shared by bounce and cancel): every posting of this cheque is reversed, invoices/bills reopened ── */
-  async function unwind(c) {
+  async function unwind(c, u) {
+    u = u || E.undoStack();
     if (E.locked(E.today())) throw new Error('Period is locked up to ' + E.setting('lockedUntil') + ' — reversals are posted today');
-    if (c.status === 'Cleared' && c.clearJe) await rvJe(c.clearJe);
-    if (c.endorse && !c.endorse.reversed) { for (const ap of (c.endorse.applied || [])) if (!ap.reversed) { await rvJe(ap.jeId); await bump('purchases', ap.id, -ap.a); ap.reversed = true; } await rvJe(c.endorse.jeId); for (const x of c.endorse.allocs) await bump('purchases', x.id, -x.a); c.endorse.reversed = true; }
-    for (const ap of (c.applied || [])) if (!ap.reversed) { await rvJe(ap.jeId); await bump(docCol(c.dir), ap.id, -ap.a); ap.reversed = true; }
-    await rvJe(c.jeId); for (const x of (c.allocs || [])) await bump(docCol(c.dir), x.id, -x.a);
+    /* every step registers how to take itself back, so a failure part-way leaves nothing changed */
+    const rv = async id => { if (!id) return; const o = E.D.journalEntries.find(j => j.id === id); if (!o || o.reversedBy) return; const r = await E.reverse(id); u.push(() => E.unreverse(id, r.id)); };
+    const bp = async (col, id, a) => { await bump(col, id, a); u.push(() => bump(col, id, -a)); };
+    const flag = (o, k) => { const had = Object.prototype.hasOwnProperty.call(o, k); o[k] = true; u.push(() => { if (!had) delete o[k]; }); };
+    if (c.status === 'Cleared' && c.clearJe) await rv(c.clearJe);
+    if (c.endorse && !c.endorse.reversed) { for (const ap of (c.endorse.applied || [])) if (!ap.reversed) { await rv(ap.jeId); await bp('purchases', ap.id, -ap.a); flag(ap, 'reversed'); } await rv(c.endorse.jeId); for (const x of c.endorse.allocs) await bp('purchases', x.id, -x.a); flag(c.endorse, 'reversed'); }
+    for (const ap of (c.applied || [])) if (!ap.reversed) { await rv(ap.jeId); await bp(docCol(c.dir), ap.id, -ap.a); flag(ap, 'reversed'); }
+    await rv(c.jeId); for (const x of (c.allocs || [])) await bp(docCol(c.dir), x.id, -x.a);
   }
 
   /* ── bounce / returned ── */
@@ -370,14 +375,18 @@
       const c = E.D.cheques.find(x => x.id === id), d = E.val('bn_d') || E.today(), fee = E.c(E.val('bn_f')), fa = E.val('bn_a'), why = E.val('bn_r');
       if (VOID.includes(c.status)) throw new Error('Already ' + c.status.toLowerCase());
       if (fee > 0 && !fa) throw new Error('Choose the bank account the return charge was paid from');
-      const b = clone(c); await unwind(c);
-      if (fee > 0) await E.post({ date: d, ref: c.no, narr: 'Cheque return charge · ' + c.chqNo + ' · ' + pn(c.partyId), source: 'cheque', lines: [{ acc: '6140', dr: fee }, { acc: fa, cr: fee }] });
-      Object.assign(c, { status: 'Bounced', bounceDate: d, bounceReason: why, bounceFee: fee }); delete c.deposit; logIt(c, 'Returned', why + (fee ? ' · charge ' + E.m(fee) : ''));
-      await E.save('cheques', c, b); E.closeM(); E.go(); E.toast('Cheque marked returned — invoices reopened', 'success'); } catch (e) { E.toast(e.message, 'error'); }
+      const b = clone(c), u = E.undoStack();
+      try {
+        await unwind(c, u);
+        if (fee > 0) { const fj = await E.post({ date: d, ref: c.no, narr: 'Cheque return charge · ' + c.chqNo + ' · ' + pn(c.partyId), source: 'cheque', lines: [{ acc: '6140', dr: fee }, { acc: fa, cr: fee }] }); u.push(() => E.unpost ? E.unpost(fj.id) : E.reverse(fj.id)); }
+        Object.assign(c, { status: 'Bounced', bounceDate: d, bounceReason: why, bounceFee: fee }); delete c.deposit; logIt(c, 'Returned', why + (fee ? ' · charge ' + E.m(fee) : ''));
+        await E.save('cheques', c, b);
+      } catch (err) { await u.rollback(); Object.keys(c).forEach(k => delete c[k]); Object.assign(c, b); throw err; }
+      E.closeM(); E.go(); E.toast('Cheque marked returned — invoices reopened', 'success'); } catch (e) { E.toast(e.message, 'error'); }
   };
   E.A.cdCan = async id => {
     try { if (!canRev()) throw new Error('Only an Owner or Accountant can cancel a cheque'); const c = E.D.cheques.find(x => x.id === id); if (c.status !== 'Pending') throw new Error('Only a pending cheque can be cancelled');
-      if (!confirm('Cancel issued cheque ' + c.chqNo + '? The bills are reopened.')) return; const b = clone(c); await unwind(c); c.status = 'Cancelled'; logIt(c, 'Cancelled', ''); await E.save('cheques', c, b); E.go(); E.toast('Cheque cancelled', 'success'); } catch (e) { E.toast(e.message, 'error'); }
+      if (!confirm('Cancel issued cheque ' + c.chqNo + '? The bills are reopened.')) return; const b = clone(c), u = E.undoStack(); try { await unwind(c, u); c.status = 'Cancelled'; logIt(c, 'Cancelled', ''); await E.save('cheques', c, b); } catch (err) { await u.rollback(); Object.keys(c).forEach(k => delete c[k]); Object.assign(c, b); throw err; } E.go(); E.toast('Cheque cancelled', 'success'); } catch (e) { E.toast(e.message, 'error'); }
   };
 
   /* ── endorse a customer cheque to a supplier ── */

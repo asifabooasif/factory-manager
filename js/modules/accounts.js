@@ -62,9 +62,10 @@ const ccCalc=()=>{const a=E.val('cc_a')||F.cc,d=E.val('cc_d')||E.today(),counted
 function ccLive(){const e=E.$('cc_r');if(!e)return;const c=ccCalc();e.innerHTML=`Counted <b>${E.m(c.counted)}</b> &nbsp; Ledger balance <b>${E.m(c.led)}</b> &nbsp; ${c.diff===0?'<b class="ok">Balanced</b>':'<b class="bad">'+(c.diff<0?'Short ':'Over ')+E.m(Math.abs(c.diff))+'</b>'}`}
 E.A.ccPost=async()=>{try{const c=ccCalc();if(c.counted<=0)throw new Error('Enter the notes and coins counted');F.cc=c.a;F.ccd=c.d;let je='';
  if(c.diff!==0){if(!confirm((c.diff<0?'Cash SHORT by ':'Cash OVER by ')+E.m(Math.abs(c.diff))+'. Post an adjustment to Cash Over / Short?'))return;await ensure('6195','Cash Over / Short','expense');
-  const no=await E.next('CC'),j=await E.post({date:c.d,ref:no,narr:'Cash count adjustment '+(E.acct(c.a)||{}).name,source:'voucher',lines:c.diff<0?[{acc:'6195',dr:-c.diff},{acc:c.a,cr:-c.diff}]:[{acc:c.a,dr:c.diff},{acc:'6195',cr:c.diff}]});je=j.id}
- const counts={};document.querySelectorAll('.ccd').forEach(i=>{if(parseInt(i.value))counts[i.dataset.d]=parseInt(i.value)});
- await E.save('cashCounts',{date:c.d,acc:c.a,counts,counted:c.counted,ledger:c.led,diff:c.diff,jeId:je});E.go();E.toast('Count recorded','success')}catch(e){E.toast(e.message,'error')}};
+  const no=await E.next('CC');const counts={};document.querySelectorAll('.ccd').forEach(i=>{if(parseInt(i.value))counts[i.dataset.d]=parseInt(i.value)});
+  await E.postThen({date:c.d,ref:no,narr:'Cash count adjustment '+(E.acct(c.a)||{}).name,source:'voucher',lines:c.diff<0?[{acc:'6195',dr:-c.diff},{acc:c.a,cr:-c.diff}]:[{acc:c.a,dr:c.diff},{acc:'6195',cr:c.diff}]},async j=>{await E.save('cashCounts',{date:c.d,acc:c.a,counts,counted:c.counted,ledger:c.led,diff:c.diff,jeId:j.id})});je='x'}
+ if(!je){const counts={};document.querySelectorAll('.ccd').forEach(i=>{if(parseInt(i.value))counts[i.dataset.d]=parseInt(i.value)});
+ await E.save('cashCounts',{date:c.d,acc:c.a,counts,counted:c.counted,ledger:c.led,diff:c.diff,jeId:''})}E.go();E.toast('Count recorded','success')}catch(e){E.toast(e.message,'error')}};
 /* ---------- chart of accounts ---------- */
 const KINDS=[['bank','Bank account',1101,1199],['cash','Cash account (cash box / drawer)',1001,1009],['asset','Other asset',1200,1999],['liability','Liability / Loan / Credit card',2000,2999],['equity','Equity',3000,3999],['income','Income',4000,4999],['expense','Expense',5000,9999]];
 const BASE={bank:1101,cash:1001,asset:1500,liability:2300,equity:3200,income:4100,expense:6100};

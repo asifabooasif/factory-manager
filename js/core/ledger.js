@@ -24,6 +24,8 @@ E.reverse=async id=>{const o=E.D.journalEntries.find(j=>j.id===id);if(!o)throw n
  if(E.syncAbsorb&&!E._syncing)await E.syncAbsorb();return r};
 /* Post a journal entry AND save the record that belongs to it as ONE unit. If the follow-up work fails, the entry is reversed automatically,
    so a ledger entry can never be left behind without its matching record. fn(je) does the follow-up saves. */
+/* takes a reversal back completely (used only to roll back a failed multi-step action): the reversal entry is deleted and the original is open again */
+E.unreverse=async(origId,revId)=>{const o=E.D.journalEntries.find(j=>j.id===origId);if(revId)await E.del('journalEntries',revId);if(o&&o.reversedBy){delete o.reversedBy;await E.put('journalEntries',o)}};
 /* UNDO HELPERS: a multi-step change is one unit. Each step registers how to take itself back; if a later step fails, everything done so far is undone. */
 E.undoStack=()=>{const u=[];return{push:f=>u.push(f),rollback:async()=>{while(u.length){const f=u.pop();try{await f()}catch(x){console.error('rollback failed',x)}}}}};
 E.saveU=async(u,col,rec,change)=>{const b=JSON.parse(JSON.stringify(rec));change(rec);try{await E.save(col,rec,b)}catch(err){Object.keys(rec).forEach(k=>{if(!(k in b))delete rec[k]});Object.assign(rec,b);throw err}u.push(async()=>{const cur=JSON.parse(JSON.stringify(rec));Object.keys(rec).forEach(k=>{if(!(k in b))delete rec[k]});Object.assign(rec,b);await E.save(col,rec,cur)})};

@@ -13,3 +13,9 @@ and deliberately break individual steps to prove nothing is left half-done.
 
 Every line must start with PASS. Each step also checks: trial balance, all Health Check controls,
 and (at the end) every built-in check of every report in the Report Suite.
+
+## v101 additions
+- books-suite.js: runs the full November cycle, then checks every Accounting Books tab against the ledger and the P&L,
+  the CSV, the sidebar and the classic screens.
+- fix-suite.js, opening-balances.js, failure-injection.js, full-month-cycle.js: from the v98 audit.
+Run: serve the folder (python3 -m http.server 8765) then `node tests/<name>.js`.

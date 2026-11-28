@@ -251,8 +251,7 @@
       if (!confirm('Move ' + L.length + ' old delivery note(s) into Unbilled Receivable? This posts Dr 1210 / Cr 4000 for their sales value.')) return;
       if (!E.acct('1210')) await E.ensureCoa();
       for (const d of L) {
-        const je = await E.post({ date: d.date, ref: d.no, narr: 'Revenue at delivery (moved) ' + d.no, source: 'sale', lines: [{ acc: '1210', dr: d.total }, { acc: '4000', cr: d.total }] });
-        const b = JSON.parse(JSON.stringify(d)); d.unbilled = true; d.unbilledJeId = je.id; await E.save('deliveries', d, b);
+        await E.postThen({ date: d.date, ref: d.no, narr: 'Revenue at delivery (moved) ' + d.no, source: 'sale', lines: [{ acc: '1210', dr: d.total }, { acc: '4000', cr: d.total }] }, async je => { const u = E.undoStack(); await E.saveU(u, 'deliveries', d, q => { q.unbilled = true; q.unbilledJeId = je.id; }); });
       }
       E.go(); E.toast('Moved ' + L.length + ' delivery note(s)', 'success');
     } catch (e) { E.toast(e.message, 'error'); }
